@@ -21,7 +21,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "No data provided" }, { status: 400 });
     }
 
-    await redis.set("jarvis:status", JSON.stringify(data), { ex: 300 }); // 5 min TTL
+    // Read existing data and merge (incoming wins for overlapping keys)
+    const existingRaw = await redis.get<string>("jarvis:status");
+    let existing: Record<string, unknown> = {};
+    if (existingRaw) {
+      try {
+        existing = typeof existingRaw === "string" ? JSON.parse(existingRaw) : existingRaw;
+      } catch {
+        // ignore parse errors, start fresh
+      }
+    }
+    const merged = { ...existing, ...data };
+
+    await redis.set("jarvis:status", JSON.stringify(merged), { ex: 300 }); // 5 min TTL
 
     return NextResponse.json({ ok: true });
   } catch (err) {

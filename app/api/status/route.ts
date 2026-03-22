@@ -47,6 +47,15 @@ function getMockStatus() {
       },
     ],
     subagents: [],
+    business: {
+      clientCount: 75,
+      leads: {
+        enquiry: 3,
+        consulted: 2,
+        converted: 1,
+      },
+      lastUpdated: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
     pushedAt: now.toISOString(),
   };
 }

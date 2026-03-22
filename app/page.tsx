@@ -5,6 +5,17 @@ import { AgentCard } from "@/components/AgentCard";
 import { HeartbeatCard } from "@/components/HeartbeatCard";
 import { CronCard, type CronJob } from "@/components/CronCard";
 import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
+import { BusinessCard } from "@/components/BusinessCard";
+
+interface Business {
+  clientCount: number;
+  leads: {
+    enquiry: number;
+    consulted: number;
+    converted: number;
+  };
+  lastUpdated: string;
+}
 
 interface StatusData {
   agent: {
@@ -23,6 +34,7 @@ interface StatusData {
   };
   cron: CronJob[];
   subagents: SubAgent[];
+  business?: Business;
   pushedAt: string;
 }
 
@@ -169,6 +181,15 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Business Stats */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
+        <div className="col-span-1 sm:col-span-2 xl:col-span-4 group">
+          <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <BusinessCard data={data?.business ?? null} loading={loading} />
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 py-4 mt-4">
