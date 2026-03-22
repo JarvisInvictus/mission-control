@@ -5,26 +5,29 @@ export interface CronJob {
   name: string;
   schedule: string;
   scheduleLabel: string;
-  lastRun: Date | null;
-  nextRun: Date;
+  lastRun: string | null;
+  nextRun: string;
   status: "ok" | "running" | "failed" | "pending";
 }
 
 interface CronCardProps {
   jobs: CronJob[];
+  loading?: boolean;
 }
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-AU", {
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString("en-AU", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 }
 
-function formatRelative(date: Date): string {
+function formatRelative(dateStr: string): string {
+  const d = new Date(dateStr);
   const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
+  const diffMs = d.getTime() - now.getTime();
   const diffSec = Math.round(diffMs / 1000);
   if (diffSec < 0) return "overdue";
   if (diffSec < 60) return `in ${diffSec}s`;
@@ -56,7 +59,18 @@ function StatusBadge({ status }: { status: CronJob["status"] }) {
   );
 }
 
-export function CronCard({ jobs }: CronCardProps) {
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`rounded animate-pulse ${className}`}
+      style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+    />
+  );
+}
+
+export function CronCard({ jobs, loading = false }: CronCardProps) {
+  const isLoading = loading && jobs.length === 0;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
@@ -71,7 +85,7 @@ export function CronCard({ jobs }: CronCardProps) {
           className="text-xs text-text-muted"
           style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
         >
-          {jobs.length} registered
+          {isLoading ? "—" : `${jobs.length} registered`}
         </span>
       </div>
 
@@ -80,78 +94,93 @@ export function CronCard({ jobs }: CronCardProps) {
 
       {/* Job list */}
       <div className="flex flex-col gap-2">
-        {jobs.map((job) => (
-          <div
-            key={job.id}
-            className="rounded-lg p-3 transition-all duration-200 cursor-default"
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(6,182,212,0.4)";
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 12px rgba(6,182,212,0.08)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-            }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p
-                    className="text-sm font-medium text-text-primary truncate"
-                    style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
-                  >
-                    {job.name}
-                  </p>
-                  <StatusBadge status={job.status} />
+        {isLoading
+          ? [0, 1].map((i) => (
+              <div
+                key={i}
+                className="rounded-lg p-3"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                <SkeletonBlock className="h-4 w-32 mb-2" />
+                <SkeletonBlock className="h-3 w-24" />
+                <div className="flex justify-between mt-2">
+                  <SkeletonBlock className="h-3 w-16" />
+                  <SkeletonBlock className="h-3 w-16" />
                 </div>
-                <p
-                  className="text-xs"
-                  style={{ fontFamily: "var(--font-dm-sans), monospace", color: "rgba(6,182,212,0.7)" }}
-                >
-                  {job.scheduleLabel}
-                </p>
               </div>
-            </div>
+            ))
+          : jobs.map((job) => (
+              <div
+                key={job.id}
+                className="rounded-lg p-3 transition-all duration-200 cursor-default"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(6,182,212,0.4)";
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 12px rgba(6,182,212,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p
+                        className="text-sm font-medium text-text-primary truncate"
+                        style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                      >
+                        {job.name}
+                      </p>
+                      <StatusBadge status={job.status} />
+                    </div>
+                    <p
+                      className="text-xs"
+                      style={{ fontFamily: "var(--font-dm-sans), monospace", color: "rgba(6,182,212,0.7)" }}
+                    >
+                      {job.scheduleLabel}
+                    </p>
+                  </div>
+                </div>
 
-            <div
-              className="flex justify-between mt-2 text-xs"
-              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
-            >
-              <div className="flex flex-col">
-                <span
-                  className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
-                  style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+                <div
+                  className="flex justify-between mt-2 text-xs"
+                  style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
                 >
-                  Last run
-                </span>
-                <span
-                  className="font-mono text-text-secondary"
-                  style={{ fontFamily: "var(--font-dm-sans), monospace" }}
-                >
-                  {job.lastRun ? formatTime(job.lastRun) : "—"}
-                </span>
+                  <div className="flex flex-col">
+                    <span
+                      className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
+                      style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+                    >
+                      Last run
+                    </span>
+                    <span
+                      className="font-mono text-text-secondary"
+                      style={{ fontFamily: "var(--font-dm-sans), monospace" }}
+                    >
+                      {job.lastRun ? formatTime(job.lastRun) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span
+                      className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
+                      style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+                    >
+                      Next run
+                    </span>
+                    <span
+                      className="font-mono text-text-secondary"
+                      style={{ fontFamily: "var(--font-dm-sans), monospace" }}
+                    >
+                      {job.nextRun ? formatRelative(job.nextRun) : "—"}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col text-right">
-                <span
-                  className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
-                  style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
-                >
-                  Next run
-                </span>
-                <span
-                  className="font-mono text-text-secondary"
-                  style={{ fontFamily: "var(--font-dm-sans), monospace" }}
-                >
-                  {formatRelative(job.nextRun)}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
+            ))}
       </div>
     </div>
   );

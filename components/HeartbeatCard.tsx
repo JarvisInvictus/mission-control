@@ -1,18 +1,25 @@
 "use client";
 
 interface HeartbeatData {
-  lastHeartbeat: Date;
-  nextHeartbeat: Date;
+  lastHeartbeat: Date | string;
+  nextHeartbeat: Date | string;
   status: "ok" | "alert";
   intervalMinutes: number;
 }
 
 interface HeartbeatCardProps {
-  data: HeartbeatData;
+  data: {
+    lastRun: string;
+    nextRun: string;
+    status: "ok" | "alert";
+    intervalMinutes: number;
+  } | null;
+  loading?: boolean;
 }
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-AU", {
+function formatTime(dateStr: string | Date): string {
+  const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+  return d.toLocaleTimeString("en-AU", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -20,9 +27,10 @@ function formatTime(date: Date): string {
   });
 }
 
-function formatRelative(date: Date): string {
+function formatRelative(dateStr: string | Date): string {
+  const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
   const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
+  const diffMs = d.getTime() - now.getTime();
   const diffSec = Math.round(diffMs / 1000);
   if (diffSec < 0) return "overdue";
   if (diffSec < 60) return `in ${diffSec}s`;
@@ -31,9 +39,38 @@ function formatRelative(date: Date): string {
   return `in ${Math.round(diffMin / 60)}h`;
 }
 
-export function HeartbeatCard({ data }: HeartbeatCardProps) {
-  const { lastHeartbeat, nextHeartbeat, status, intervalMinutes } = data;
-  const isAlert = status === "alert";
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`rounded animate-pulse ${className}`}
+      style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+    />
+  );
+}
+
+export function HeartbeatCard({ data, loading = false }: HeartbeatCardProps) {
+  const isAlert = data?.status === "alert";
+
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <SkeletonBlock className="h-3 w-28" />
+          <SkeletonBlock className="h-5 w-12" />
+        </div>
+        <SkeletonBlock className="h-8 w-full" />
+        <SkeletonBlock className="h-px w-full" />
+        <div className="grid grid-cols-2 gap-3">
+          <SkeletonBlock className="h-14" />
+          <SkeletonBlock className="h-14" />
+        </div>
+        <SkeletonBlock className="h-4 w-full" />
+      </div>
+    );
+  }
+
+  const lastHeartbeat = data?.lastRun ? new Date(data.lastRun) : new Date();
+  const nextHeartbeat = data?.nextRun ? new Date(data.nextRun) : new Date(Date.now() + 30 * 60 * 1000);
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,7 +165,7 @@ export function HeartbeatCard({ data }: HeartbeatCardProps) {
       <div>
         <div className="flex justify-between text-xs text-text-muted mb-1.5">
           <span>Poll interval</span>
-          <span className="text-text-secondary">{intervalMinutes}m</span>
+          <span className="text-text-secondary">{data?.intervalMinutes ?? 30}m</span>
         </div>
         <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
           <div
