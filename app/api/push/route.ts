@@ -11,8 +11,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { secret, data } = body;
 
-    if (!secret || secret !== process.env.PUSH_SECRET) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const expectedSecret = (process.env.PUSH_SECRET ?? "").trim();
+    const receivedSecret = (secret ?? "").trim();
+    if (!receivedSecret || receivedSecret !== expectedSecret) {
+      return NextResponse.json({ ok: false, error: "Unauthorized", debug: { hasEnv: !!process.env.PUSH_SECRET, envLen: expectedSecret.length } }, { status: 401 });
     }
 
     if (!data) {
