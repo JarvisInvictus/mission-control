@@ -601,7 +601,7 @@ export function FinanceTab() {
           </div>
 
           {[
-            { label: "Remaining for food + lifestyle", value: "~$9,702/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Remaining for food + lifestyle", value: "~$9,702/mo ($2,240/week)", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Savings target", value: "$2,000/week = $8,666/mo", color: "var(--accent)", bold: false },
             { label: "Max food + lifestyle budget to hit target", value: "$1,036/mo ($239/week)", color: "var(--status-yellow)", bold: false },
           ].map(({ label, value, color, bold }) => (
