@@ -9,6 +9,7 @@ import { execSync } from "child_process";
 
 const SESSIONS_FILE = "/Users/jarvisbot/.openclaw/agents/main/sessions/sessions.json";
 const CONFIG_FILE = "/Users/jarvisbot/.openclaw/openclaw.json";
+const BUSINESS_FILE = "/Users/jarvisbot/.openclaw/workspace/mission-control/data/business.json";
 const OPENCLAW_BIN = "/opt/homebrew/bin/openclaw";
 const GATEWAY_URL = "http://127.0.0.1:18789";
 
@@ -160,7 +161,10 @@ function buildPayload() {
   // Subagents
   const subagents = getSubagents(sessions);
 
+  const business = readJsonFile(BUSINESS_FILE);
+
   return {
+    business: business || undefined,
     agent: {
       name: "Jarvis",
       status: agentStatus,
