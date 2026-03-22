@@ -6,6 +6,7 @@ import { HeartbeatCard } from "@/components/HeartbeatCard";
 import { CronCard, type CronJob } from "@/components/CronCard";
 import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
+import { FinanceTab } from "@/components/FinanceTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ interface Client {
   notes?: string;
 }
 
-type Tab = "agents" | "clients";
+type Tab = "agents" | "clients" | "finance";
 
 // ─── Status hook ─────────────────────────────────────────────────────────────
 
@@ -182,7 +183,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
           className="text-[11px] tracking-[0.15em] uppercase"
           style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
-          {activeTab === "agents" ? "Agents" : "Clients"}
+          {activeTab === "agents" ? "Agents" : activeTab === "clients" ? "Clients" : "Finance"}
         </span>
       </div>
     </header>
@@ -205,6 +206,7 @@ function Sidebar({
   const navItems: { id: Tab; label: string }[] = [
     { id: "agents", label: "Agents" },
     { id: "clients", label: "Clients" },
+    { id: "finance", label: "Finance" },
   ];
 
   return (
@@ -776,7 +778,7 @@ export default function Home() {
             </svg>
           </button>
 
-          {activeTab === "agents" ? <AgentsTab /> : <ClientsTab />}
+          {activeTab === "agents" ? <AgentsTab /> : activeTab === "clients" ? <ClientsTab /> : <FinanceTab />}
         </main>
       </div>
     </div>
