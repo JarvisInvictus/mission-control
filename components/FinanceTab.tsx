@@ -27,13 +27,12 @@ function fmt(n: number) {
 }
 
 function toDate(dateStr: string): Date {
-  // handle "~25 Mar 2026" or "20 Apr 2026"
   const cleaned = dateStr.replace("~", "").trim();
   return new Date(cleaned + " 2026");
 }
 
 function isWithin7Days(date: Date): boolean {
-  const now = new Date("2026-03-22"); // reference date
+  const now = new Date("2026-03-22");
   const diff = (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   return diff >= 0 && diff <= 7;
 }
@@ -130,6 +129,60 @@ const businessTotal = businessDD.reduce((sum, d) => sum + d.amount, 0);
 const activeSubTotal = subscriptions.filter((s) => s.status !== "CANCELLED").reduce((sum, s) => sum + s.cost, 0);
 const cancelledSubTotal = subscriptions.filter((s) => s.status === "CANCELLED").reduce((sum, s) => sum + s.cost, 0);
 const reviewItems = subscriptions.filter((s) => s.status === "REVIEW");
+
+// ─── Actions Required Data ────────────────────────────────────────────────────
+
+interface ActionItem {
+  id: number;
+  name: string;
+  hint: string;
+  category: string;
+}
+
+const actionItems: ActionItem[] = [
+  {
+    id: 1,
+    name: "Cancel or downgrade Squarespace",
+    hint: "You have a Komi link-in-bio. Do you need both? ($44/mo)",
+    category: "Website",
+  },
+  {
+    id: 2,
+    name: "Review Komi App subscription",
+    hint: "Confirm this is actively used for Instagram bio link ($25/mo)",
+    category: "Link-in-bio",
+  },
+  {
+    id: 3,
+    name: "Cancel Cronometer Pro",
+    hint: "$129.65/mo — does Kahunas cover nutrition tracking for clients?",
+    category: "Client Nutrition",
+  },
+  {
+    id: 4,
+    name: "Review Optus bill",
+    hint: "$228.61/mo is high. Call Optus to review plan or switch providers.",
+    category: "Phone",
+  },
+  {
+    id: 5,
+    name: "Identify Forward Moves payments",
+    hint: "$70/mo direct debit — confirm what this is for before next billing.",
+    category: "Unknown",
+  },
+  {
+    id: 6,
+    name: "Cancel Raidbots (gaming tool)",
+    hint: "Personal gaming subscription on business account. Cancel tonight.",
+    category: "Personal",
+  },
+  {
+    id: 7,
+    name: "Cancel Twitch subscription",
+    hint: "Personal streaming on business account. Cancel tonight.",
+    category: "Personal",
+  },
+];
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -305,9 +358,166 @@ function DirectDebitTable({ items, total }: { items: DirectDebit[]; total: numbe
 
 export function FinanceTab() {
   const [reviewOpen, setReviewOpen] = useState<string | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [checkedActions, setCheckedActions] = useState<Set<number>>(new Set());
+
+  const cancelledSubs = subscriptions.filter((s) => s.status === "CANCELLED");
+  const activeSubs = subscriptions.filter((s) => s.status !== "CANCELLED");
+  const cancelledCount = cancelledSubs.length;
+
+  const visibleSubscriptions = showCancelled ? subscriptions : activeSubs;
+
+  const checkedCount = checkedActions.size;
+  const allChecked = checkedCount === actionItems.length;
+
+  function toggleAction(id: number) {
+    setCheckedActions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   return (
     <div>
+      {/* Actions Required — FIRST section */}
+      <div className="liquid-glass p-5 mb-6">
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "16px",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              color: "rgba(255,255,255,0.50)",
+            }}
+          >
+            ACTIONS REQUIRED
+          </h3>
+          <span
+            style={{
+              fontSize: "11px",
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              color: allChecked ? "#34d399" : "rgba(255,255,255,0.35)",
+            }}
+          >
+            {allChecked ? "All clear" : `${checkedCount} of ${actionItems.length} actioned`}
+          </span>
+        </div>
+
+        {/* Checklist */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {actionItems.map((item) => {
+            const isChecked = checkedActions.has(item.id);
+            return (
+              <div
+                key={item.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "3px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  {/* Checkbox */}
+                  <div
+                    onClick={() => toggleAction(item.id)}
+                    style={{
+                      width: "14px",
+                      height: "14px",
+                      minWidth: "14px",
+                      borderRadius: "3px",
+                      border: "1.5px solid rgba(255,255,255,0.25)",
+                      background: isChecked ? "var(--accent)" : "transparent",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: "2px",
+                      transition: "background 0.15s, border-color 0.15s",
+                    }}
+                  >
+                    {isChecked && (
+                      <span
+                        style={{
+                          color: "#fff",
+                          fontSize: "10px",
+                          lineHeight: 1,
+                          fontFamily: "system-ui, -apple-system, sans-serif",
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Item text */}
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontFamily: "system-ui, -apple-system, sans-serif",
+                      color: isChecked ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.80)",
+                      textDecoration: isChecked ? "line-through" : "none",
+                      transition: "color 0.15s, text-decoration 0.15s",
+                      flex: 1,
+                      paddingTop: "1px",
+                    }}
+                  >
+                    {item.name}
+                  </span>
+
+                  {/* Category tag */}
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                      fontFamily: "system-ui, -apple-system, sans-serif",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "rgba(255,255,255,0.35)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {item.category}
+                  </span>
+                </div>
+
+                {/* Why hint */}
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                    color: "rgba(255,255,255,0.40)",
+                    paddingLeft: "24px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {item.hint}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Section A: Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
@@ -422,7 +632,7 @@ export function FinanceTab() {
               </tr>
             </thead>
             <tbody>
-              {subscriptions.map((sub, i) => (
+              {visibleSubscriptions.map((sub, i) => (
                 <tr
                   key={i}
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
@@ -490,10 +700,30 @@ export function FinanceTab() {
           </table>
         </div>
 
+        {/* Cancelled toggle */}
+        <button
+          onClick={() => setShowCancelled((prev) => !prev)}
+          style={{
+            marginTop: "12px",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "11px",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            color: "rgba(255,255,255,0.35)",
+            padding: "4px 0",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)")}
+        >
+          {showCancelled ? "Hide cancelled" : `Show cancelled (${cancelledCount})`}
+        </button>
+
         {/* Summary line */}
         <p
           style={{
-            marginTop: "14px",
+            marginTop: "8px",
             paddingTop: "12px",
             borderTop: "1px solid rgba(255,255,255,0.06)",
             fontSize: "11px",
