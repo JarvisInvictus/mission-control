@@ -68,22 +68,21 @@ export function BusinessCard({ data, loading = false }: BusinessCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <span
-          className="text-xs text-text-muted uppercase tracking-[0.2em]"
-          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+          className="text-[10px] uppercase tracking-[0.15em]"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}
         >
           Business Stats
         </span>
         <div
           className="h-px flex-1 mx-4"
           style={{
-            background:
-              "linear-gradient(90deg, rgba(6,182,212,0.3) 0%, rgba(6,182,212,0.05) 100%)",
+            background: "linear-gradient(90deg, rgba(59,130,246,0.30) 0%, rgba(59,130,246,0.05) 100%)",
           }}
         />
         {effectiveData.lastUpdated && (
           <span
-            className="text-xs text-text-muted"
-            style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            className="text-[11px]"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
           >
             {relativeTime(effectiveData.lastUpdated)}
           </span>
@@ -95,23 +94,23 @@ export function BusinessCard({ data, loading = false }: BusinessCardProps) {
         {/* Client Count */}
         <div className="flex flex-col gap-1">
           <span
-            className="text-xs text-text-muted uppercase tracking-wider"
+            className="text-[10px] uppercase tracking-[0.15em]"
             style={{
-              fontFamily: "var(--font-bebas-neue), sans-serif",
-              letterSpacing: "0.1em",
+              fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+              color: "rgba(255,255,255,0.35)",
             }}
           >
             Client Count
           </span>
           <span
-            className="text-5xl text-accent tabular-nums"
-            style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+            className="text-5xl font-semibold tabular-nums"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
           >
             {effectiveData.clientCount}
           </span>
           <span
-            className="text-xs text-text-secondary"
-            style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            className="text-[11px]"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.50)" }}
           >
             Active Clients
           </span>
@@ -126,10 +125,10 @@ export function BusinessCard({ data, loading = false }: BusinessCardProps) {
         {/* Lead Pipeline */}
         <div className="col-span-1 sm:col-span-2 flex flex-col gap-3">
           <span
-            className="text-xs text-text-muted uppercase tracking-wider"
+            className="text-[10px] uppercase tracking-[0.15em]"
             style={{
-              fontFamily: "var(--font-bebas-neue), sans-serif",
-              letterSpacing: "0.1em",
+              fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+              color: "rgba(255,255,255,0.35)",
             }}
           >
             Lead Pipeline
@@ -142,23 +141,23 @@ export function BusinessCard({ data, loading = false }: BusinessCardProps) {
             ].map(({ label, value }) => (
               <div
                 key={label}
-                className="flex flex-col items-center p-3 rounded"
+                className="flex flex-col items-center p-3 rounded-[10px]"
                 style={{
                   backgroundColor: "rgba(255,255,255,0.03)",
                   border: "1px solid rgba(255,255,255,0.06)",
                 }}
               >
                 <span
-                  className="text-3xl text-text-primary"
-                  style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                  className="text-3xl font-semibold"
+                  style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.90)" }}
                 >
                   {value}
                 </span>
                 <span
-                  className="text-[10px] text-text-muted uppercase tracking-wider mt-1"
+                  className="text-[10px] uppercase tracking-[0.1em] mt-1"
                   style={{
-                    fontFamily: "var(--font-bebas-neue), sans-serif",
-                    letterSpacing: "0.1em",
+                    fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                    color: "rgba(255,255,255,0.35)",
                   }}
                 >
                   {label}

@@ -59,7 +59,7 @@ export function HeartbeatCard({ data, loading = false }: HeartbeatCardProps) {
           <SkeletonBlock className="h-5 w-12" />
         </div>
         <SkeletonBlock className="h-8 w-full" />
-        <SkeletonBlock className="h-px w-full" />
+        <div className="h-px w-full" style={{ backgroundColor: "rgba(255,255,255,0.06)" }} />
         <div className="grid grid-cols-2 gap-3">
           <SkeletonBlock className="h-14" />
           <SkeletonBlock className="h-14" />
@@ -77,18 +77,18 @@ export function HeartbeatCard({ data, loading = false }: HeartbeatCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <span
-          className="text-xs text-text-muted uppercase tracking-[0.2em]"
-          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+          className="text-[10px] uppercase tracking-[0.15em]"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}
         >
           Heartbeat Monitor
         </span>
         <span
-          className="text-xs px-2 py-0.5 rounded"
+          className="text-[10px] px-2 py-0.5 rounded-[999px]"
           style={{
-            fontFamily: "var(--font-bebas-neue), sans-serif",
-            letterSpacing: "0.1em",
-            backgroundColor: isAlert ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
-            color: isAlert ? "#ef4444" : "#22c55e",
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            letterSpacing: "0.08em",
+            backgroundColor: isAlert ? "rgba(248,113,113,0.15)" : "rgba(52,211,153,0.15)",
+            color: isAlert ? "#f87171" : "#34d399",
           }}
         >
           {isAlert ? "ALERT" : "OK"}
@@ -102,60 +102,59 @@ export function HeartbeatCard({ data, loading = false }: HeartbeatCardProps) {
           style={
             isAlert
               ? {
-                  backgroundColor: "#ef4444",
-                  boxShadow: "0 0 12px rgba(239,68,68,0.7)",
-                  animation: "pulse 1.5s infinite",
+                  backgroundColor: "#f87171",
+                  boxShadow: "0 0 12px rgba(248,113,113,0.7)",
                 }
               : {
-                  backgroundColor: "#06b6d4",
-                  boxShadow: "0 0 12px rgba(6,182,212,0.6)",
+                  backgroundColor: "#3b82f6",
+                  boxShadow: "0 0 12px rgba(59,130,246,0.6)",
                 }
           }
         />
         <p
           className="text-sm font-medium"
-          style={{ color: isAlert ? "#ef4444" : "#06b6d4" }}
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: isAlert ? "#f87171" : "#3b82f6" }}
         >
           {isAlert ? "Connection lost — re-establishing..." : "Gateway is alive"}
         </p>
       </div>
 
-      {/* Cyan accent line */}
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #06b6d4 0%, rgba(6,182,212,0.1) 100%)" }} />
+      {/* Blue accent line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0.1) 100%)" }} />
 
       {/* Timestamps */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <p
-            className="text-xs text-text-muted uppercase tracking-wider mb-1"
-            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+            className="text-[10px] uppercase tracking-[0.15em] mb-1"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
           >
             Last heartbeat
           </p>
           <p
             className="text-sm"
-            style={{ fontFamily: "var(--font-dm-sans), monospace", color: "#f5f5f5" }}
+            style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.90)" }}
           >
             {formatTime(lastHeartbeat)}
           </p>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px", marginTop: "2px" }}>
             {formatRelative(lastHeartbeat)} ago
           </p>
         </div>
         <div>
           <p
-            className="text-xs text-text-muted uppercase tracking-wider mb-1"
-            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+            className="text-[10px] uppercase tracking-[0.15em] mb-1"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
           >
             Next scheduled
           </p>
           <p
             className="text-sm"
-            style={{ fontFamily: "var(--font-dm-sans), monospace", color: "#f5f5f5" }}
+            style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.90)" }}
           >
             {formatTime(nextHeartbeat)}
           </p>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px", marginTop: "2px" }}>
             {formatRelative(nextHeartbeat)}
           </p>
         </div>
@@ -163,14 +162,14 @@ export function HeartbeatCard({ data, loading = false }: HeartbeatCardProps) {
 
       {/* Interval bar */}
       <div>
-        <div className="flex justify-between text-xs text-text-muted mb-1.5">
-          <span>Poll interval</span>
-          <span className="text-text-secondary">{data?.intervalMinutes ?? 30}m</span>
+        <div className="flex justify-between text-[11px] mb-1.5">
+          <span style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}>Poll interval</span>
+          <span style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>{data?.intervalMinutes ?? 30}m</span>
         </div>
         <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
           <div
             className="h-full rounded-full"
-            style={{ width: "35%", background: "linear-gradient(90deg, #06b6d4, rgba(6,182,212,0.4))" }}
+            style={{ width: "35%", background: "linear-gradient(90deg, #3b82f6, rgba(59,130,246,0.4))" }}
           />
         </div>
       </div>

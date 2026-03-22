@@ -38,18 +38,18 @@ function formatRelative(dateStr: string): string {
 
 function StatusBadge({ status }: { status: CronJob["status"] }) {
   const config = {
-    ok: { bg: "rgba(34,197,94,0.1)", color: "#22c55e" },
-    running: { bg: "rgba(6,182,212,0.1)", color: "#06b6d4" },
-    failed: { bg: "rgba(239,68,68,0.1)", color: "#ef4444" },
-    pending: { bg: "rgba(234,179,8,0.1)", color: "#eab308" },
+    ok: { bg: "rgba(52,211,153,0.15)", color: "#34d399" },
+    running: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6" },
+    failed: { bg: "rgba(248,113,113,0.15)", color: "#f87171" },
+    pending: { bg: "rgba(251,191,36,0.15)", color: "#fbbf24" },
   };
   const c = config[status];
   return (
     <span
-      className="text-xs px-1.5 py-0.5 rounded"
+      className="text-[10px] px-1.5 py-0.5 rounded-[999px]"
       style={{
-        fontFamily: "var(--font-bebas-neue), sans-serif",
-        letterSpacing: "0.08em",
+        fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+        letterSpacing: "0.06em",
         backgroundColor: c.bg,
         color: c.color,
       }}
@@ -76,21 +76,21 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <span
-          className="text-xs text-text-muted uppercase tracking-[0.2em]"
-          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+          className="text-[10px] uppercase tracking-[0.15em]"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}
         >
           Cron Jobs
         </span>
         <span
-          className="text-xs text-text-muted"
-          style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+          className="text-[11px]"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
           {isLoading ? "—" : `${jobs.length} registered`}
         </span>
       </div>
 
-      {/* Cyan accent line */}
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #06b6d4 0%, rgba(6,182,212,0.1) 100%)" }} />
+      {/* Blue accent line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0.1) 100%)" }} />
 
       {/* Job list */}
       <div className="flex flex-col gap-2">
@@ -98,7 +98,7 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
           ? [0, 1].map((i) => (
               <div
                 key={i}
-                className="rounded-lg p-3"
+                className="rounded-[10px] p-3"
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
               >
                 <SkeletonBlock className="h-4 w-32 mb-2" />
@@ -112,14 +112,14 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
           : jobs.map((job) => (
               <div
                 key={job.id}
-                className="rounded-lg p-3 transition-all duration-200 cursor-default"
+                className="rounded-[10px] p-3 transition-all duration-200 cursor-default"
                 style={{
                   background: "rgba(255,255,255,0.03)",
                   border: "1px solid rgba(255,255,255,0.06)",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(6,182,212,0.4)";
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 12px rgba(6,182,212,0.08)";
+                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(59,130,246,0.35)";
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 12px rgba(59,130,246,0.08)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
@@ -130,16 +130,16 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
                   <div className="flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p
-                        className="text-sm font-medium text-text-primary truncate"
-                        style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                        className="text-sm font-medium truncate"
+                        style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.90)" }}
                       >
                         {job.name}
                       </p>
                       <StatusBadge status={job.status} />
                     </div>
                     <p
-                      className="text-xs"
-                      style={{ fontFamily: "var(--font-dm-sans), monospace", color: "rgba(6,182,212,0.7)" }}
+                      className="text-[11px]"
+                      style={{ fontFamily: "system-ui, monospace", color: "rgba(59,130,246,0.70)" }}
                     >
                       {job.scheduleLabel}
                     </p>
@@ -147,33 +147,31 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
                 </div>
 
                 <div
-                  className="flex justify-between mt-2 text-xs"
-                  style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                  className="flex justify-between mt-2 text-[11px]"
+                  style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
                 >
                   <div className="flex flex-col">
                     <span
-                      className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
-                      style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+                      className="uppercase tracking-[0.1em] text-[10px] mb-0.5"
+                      style={{ color: "rgba(255,255,255,0.30)" }}
                     >
                       Last run
                     </span>
                     <span
-                      className="font-mono text-text-secondary"
-                      style={{ fontFamily: "var(--font-dm-sans), monospace" }}
+                      style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.60)" }}
                     >
                       {job.lastRun ? formatTime(job.lastRun) : "—"}
                     </span>
                   </div>
                   <div className="flex flex-col text-right">
                     <span
-                      className="uppercase tracking-wider text-[10px] mb-0.5 text-text-muted"
-                      style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+                      className="uppercase tracking-[0.1em] text-[10px] mb-0.5"
+                      style={{ color: "rgba(255,255,255,0.30)" }}
                     >
                       Next run
                     </span>
                     <span
-                      className="font-mono text-text-secondary"
-                      style={{ fontFamily: "var(--font-dm-sans), monospace" }}
+                      style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.60)" }}
                     >
                       {job.nextRun ? formatRelative(job.nextRun) : "—"}
                     </span>

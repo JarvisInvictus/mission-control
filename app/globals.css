@@ -1,99 +1,159 @@
 @import "tailwindcss";
 
 :root {
-  --bg-base: #080808;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-hover: rgba(255, 255, 255, 0.07);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(6, 182, 212, 0.4);
-  --accent: #06b6d4;
-  --accent-dim: rgba(6, 182, 212, 0.15);
-  --text-primary: #f5f5f5;
-  --text-secondary: #a3a3a3;
-  --text-muted: #525252;
-  --status-green: #22c55e;
-  --status-yellow: #eab308;
-  --status-red: #ef4444;
+  /* Background — deep gradient mesh */
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #0d1220;
+
+  /* Glass surfaces */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-hover: rgba(255, 255, 255, 0.09);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-bright: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  /* Text */
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.60);
+  --text-muted: rgba(255, 255, 255, 0.35);
+
+  /* Accent — blue like Apple system blue */
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.3);
+  --accent-soft: rgba(59, 130, 246, 0.15);
+
+  /* Status */
+  --status-green: #34d399;
+  --status-yellow: #fbbf24;
+  --status-red: #f87171;
 }
 
 @theme inline {
-  --color-bg-base: var(--bg-base);
-  --color-bg-card: var(--bg-card);
-  --color-bg-card-hover: var(--bg-card-hover);
-  --color-border: var(--border);
-  --color-border-hover: var(--border-hover);
+  --color-bg-base: var(--bg-primary);
+  --color-bg-card: var(--glass-bg);
+  --color-bg-card-hover: var(--glass-bg-hover);
+  --color-border: var(--glass-border);
+  --color-border-hover: var(--glass-border-bright);
   --color-accent: var(--accent);
-  --color-accent-dim: var(--accent-dim);
+  --color-accent-dim: var(--accent-soft);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-status-green: var(--status-green);
   --color-status-yellow: var(--status-yellow);
   --color-status-red: var(--status-red);
-  --font-display: var(--font-bebas-neue);
-  --font-sans: var(--font-dm-sans);
-  --font-mono: var(--font-dm-sans);
+  --font-sans: system-ui, -apple-system, 'Inter', sans-serif;
+  --font-mono: system-ui, monospace;
 }
 
-/* Glass card utility */
-.glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* ── Liquid Glass Utility ──────────────────────────────────────────────── */
+
+.liquid-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-top-color: var(--glass-border-bright);
+  border-left-color: var(--glass-border-bright);
   border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.2s ease;
 }
 
-/* Cyan glow utility */
-.glow-cyan {
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+.liquid-glass:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(255, 255, 255, 0.30);
+  box-shadow: var(--glass-shadow-lg);
+  transform: translateY(-1px);
 }
 
-/* Cyan glow on hover */
-.glow-cyan-hover:hover {
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
-  border-color: rgba(6, 182, 212, 0.3);
+.liquid-glass-sidebar {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Cyan pulse animation */
-@keyframes cyan-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
-  }
+.liquid-glass-header {
+  background: rgba(10, 14, 26, 0.7);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.pulse-cyan {
-  animation: cyan-pulse 2s infinite;
+/* ── Status Pills ──────────────────────────────────────────────────────── */
+
+.status-pill-active {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.status-pill-paused {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.status-pill-completed {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255,255,255,0.4);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 500;
 }
 
-/* Bebas Neue display headings */
-.font-display {
-  font-family: var(--font-bebas-neue), sans-serif;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
+/* ── Body ───────────────────────────────────────────────────────────────── */
 
 body {
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  background: #0a0e1a;
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(16, 24, 64, 0.8) 0%, transparent 70%);
   min-height: 100vh;
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, 'Inter', sans-serif;
 }
 
-/* Scrollbar */
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+
 ::-webkit-scrollbar {
   width: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-base);
+  background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.3);
+  background: rgba(59, 130, 246, 0.3);
+}
+
+/* ── Blue pulse animation ──────────────────────────────────────────────── */
+
+@keyframes blue-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+.pulse-blue {
+  animation: blue-pulse 2s infinite;
 }

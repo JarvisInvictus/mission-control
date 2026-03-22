@@ -139,27 +139,48 @@ function useClients() {
 
 function Header({ activeTab }: { activeTab: Tab }) {
   return (
-    <header className="border-b border-white/5 bg-white/3 backdrop-blur-md sticky top-0 z-20">
+    <header className="liquid-glass-header sticky top-0 z-20">
       <div className="flex items-center justify-between px-4 sm:px-6 py-4">
         <div>
           <h1
-            className="text-2xl tracking-widest"
-            style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+            className="text-[1.1rem] tracking-[0.1em] font-bold"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
           >
-            <span className="text-accent">JARVIS</span>
-            <span className="text-text-muted mx-3">//</span>
-            <span className="text-text-primary">MISSION CONTROL</span>
+            <span style={{ color: "rgba(255,255,255,0.92)" }}>JARVIS</span>
+            <span style={{ color: "rgba(255,255,255,0.40)", margin: "0 0.6rem" }}>//</span>
+            <span style={{ color: "rgba(255,255,255,0.40)" }}>MISSION CONTROL</span>
           </h1>
           <p
-            className="text-xs mt-1 text-text-secondary tracking-wide"
-            style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            className="text-[11px] mt-1 tracking-wide"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
           >
-            Invictus Physiques AI Stack
+            Invictus Physiques · Operations
           </p>
         </div>
+
+        {/* Live indicator */}
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span
+              className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+              style={{ backgroundColor: "#3b82f6", opacity: 0.4 }}
+            />
+            <span
+              className="relative inline-flex rounded-full h-2 w-2"
+              style={{ backgroundColor: "#3b82f6" }}
+            />
+          </span>
+          <span
+            className="text-[11px] tracking-[0.15em] uppercase"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
+          >
+            Live
+          </span>
+        </div>
+
         <span
-          className="text-xs text-text-muted uppercase tracking-widest"
-          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+          className="text-[11px] tracking-[0.15em] uppercase"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
           {activeTab === "agents" ? "Agents" : "Clients"}
         </span>
@@ -191,7 +212,8 @@ function Sidebar({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-20 lg:hidden"
+          className="fixed inset-0 z-20 lg:hidden"
+          style={{ background: "rgba(0,0,0,0.5)" }}
           onClick={onClose}
         />
       )}
@@ -201,7 +223,7 @@ function Sidebar({
         className={`
           fixed top-0 left-0 h-full z-30 flex flex-col
           transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto
-          w-[200px] bg-white/[0.03] border-r border-white/5
+          w-[220px] liquid-glass-sidebar
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
@@ -214,18 +236,27 @@ function Sidebar({
                 onClose();
               }}
               className={`
-                w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200
-                ${
-                  activeTab === item.id
-                    ? "text-text-primary border-l-2 border-accent bg-white/[0.05] pl-[10px]"
-                    : "text-text-muted hover:text-text-secondary hover:bg-white/[0.03]"
+                w-full text-left px-3 py-2.5 rounded-[10px] text-sm transition-all duration-200
+                ${activeTab === item.id
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(255,255,255,0.04)]"
                 }
               `}
-              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
             >
               {item.label}
             </button>
           ))}
+
+          {/* Brand label */}
+          <div className="mt-auto pt-4">
+            <p
+              className="text-[9px] uppercase tracking-[0.2em]"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.20)" }}
+            >
+              Invictus Physiques
+            </p>
+          </div>
         </div>
       </aside>
     </>
@@ -249,10 +280,10 @@ function AgentsTab() {
       <div className="flex items-center gap-3 mb-6">
         {isStale || error ? (
           <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#ef4444" }} />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#f87171" }} />
             <span
-              className="text-xs tracking-[0.2em] uppercase"
-              style={{ fontFamily: "var(--font-bebas-neue), sans-serif", color: "#ef4444" }}
+              className="text-[11px] tracking-[0.15em] uppercase font-semibold"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171" }}
             >
               Stale
             </span>
@@ -262,16 +293,16 @@ function AgentsTab() {
             <span className="relative flex h-2 w-2">
               <span
                 className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-                style={{ backgroundColor: "#06b6d4", opacity: 0.4 }}
+                style={{ backgroundColor: "#3b82f6", opacity: 0.4 }}
               />
               <span
                 className="relative inline-flex rounded-full h-2 w-2"
-                style={{ backgroundColor: "#06b6d4" }}
+                style={{ backgroundColor: "#3b82f6" }}
               />
             </span>
             <span
-              className="text-xs tracking-[0.2em] text-accent uppercase"
-              style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+              className="text-[11px] tracking-[0.15em] uppercase font-semibold"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
             >
               Live
             </span>
@@ -279,8 +310,8 @@ function AgentsTab() {
         )}
         {secondsAgo !== null && (
           <span
-            className="text-xs text-text-muted"
-            style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            className="text-[11px]"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
           >
             {secondsAgo}s ago
           </span>
@@ -296,7 +327,7 @@ function AgentsTab() {
           { card: <SubagentCard agents={data?.subagents ?? []} loading={loading} />, col: "xl:col-span-1" },
         ].map(({ card, col }, i) => (
           <div key={i} className={`group ${col}`}>
-            <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <div className="liquid-glass p-5 flex flex-col gap-4">
               {card}
             </div>
           </div>
@@ -305,7 +336,7 @@ function AgentsTab() {
 
       {/* Business stats */}
       <section className="mt-4 group">
-        <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+        <div className="liquid-glass p-5 flex flex-col gap-4">
           <BusinessCard data={data?.business ?? null} loading={loading} />
         </div>
       </section>
@@ -313,8 +344,8 @@ function AgentsTab() {
       {/* Footer */}
       <footer className="py-4 mt-4">
         <p
-          className="text-xs text-text-muted tracking-wide"
-          style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+          className="text-[11px]"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
           Last refreshed:{" "}
           {pushedAt
@@ -397,17 +428,13 @@ function ClientsTab() {
 
   const statusPill = (status: Client["status"]) => {
     const map = {
-      active: { bg: "bg-status-green/20", text: "text-status-green", label: "Active" },
-      paused: { bg: "bg-status-yellow/20", text: "text-status-yellow", label: "Paused" },
-      completed: { bg: "bg-white/10", text: "text-text-muted", label: "Completed" },
+      active: "status-pill-active",
+      paused: "status-pill-paused",
+      completed: "status-pill-completed",
     };
-    const s = map[status];
     return (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}
-        style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
-      >
-        {s.label}
+      <span className={map[status]} style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
@@ -421,16 +448,16 @@ function ClientsTab() {
           { label: "Milzzy", value: milzzyCount },
           { label: "Miggy", value: miggyCount },
         ].map(({ label, value }) => (
-          <div key={label} className="glass-card p-4 text-center">
+          <div key={label} className="liquid-glass p-4 text-center">
             <p
-              className="text-2xl"
-              style={{ fontFamily: "var(--font-bebas-neue), sans-serif", color: "#06b6d4" }}
+              className="text-2xl font-semibold"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
             >
               {loading ? "—" : value}
             </p>
             <p
-              className="text-xs text-text-muted mt-1"
-              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+              className="text-[11px] mt-1"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}
             >
               {label}
             </p>
@@ -441,18 +468,19 @@ function ClientsTab() {
       {/* Table header */}
       <div className="flex items-center justify-between mb-4">
         <h2
-          className="text-lg tracking-widest"
-          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+          className="text-sm font-bold tracking-[0.15em] uppercase"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}
         >
-          CLIENTS
+          Clients
         </h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-lg text-sm transition-all duration-200 hover:opacity-90"
+          className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
           style={{
-            fontFamily: "var(--font-dm-sans), sans-serif",
-            backgroundColor: "#06b6d4",
-            color: "#080808",
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            background: "var(--accent-soft)",
+            border: "1px solid rgba(59,130,246,0.3)",
+            color: "#3b82f6",
           }}
         >
           {showForm ? "Cancel" : "+ Add Client"}
@@ -463,39 +491,51 @@ function ClientsTab() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="glass-card p-5 mb-4 space-y-4"
+          className="liquid-glass p-5 mb-4 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-text-muted mb-1" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Name *
               </label>
               <input
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.92)",
+                  outline: "none",
+                }}
                 placeholder="Client name"
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Coach *
               </label>
               <select
                 required
                 value={form.coach}
                 onChange={(e) => setForm({ ...form, coach: e.target.value as "Milzzy" | "Miggy" })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.92)",
+                  outline: "none",
+                }}
               >
                 <option value="Milzzy">Milzzy</option>
                 <option value="Miggy">Miggy</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Status *
               </label>
               <select
@@ -504,8 +544,14 @@ function ClientsTab() {
                 onChange={(e) =>
                   setForm({ ...form, status: e.target.value as "active" | "paused" | "completed" })
                 }
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.92)",
+                  outline: "none",
+                }}
               >
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
@@ -513,7 +559,7 @@ function ClientsTab() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Start Date *
               </label>
               <input
@@ -521,37 +567,49 @@ function ClientsTab() {
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.92)",
+                  outline: "none",
+                }}
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-text-muted mb-1" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+            <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
               Notes
             </label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={2}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors resize-none"
-              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+              className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors resize-none"
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: "rgba(255,255,255,0.92)",
+                outline: "none",
+              }}
               placeholder="Optional notes..."
             />
           </div>
           {formError && (
-            <p className="text-xs" style={{ color: "#ef4444", fontFamily: "var(--font-dm-sans), sans-serif" }}>
+            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "12px" }}>
               {formError}
             </p>
           )}
           <div className="flex gap-3">
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg text-sm transition-all duration-200 hover:opacity-90"
+              className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
               style={{
-                fontFamily: "var(--font-dm-sans), sans-serif",
-                backgroundColor: "#06b6d4",
-                color: "#080808",
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                background: "#3b82f6",
+                color: "#ffffff",
               }}
             >
               {editingId ? "Save Changes" : "Add Client"}
@@ -559,11 +617,11 @@ function ClientsTab() {
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 rounded-lg text-sm transition-all duration-200 hover:opacity-80"
+              className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-80"
               style={{
-                fontFamily: "var(--font-dm-sans), sans-serif",
-                backgroundColor: "rgba(255,255,255,0.08)",
-                color: "#a3a3a3",
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                background: "rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.60)",
               }}
             >
               Cancel
@@ -574,34 +632,34 @@ function ClientsTab() {
 
       {/* Table */}
       {loading ? (
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-muted text-sm" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+        <div className="liquid-glass p-8 text-center">
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>
             Loading...
           </p>
         </div>
       ) : error ? (
-        <div className="glass-card p-8 text-center">
-          <p className="text-status-red text-sm" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+        <div className="liquid-glass p-8 text-center">
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>
             {error}
           </p>
         </div>
       ) : clients.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-muted text-sm" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+        <div className="liquid-glass p-8 text-center">
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>
             No clients yet. Add your first client.
           </p>
         </div>
       ) : (
-        <div className="glass-card overflow-hidden">
+        <div className="liquid-glass overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/5">
+                <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                   {["Name", "Coach", "Status", "Start Date", "Actions"].map((h) => (
                     <th
                       key={h}
-                      className="text-left px-4 py-3 text-xs text-text-muted uppercase tracking-wider"
-                      style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                      className="text-left px-4 py-3 uppercase tracking-wider"
+                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}
                     >
                       {h}
                     </th>
@@ -612,24 +670,27 @@ function ClientsTab() {
                 {clients.map((client) => (
                   <tr
                     key={client.id}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors"
+                    className="border-b last:border-0 transition-colors"
+                    style={{ borderColor: "rgba(255,255,255,0.05)" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")}
                   >
                     <td
-                      className="px-4 py-3 text-text-primary"
-                      style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                      className="px-4 py-3"
+                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}
                     >
                       {client.name}
                     </td>
                     <td
-                      className="px-4 py-3 text-text-secondary"
-                      style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                      className="px-4 py-3"
+                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}
                     >
                       {client.coach}
                     </td>
                     <td className="px-4 py-3">{statusPill(client.status)}</td>
                     <td
-                      className="px-4 py-3 text-text-secondary"
-                      style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                      className="px-4 py-3"
+                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}
                     >
                       {client.startDate}
                     </td>
@@ -637,11 +698,11 @@ function ClientsTab() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => startEdit(client)}
-                          className="text-xs px-3 py-1 rounded-md transition-all duration-200 hover:opacity-80"
+                          className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80"
                           style={{
-                            fontFamily: "var(--font-dm-sans), sans-serif",
-                            backgroundColor: "rgba(255,255,255,0.08)",
-                            color: "#a3a3a3",
+                            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                            background: "rgba(255,255,255,0.08)",
+                            color: "rgba(255,255,255,0.60)",
                           }}
                         >
                           Edit
@@ -649,11 +710,11 @@ function ClientsTab() {
                         <button
                           onClick={() => handleDelete(client.id)}
                           disabled={deletingId === client.id}
-                          className="text-xs px-3 py-1 rounded-md transition-all duration-200 hover:opacity-80 disabled:opacity-40"
+                          className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-40"
                           style={{
-                            fontFamily: "var(--font-dm-sans), sans-serif",
-                            backgroundColor: "rgba(239,68,68,0.15)",
-                            color: "#ef4444",
+                            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                            background: "rgba(248,113,113,0.15)",
+                            color: "#f87171",
                           }}
                         >
                           {deletingId === client.id ? "..." : "Delete"}
@@ -678,7 +739,7 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-bg-base text-text-primary flex flex-col">
+    <div className="min-h-screen text-[var(--text-primary)] flex flex-col">
       <Header activeTab={activeTab} />
 
       <div className="flex flex-1 overflow-hidden">
@@ -694,7 +755,8 @@ export default function Home() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Mobile hamburger */}
           <button
-            className="lg:hidden mb-4 p-2 rounded-md hover:bg-white/[0.05] transition-colors"
+            className="lg:hidden mb-4 p-2 rounded-[10px] transition-colors"
+            style={{ background: "rgba(255,255,255,0.04)" }}
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
@@ -703,11 +765,10 @@ export default function Home() {
               height="20"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="currentColor"
+              stroke="rgba(255,255,255,0.92)"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-text-primary"
             >
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="12" x2="21" y2="12" />
