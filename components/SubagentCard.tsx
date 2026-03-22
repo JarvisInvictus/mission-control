@@ -11,8 +11,6 @@ export interface SubAgent {
 }
 
 interface SubagentCardProps {
-  // TODO: replace with real sub-agent data from OpenClaw gateway
-  // Likely from /api/subagents or active sessions endpoint
   agents: SubAgent[];
 }
 
@@ -37,16 +35,22 @@ function formatTime(date: Date): string {
 function StatusIndicator({ status }: { status: SubAgent["status"] }) {
   if (status === "active") {
     return (
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full rounded-full bg-accent opacity-75 animate-ping" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
+      <span className="relative flex h-2 w-2 flex-shrink-0">
+        <span
+          className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+          style={{ backgroundColor: "#06b6d4", opacity: 0.4 }}
+        />
+        <span
+          className="relative inline-flex rounded-full h-2 w-2"
+          style={{ backgroundColor: "#06b6d4" }}
+        />
       </span>
     );
   }
   if (status === "completed") {
-    return <span className="h-2 w-2 rounded-full bg-status-green block" />;
+    return <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#22c55e" }} />;
   }
-  return <span className="h-2 w-2 rounded-full bg-status-red block" />;
+  return <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#ef4444" }} />;
 }
 
 export function SubagentCard({ agents }: SubagentCardProps) {
@@ -54,41 +58,76 @@ export function SubagentCard({ agents }: SubagentCardProps) {
   const recent = agents.filter((a) => a.status !== "active").slice(0, 4);
 
   return (
-    <div className="bg-bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-text-muted uppercase tracking-widest">
+        <span
+          className="text-xs text-text-muted uppercase tracking-[0.2em]"
+          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+        >
           Sub-agent Activity
         </span>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="text-xs text-text-muted">{active.length} active</span>
+            <span
+              className="h-1.5 w-1.5 rounded-full animate-pulse"
+              style={{ backgroundColor: "#06b6d4" }}
+            />
+            <span
+              className="text-xs text-text-muted"
+              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            >
+              {active.length} active
+            </span>
           </div>
-          <span className="text-xs font-mono text-text-muted">
+          <span
+            className="text-xs text-text-muted"
+            style={{ fontFamily: "var(--font-dm-sans), monospace" }}
+          >
             {agents.length} total
           </span>
         </div>
       </div>
 
+      {/* Cyan accent line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #06b6d4 0%, rgba(6,182,212,0.1) 100%)" }} />
+
       {/* Active agents */}
       {active.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-text-muted uppercase tracking-wider">Active</p>
+          <p
+            className="text-xs text-text-muted uppercase tracking-wider"
+            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+          >
+            Active
+          </p>
           {active.map((agent) => (
             <div
               key={agent.id}
-              className="bg-bg-base border border-accent/30 rounded-lg p-3"
+              className="rounded-lg p-3"
+              style={{
+                background: "rgba(6,182,212,0.05)",
+                border: "1px solid rgba(6,182,212,0.25)",
+                boxShadow: "0 0 16px rgba(6,182,212,0.08)",
+              }}
             >
               <div className="flex items-center gap-2 mb-1.5">
                 <StatusIndicator status={agent.status} />
-                <p className="text-sm font-medium text-text-primary truncate">
+                <p
+                  className="text-sm font-medium text-text-primary truncate"
+                  style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                >
                   {agent.task}
                 </p>
               </div>
-              <div className="flex justify-between text-xs text-text-muted">
-                <span className="font-mono text-accent/80">{agent.model}</span>
-                <span className="font-mono">
+              <div
+                className="flex justify-between text-xs"
+                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+              >
+                <span style={{ color: "rgba(6,182,212,0.7)", fontFamily: "var(--font-dm-sans), monospace" }}>
+                  {agent.model}
+                </span>
+                <span className="text-text-muted font-mono">
                   {formatDuration(agent.startedAt, null)} elapsed
                 </span>
               </div>
@@ -100,23 +139,47 @@ export function SubagentCard({ agents }: SubagentCardProps) {
       {/* Recent agents */}
       {recent.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-text-muted uppercase tracking-wider">Recent</p>
+          <p
+            className="text-xs text-text-muted uppercase tracking-wider"
+            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+          >
+            Recent
+          </p>
           {recent.map((agent) => (
             <div
               key={agent.id}
-              className="bg-bg-base border border-border rounded-lg p-3 hover:border-border/80 transition-colors"
+              className="rounded-lg p-3 transition-all duration-200 cursor-default"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.12)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
+              }}
             >
               <div className="flex items-center gap-2 mb-1">
                 <StatusIndicator status={agent.status} />
-                <p className="text-sm text-text-secondary truncate">{agent.task}</p>
+                <p
+                  className="text-sm text-text-secondary truncate"
+                  style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+                >
+                  {agent.task}
+                </p>
               </div>
-              <div className="flex justify-between text-xs text-text-muted">
-                <span className="font-mono text-text-muted/80">
+              <div
+                className="flex justify-between text-xs text-text-muted"
+                style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+              >
+                <span
+                  style={{ fontFamily: "var(--font-dm-sans), monospace", opacity: 0.6 }}
+                >
                   {agent.model}
                 </span>
-                <span className="font-mono">
-                  {formatDuration(agent.startedAt, agent.completedAt)}{" "}
-                  · {formatTime(agent.startedAt)}
+                <span style={{ fontFamily: "var(--font-dm-sans), monospace" }}>
+                  {formatDuration(agent.startedAt, agent.completedAt)} · {formatTime(agent.startedAt)}
                 </span>
               </div>
             </div>
@@ -125,11 +188,19 @@ export function SubagentCard({ agents }: SubagentCardProps) {
       )}
 
       {agents.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-6 text-text-muted gap-2">
-          <div className="w-8 h-8 rounded-full border border-border flex items-center justify-center">
+        <div
+          className="flex flex-col items-center justify-center py-6 gap-2"
+          style={{ color: "#525252" }}
+        >
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+          >
             <span className="text-lg opacity-40">◎</span>
           </div>
-          <p className="text-sm">No sub-agents running</p>
+          <p className="text-sm" style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+            No sub-agents running
+          </p>
         </div>
       )}
     </div>

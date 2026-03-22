@@ -66,19 +66,42 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-bg-base text-text-primary">
       {/* Header */}
-      <header className="border-b border-border bg-bg-card/50 backdrop-blur sticky top-0 z-10">
+      <header className="border-b border-white/5 bg-white/3 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight font-mono">
+            <h1
+              className="text-2xl tracking-widest"
+              style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+            >
               <span className="text-accent">JARVIS</span>
-              <span className="text-text-muted mx-2">//</span>
+              <span className="text-text-muted mx-3">//</span>
               <span className="text-text-primary">MISSION CONTROL</span>
             </h1>
-            <p className="text-xs text-text-muted mt-0.5">Invictus Physiques AI Stack</p>
+            <p
+              className="text-xs mt-1 text-text-secondary tracking-wide"
+              style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+            >
+              Invictus Physiques AI Stack · Operations Dashboard
+            </p>
           </div>
+          {/* LIVE indicator */}
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-status-green shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
-            <span className="text-xs font-mono text-text-muted">LIVE</span>
+            <span className="relative flex h-2 w-2">
+              <span
+                className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+                style={{ backgroundColor: "#06b6d4", opacity: 0.4 }}
+              />
+              <span
+                className="relative inline-flex rounded-full h-2 w-2"
+                style={{ backgroundColor: "#06b6d4" }}
+              />
+            </span>
+            <span
+              className="text-xs tracking-[0.2em] text-accent uppercase"
+              style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+            >
+              Live
+            </span>
           </div>
         </div>
       </header>
@@ -86,45 +109,58 @@ export default function Home() {
       {/* Main grid */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Agent Status */}
-        <div className="xl:col-span-1">
-          <AgentCard
-            agent={{
-              name: "Jarvis",
-              model: "claude-sonnet-4-6",
-              status: "idle",
-              session: "agent:main:main",
-              uptime: "2h 14m",
-            }}
-          />
+        <div className="xl:col-span-1 group">
+          <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <AgentCard
+              agent={{
+                name: "Jarvis",
+                model: "claude-sonnet-4-6",
+                status: "idle",
+                session: "agent:main:main",
+                uptime: "2h 14m",
+              }}
+            />
+          </div>
         </div>
 
         {/* Heartbeat */}
-        <div className="xl:col-span-1">
-          <HeartbeatCard
-            data={{
-              lastHeartbeat,
-              nextHeartbeat,
-              status: "ok",
-              intervalMinutes: 30,
-            }}
-          />
+        <div className="xl:col-span-1 group">
+          <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <HeartbeatCard
+              data={{
+                lastHeartbeat,
+                nextHeartbeat,
+                status: "ok",
+                intervalMinutes: 30,
+              }}
+            />
+          </div>
         </div>
 
         {/* Cron Jobs */}
-        <div className="xl:col-span-1">
-          <CronCard jobs={cronJobs} />
+        <div className="xl:col-span-1 group">
+          <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <CronCard jobs={cronJobs} />
+          </div>
         </div>
 
         {/* Sub-agent Activity */}
-        <div className="xl:col-span-1">
-          <SubagentCard agents={subAgents} />
+        <div className="xl:col-span-1 group">
+          <div className="glass-card p-5 flex flex-col gap-4 transition-all duration-300 group-hover:glow-cyan group-hover:border-border-hover">
+            <SubagentCard agents={subAgents} />
+          </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 py-4 border-t border-border mt-4">
-        <p className="text-xs text-text-muted font-mono">
-          Last refreshed: {new Date().toLocaleTimeString("en-AU", { hour12: false })} · Auto-refresh every 30s · v1.0.0
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 py-4 mt-4">
+        <p
+          className="text-xs text-text-muted tracking-wide"
+          style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+        >
+          Last refreshed:{" "}
+          {new Date().toLocaleTimeString("en-AU", { hour12: false })} · Auto-refresh
+          every 30s · v1.0.0
         </p>
       </footer>
     </div>

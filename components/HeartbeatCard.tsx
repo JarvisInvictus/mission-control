@@ -8,9 +8,6 @@ interface HeartbeatData {
 }
 
 interface HeartbeatCardProps {
-  // TODO: replace with real heartbeat data
-  // GET /health endpoint: { ok: boolean, status: string }
-  // and scheduled heartbeat cron state
   data: HeartbeatData;
 }
 
@@ -39,18 +36,23 @@ export function HeartbeatCard({ data }: HeartbeatCardProps) {
   const isAlert = status === "alert";
 
   return (
-    <div className="bg-bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-text-muted uppercase tracking-widest">
+        <span
+          className="text-xs text-text-muted uppercase tracking-[0.2em]"
+          style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+        >
           Heartbeat Monitor
         </span>
         <span
-          className={`text-xs font-mono font-semibold px-2 py-0.5 rounded ${
-            isAlert
-              ? "text-status-red bg-status-red/10"
-              : "text-status-green bg-status-green/10"
-          }`}
+          className="text-xs px-2 py-0.5 rounded"
+          style={{
+            fontFamily: "var(--font-bebas-neue), sans-serif",
+            letterSpacing: "0.1em",
+            backgroundColor: isAlert ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+            color: isAlert ? "#ef4444" : "#22c55e",
+          }}
         >
           {isAlert ? "ALERT" : "OK"}
         </span>
@@ -59,36 +61,63 @@ export function HeartbeatCard({ data }: HeartbeatCardProps) {
       {/* Status pulse */}
       <div className="flex items-center gap-3">
         <div
-          className={`w-3 h-3 rounded-full ${
+          className="w-3 h-3 rounded-full flex-shrink-0"
+          style={
             isAlert
-              ? "bg-status-red shadow-[0_0_12px_rgba(239,68,68,0.7)] animate-pulse"
-              : "bg-status-green shadow-[0_0_12px_rgba(34,197,94,0.6)]"
-          }`}
+              ? {
+                  backgroundColor: "#ef4444",
+                  boxShadow: "0 0 12px rgba(239,68,68,0.7)",
+                  animation: "pulse 1.5s infinite",
+                }
+              : {
+                  backgroundColor: "#06b6d4",
+                  boxShadow: "0 0 12px rgba(6,182,212,0.6)",
+                }
+          }
         />
-        <p className={`text-sm font-medium ${isAlert ? "text-status-red" : "text-status-green"}`}>
+        <p
+          className="text-sm font-medium"
+          style={{ color: isAlert ? "#ef4444" : "#06b6d4" }}
+        >
           {isAlert ? "Connection lost — re-establishing..." : "Gateway is alive"}
         </p>
       </div>
 
-      {/* Divider */}
-      <div className="border-t border-border" />
+      {/* Cyan accent line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #06b6d4 0%, rgba(6,182,212,0.1) 100%)" }} />
 
       {/* Timestamps */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
+          <p
+            className="text-xs text-text-muted uppercase tracking-wider mb-1"
+            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+          >
             Last heartbeat
           </p>
-          <p className="text-sm font-mono text-text-primary">{formatTime(lastHeartbeat)}</p>
+          <p
+            className="text-sm"
+            style={{ fontFamily: "var(--font-dm-sans), monospace", color: "#f5f5f5" }}
+          >
+            {formatTime(lastHeartbeat)}
+          </p>
           <p className="text-xs text-text-muted mt-0.5">
             {formatRelative(lastHeartbeat)} ago
           </p>
         </div>
         <div>
-          <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
+          <p
+            className="text-xs text-text-muted uppercase tracking-wider mb-1"
+            style={{ fontFamily: "var(--font-bebas-neue), sans-serif", letterSpacing: "0.1em" }}
+          >
             Next scheduled
           </p>
-          <p className="text-sm font-mono text-text-primary">{formatTime(nextHeartbeat)}</p>
+          <p
+            className="text-sm"
+            style={{ fontFamily: "var(--font-dm-sans), monospace", color: "#f5f5f5" }}
+          >
+            {formatTime(nextHeartbeat)}
+          </p>
           <p className="text-xs text-text-muted mt-0.5">
             {formatRelative(nextHeartbeat)}
           </p>
@@ -101,8 +130,11 @@ export function HeartbeatCard({ data }: HeartbeatCardProps) {
           <span>Poll interval</span>
           <span className="text-text-secondary">{intervalMinutes}m</span>
         </div>
-        <div className="h-1 bg-border rounded-full overflow-hidden">
-          <div className="h-full bg-accent/60 rounded-full" style={{ width: "35%" }} />
+        <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+          <div
+            className="h-full rounded-full"
+            style={{ width: "35%", background: "linear-gradient(90deg, #06b6d4, rgba(6,182,212,0.4))" }}
+          />
         </div>
       </div>
     </div>
