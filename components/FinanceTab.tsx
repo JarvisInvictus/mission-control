@@ -46,11 +46,13 @@ function isOverdue(date: Date): boolean {
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const personalDD: DirectDebit[] = [
+  { name: "Mortgage", amount: 1600.00, frequency: "Monthly", nextDue: "20 Apr 2026", nextDueDate: toDate("20 Apr 2026") },
+  { name: "Loan Repayment", amount: 81.00, frequency: "Weekly", nextDue: "26 Mar 2026", nextDueDate: toDate("26 Mar 2026") },
   { name: "Medibank Life Insurance", amount: 34.53, frequency: "Monthly", nextDue: "20 Apr 2026", nextDueDate: toDate("20 Apr 2026") },
   { name: "Medibank Private Health", amount: 17.99, frequency: "Monthly", nextDue: "27 Apr 2026", nextDueDate: toDate("27 Apr 2026") },
   { name: "Pet Insurance (x2)", amount: 22.02 + 25.94, frequency: "Fortnightly", nextDue: "~25 Mar 2026", nextDueDate: toDate("25 Mar 2026") },
   { name: "RACV Roadside Assist", amount: 25.50, frequency: "Monthly", nextDue: "13 Apr 2026", nextDueDate: toDate("13 Apr 2026") },
-  { name: "Loan Repayment", amount: 81.00, frequency: "Weekly", nextDue: "26 Mar 2026", nextDueDate: toDate("26 Mar 2026") },
+  { name: "ALDI Mobile", amount: 39.00, frequency: "Monthly", nextDue: "25 Mar 2026", nextDueDate: toDate("25 Mar 2026") },
 ];
 
 const businessDD: DirectDebit[] = [
@@ -65,7 +67,7 @@ const businessDD: DirectDebit[] = [
 const subscriptions: Subscription[] = [
   { service: "Kahunas.io", category: "Coaching Platform", cost: 143.70, status: "KEEP" },
   { service: "Google Workspace", category: "Business Tools", cost: 39.08, status: "KEEP" },
-  { service: "Zapier", category: "Automation", cost: 348.40, status: "KEEP" },
+  { service: "Zapier", category: "Automation", cost: 348.40, status: "CANCELLED" },
   { service: "Fillout.com", category: "Forms", cost: 27.55, status: "KEEP" },
   { service: "Squarespace", category: "Website", cost: 44.00, status: "REVIEW", action: true },
   { service: "Komi App", category: "Link-in-bio", cost: 25.00, status: "REVIEW", action: true },
@@ -333,7 +335,7 @@ export function FinanceTab() {
               marginBottom: "14px",
             }}
           >
-            Personal Direct Debits
+            Personal Spending — Ongoing Commitments
           </h3>
           <DirectDebitTable items={personalDD} total={personalTotal} />
         </div>
@@ -502,8 +504,11 @@ export function FinanceTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {[
             { label: "Business Revenue (avg)", value: "+$22,548/mo", color: "var(--status-green)", bold: false },
-            { label: "Personal spending (avg)", value: "−$10,249/mo", color: "rgba(255,255,255,0.60)", bold: false },
-            { label: "Business expenses (avg)", value: "−$9,595/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Mortgage", value: "−$1,600/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Cameron Industrial (Gym Rent)", value: "−$2,543/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Personal Direct Debits", value: "−$2,168/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Business Direct Debits", value: "−$1,445/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Business Subscriptions (active)", value: "−$890/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Tax set aside", value: "−$4,000/mo", color: "rgba(255,255,255,0.60)", bold: false },
           ].map(({ label, value, color, bold }) => (
             <div
@@ -558,23 +563,24 @@ export function FinanceTab() {
                 fontWeight: 600,
               }}
             >
-              Estimated surplus
+              Committed costs total
             </span>
             <span
               style={{
                 fontSize: "14px",
                 fontFamily: "system-ui, -apple-system, sans-serif",
-                color: "var(--status-red)",
+                color: "rgba(255,255,255,0.85)",
                 fontWeight: 700,
               }}
             >
-              ~$−1,296/mo
+              ~$12,646/mo
             </span>
           </div>
 
           {[
-            { label: "Target", value: "$2,000/week = $8,666/mo", color: "var(--accent)", bold: false },
-            { label: "Gap to close", value: "$9,962/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Remaining for food + lifestyle", value: "~$9,902/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Savings target", value: "$2,000/week = $8,666/mo", color: "var(--accent)", bold: false },
+            { label: "Max food + lifestyle budget to hit target", value: "$1,236/mo", color: "var(--status-yellow)", bold: false },
           ].map(({ label, value, color, bold }) => (
             <div
               key={label}
@@ -622,8 +628,7 @@ export function FinanceTab() {
             lineHeight: 1.6,
           }}
         >
-          Primary lever: reduce personal food spend ($2,936/mo) and discretionary shopping. Subscription cuts save{" "}
-          $337/mo. Real savings come from food habits.
+          Your committed costs are locked in. The only variable is food + lifestyle spend. To hit $2k/week savings, that bucket needs to stay under $1,236/mo. You currently spend ~$2,936/mo on food alone.
         </p>
       </div>
     </div>
