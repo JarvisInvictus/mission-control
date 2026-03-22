@@ -113,8 +113,8 @@ const weeklyTransfers = [
   { account: "Tax Account", amount: "$1,000/week", purpose: "30% of avg weekly revenue set aside" },
   { account: "Mortgage (offset)", amount: "$400/week", purpose: "$1,600/mo mortgage covered" },
   { account: "Business Buffer", amount: "$600/week", purpose: "Covers direct debits + subscriptions" },
-  { account: "Personal Budget", amount: "$309/week", purpose: "Food + lifestyle (target budget)" },
-  { account: "Savings", amount: "$191/week", purpose: "Current surplus (target: $2,000/week)", highlight: true },
+  { account: "Personal Budget", amount: "$609/week", purpose: "Food + lifestyle (target budget)" },
+  { account: "Savings", amount: "$2,000/week", purpose: "Target savings (requires hitting food budget)", highlight: true },
 ];
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
@@ -528,9 +528,8 @@ export function FinanceTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {[
             { label: "Business Revenue (avg)", value: "+$22,548/mo", color: "var(--status-green)", bold: false },
-            { label: "Mortgage", value: "−$1,600/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Personal Direct Debits (incl. mortgage)", value: "−$2,368/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Cameron Industrial (Gym Rent)", value: "−$2,543/mo", color: "rgba(255,255,255,0.60)", bold: false },
-            { label: "Personal Direct Debits", value: "−$2,368/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Business Direct Debits", value: "−$1,445/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Business Subscriptions (active)", value: "−$890/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Tax set aside", value: "−$4,000/mo", color: "rgba(255,255,255,0.60)", bold: false },
@@ -597,14 +596,14 @@ export function FinanceTab() {
                 fontWeight: 700,
               }}
             >
-              ~$12,846/mo
+              ~$11,246/mo
             </span>
           </div>
 
           {[
-            { label: "Remaining for food + lifestyle", value: "~$9,702/mo", color: "rgba(255,255,255,0.60)", bold: false },
+            { label: "Remaining for food + lifestyle", value: "~$11,302/mo", color: "rgba(255,255,255,0.60)", bold: false },
             { label: "Savings target", value: "$2,000/week = $8,666/mo", color: "var(--accent)", bold: false },
-            { label: "Max food + lifestyle budget to hit target", value: "$1,036/mo", color: "var(--status-yellow)", bold: false },
+            { label: "Max food + lifestyle budget to hit target", value: "$2,636/mo ($609/week)", color: "var(--status-yellow)", bold: false },
           ].map(({ label, value, color, bold }) => (
             <div
               key={label}
@@ -652,7 +651,7 @@ export function FinanceTab() {
             lineHeight: 1.6,
           }}
         >
-          Your committed costs are locked in. The only variable is food + lifestyle spend. To hit $2k/week savings, that bucket needs to stay under $1,036/mo. You currently spend ~$2,936/mo on food alone.
+          Committed costs locked in at ~$11,246/mo. To hit $2k/week savings, food + lifestyle must stay under $2,636/mo ($609/week). You currently spend ~$2,936/mo on food — need to cut ~$300/mo to hit the target.
         </p>
       </div>
 
@@ -753,7 +752,7 @@ export function FinanceTab() {
             lineHeight: 1.6,
           }}
         >
-          To hit your $2,000/week savings target, personal food + lifestyle spend must stay under $309/week. Every dollar saved on food goes directly to savings.
+          To hit your $2,000/week savings target, personal food + lifestyle spend must stay under $609/week. Every dollar saved on food goes directly to savings.
         </p>
       </div>
 
@@ -893,7 +892,7 @@ export function FinanceTab() {
         {/* Stat boxes */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <p style={{ fontSize: "20px", fontWeight: 700, fontFamily: "system-ui, -apple-system, sans-serif", color: "var(--accent)", lineHeight: 1, marginBottom: "4px" }}>$309</p>
+            <p style={{ fontSize: "20px", fontWeight: 700, fontFamily: "system-ui, -apple-system, sans-serif", color: "var(--accent)", lineHeight: 1, marginBottom: "4px" }}>$609</p>
             <p style={{ fontSize: "10px", fontFamily: "system-ui, -apple-system, sans-serif", color: "rgba(255,255,255,0.40)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Weekly Budget</p>
           </div>
           <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -901,7 +900,7 @@ export function FinanceTab() {
             <p style={{ fontSize: "10px", fontFamily: "system-ui, -apple-system, sans-serif", color: "rgba(255,255,255,0.40)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Spent This Week</p>
           </div>
           <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)" }}>
-            <p style={{ fontSize: "20px", fontWeight: 700, fontFamily: "system-ui, -apple-system, sans-serif", color: "#34d399", lineHeight: 1, marginBottom: "4px" }}>$309</p>
+            <p style={{ fontSize: "20px", fontWeight: 700, fontFamily: "system-ui, -apple-system, sans-serif", color: "#34d399", lineHeight: 1, marginBottom: "4px" }}>$609</p>
             <p style={{ fontSize: "10px", fontFamily: "system-ui, -apple-system, sans-serif", color: "rgba(255,255,255,0.40)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Remaining</p>
           </div>
         </div>
