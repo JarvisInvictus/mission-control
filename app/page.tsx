@@ -346,7 +346,7 @@ export default function Home() {
   // ─── Clients tab state (owned by Home) ─────────────────────────────────
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel">("menu");
+  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit">("menu");
 
   // Fetch clients when clients tab is active
   useEffect(() => {
@@ -614,7 +614,7 @@ export default function Home() {
               </div>
               {actionPanel === "menu" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <button onClick={() => { startEdit(selectedClient); setSelectedClient(null); }}
+                  <button onClick={() => { startEdit(selectedClient); setActionPanel("edit"); }}
                     style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
                     ✏️ Edit Client
                   </button>
@@ -655,6 +655,87 @@ export default function Home() {
                       style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Yes, Cancel</button>
                     <button onClick={() => setActionPanel("menu")}
                       style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Edit panel ── */}
+              {actionPanel === "edit" && (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                    <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
+                    <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                      style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label>
+                      <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label>
+                      <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" />
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
+                      <select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}>
+                        <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label>
+                      <select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}>
+                        <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
+                      <input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label>
+                      <select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}>
+                        <option value="">— Select —</option>
+                        {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label>
+                      <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label>
+                      <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}>
+                        <option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label>
+                    <input value={form.spreadsheetUrl} onChange={e => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/..." />
+                  </div>
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label>
+                    <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} />
+                  </div>
+                  {formError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>{formError}</p>}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={async () => {
+                        if (!form.name.trim()) { setFormError("Name is required"); return; }
+                        setFormError(null);
+                        await updateClient(editingId!, { ...form, checkInDay: form.checkInDay || undefined });
+                        setEditingId(null);
+                        setActionPanel("menu");
+                        setSelectedClient(null);
+                      }}
+                      style={{ flex: 1, background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "12px", padding: "11px", color: "#3b82f6", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>
+                      Save Changes
+                    </button>
+                    <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "11px", color: "rgba(255,255,255,0.50)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>
+                      Cancel
+                    </button>
                   </div>
                 </div>
               )}
