@@ -31,6 +31,7 @@ export async function PATCH(
   const allowedFields = [
     "name", "email", "coach", "paymentPlatform", "weeklyCharge",
     "spreadsheetUrl", "status", "pausedUntil", "startDate", "notes",
+    "checkInDay",
   ];
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {
@@ -70,6 +71,17 @@ export async function PATCH(
   // Clear pausedUntil if status is not paused
   if (updates.status && updates.status !== "paused") {
     updates.pausedUntil = undefined;
+  }
+
+  // Validate checkInDay if provided
+  if (
+    updates.checkInDay &&
+    !["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].includes(updates.checkInDay as string)
+  ) {
+    return NextResponse.json(
+      { error: "checkInDay must be a valid day of week" },
+      { status: 400 }
+    );
   }
 
   clients[idx] = { ...clients[idx], ...updates };

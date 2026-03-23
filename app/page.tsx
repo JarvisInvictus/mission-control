@@ -49,6 +49,7 @@ interface Client {
   pausedUntil?: string;
   startDate: string;
   notes?: string;
+  checkInDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
 
 type Tab = "agents" | "clients" | "finance";
@@ -396,6 +397,7 @@ function ClientsTab() {
     pausedUntil: "",
     startDate: "",
     notes: "",
+    checkInDay: "" as "" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday",
   });
 
   const resetForm = () => {
@@ -403,6 +405,7 @@ function ClientsTab() {
       name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie",
       weeklyCharge: 0, spreadsheetUrl: "", status: "active",
       pausedUntil: "", startDate: "", notes: "",
+      checkInDay: "",
     });
     setShowForm(false);
     setEditingId(null);
@@ -417,6 +420,7 @@ function ClientsTab() {
         ...form,
         weeklyCharge: Number(form.weeklyCharge),
         pausedUntil: form.status === "paused" ? form.pausedUntil : undefined,
+        checkInDay: form.checkInDay || undefined,
       };
       if (editingId) {
         await updateClient(editingId, payload);
@@ -441,6 +445,7 @@ function ClientsTab() {
       pausedUntil: client.pausedUntil ?? "",
       startDate: client.startDate,
       notes: client.notes ?? "",
+      checkInDay: client.checkInDay ?? "",
     });
     setEditingId(client.id);
     setShowForm(true);
@@ -645,6 +650,21 @@ function ClientsTab() {
               </label>
               <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." />
             </div>
+            <div>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Check-in Day
+              </label>
+              <select value={form.checkInDay} onChange={(e) => setForm({ ...form, checkInDay: e.target.value as "" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday" })} style={inputStyle}>
+                <option value="">— Select day —</option>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+              </select>
+            </div>
           </div>
           {formError && (
             <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "12px" }}>
@@ -690,7 +710,7 @@ function ClientsTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {["Name", "Coach", "Payment", "Weekly", "Status", "Actions"].map((h) => (
+                  {["Name", "Coach", "Payment", "Weekly", "Check-in", "Status", "Actions"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
                       {h}
                     </th>
@@ -727,6 +747,11 @@ function ClientsTab() {
                     </td>
                     <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>
                       {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
+                    </td>
+                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)", fontSize: "12px" }}>
+                      {client.checkInDay
+                        ? ({"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"} as Record<string,string>)[client.checkInDay]
+                        : "—"}
                     </td>
                     <td className="px-4 py-3">{statusPill(client)}</td>
                     <td className="px-4 py-3">

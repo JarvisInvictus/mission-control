@@ -52,6 +52,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (body.checkInDay && !["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].includes(body.checkInDay)) {
+    return NextResponse.json(
+      { error: "checkInDay must be a valid day of week" },
+      { status: 400 }
+    );
+  }
+
   const raw = await redis.get("jarvis:clients");
   const clients = parseClients(raw);
 
@@ -67,6 +74,7 @@ export async function POST(req: NextRequest) {
     pausedUntil: status === "paused" ? pausedUntil : undefined,
     startDate,
     notes: body.notes ?? "",
+    checkInDay: body.checkInDay ?? undefined,
   };
 
   clients.push(newClient);
