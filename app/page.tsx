@@ -454,7 +454,8 @@ export default function Home() {
     const platformColors: Record<string, string> = { Newie: "#3b82f6", Upfront: "#a855f7", Mentorship: "#10b981" };
 
     const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
-      : "grid grid-cols-1 lg:grid-cols-2 gap-4";
+      : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
+      : "grid grid-cols-1 lg:grid-cols-3 gap-4";
 
     return (
       <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
@@ -533,16 +534,13 @@ export default function Home() {
         {/* Day Groups Grid */}
         <div className={gridClass}>
           {dayGroups.map(({ day, clients: dayClients }) => (
-            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "12px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "10px 12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
-                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length} clients</span>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
               </div>
               <div>
                 <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <thead style={{ position: "sticky", top: 0, zIndex: 5, backdropFilter: "blur(8px)" }}>
-                    <tr style={{ background: "rgba(255,255,255,0.04)" }}>{["Name","Payment","Weekly","Status",""].map((h, i) => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.08)", width: i === 0 ? "45%" : i === 1 ? "22%" : i === 2 ? "15%" : i === 3 ? "14%" : "4%" }}>{h}</th>)}</tr>
-                  </thead>
                   <tbody>
                     {dayClients.map((client, idx) => {
                       const isPaused = client.status === "paused";
@@ -551,18 +549,18 @@ export default function Home() {
                         <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
                           onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
                           onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
-                          <td style={{ padding: "12px 14px", minWidth: "160px", width: "45%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                          <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
                               {client.name}
                             </span>
                           </td>
-                          <td style={{ padding: "12px 14px" }}>
+                          <td style={{ padding: "8px 10px" }}>
                             <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
                           </td>
-                          <td style={{ padding: "12px 14px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
-                          <td style={{ padding: "12px 14px" }}>{statusPill(client)}</td>
-                          <td style={{ padding: "12px 14px", width: "50px", minWidth: "50px", textAlign: "center" }}>
+                          <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
                             <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
