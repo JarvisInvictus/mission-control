@@ -467,7 +467,7 @@ export default function Home() {
       : "grid grid-cols-1 lg:grid-cols-3 gap-4";
 
     return (
-      <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+      <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
         {/* Search bar */}
         <div style={{ position: "relative", marginBottom: "14px" }}>
           <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", fontSize: "14px", pointerEvents: "none" }}>🔍</span>
@@ -883,7 +883,7 @@ export default function Home() {
         />
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:ml-[220px]">
+        <main className="flex-1 overflow-y-auto p-4 lg:py-6 lg:ml-[220px]">
           {/* Mobile hamburger */}
           <button
             className="lg:hidden mb-4 p-2 rounded-[10px] transition-colors"
