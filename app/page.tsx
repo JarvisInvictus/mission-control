@@ -57,10 +57,7 @@ type Tab = "agents" | "clients" | "finance";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function weeksRemaining(pausedUntil: string): number {
-  const now = new Date();
-  const until = new Date(pausedUntil);
-  const diff = until.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24 * 7)));
+  return Math.ceil((new Date(pausedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 7));
 }
 
 // ─── Day column colour tints ─────────────────────────────────────────────────
@@ -75,14 +72,16 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 const DAY_BORDER_COLORS: Record<string, string> = {
-  Monday:    "rgba(59, 130, 246, 0.5)",
-  Tuesday:   "rgba(139, 92, 246, 0.5)",
-  Wednesday: "rgba(16, 185, 129, 0.5)",
-  Thursday:  "rgba(245, 158, 11, 0.5)",
-  Friday:    "rgba(239, 68, 68, 0.5)",
-  Saturday:  "rgba(236, 72, 153, 0.5)",
-  Sunday:    "rgba(20, 184, 166, 0.5)",
+  Monday:    "rgba(59, 130, 246, 0.50)",
+  Tuesday:   "rgba(139, 92, 246, 0.50)",
+  Wednesday: "rgba(16, 185, 129, 0.50)",
+  Thursday:  "rgba(245, 158, 11, 0.50)",
+  Friday:    "rgba(239, 68, 68, 0.50)",
+  Saturday:  "rgba(236, 72, 153, 0.50)",
+  Sunday:    "rgba(20, 184, 166, 0.50)",
 };
+
+const DAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
 // ─── Status hook ─────────────────────────────────────────────────────────────
 
@@ -112,64 +111,6 @@ function useStatus() {
   }, [fetchStatus]);
 
   return { data, loading, error };
-}
-
-// ─── Clients hook ─────────────────────────────────────────────────────────────
-
-function useClients() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchClients = useCallback(async () => {
-    try {
-      const res = await fetch("/api/clients");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setClients(json);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
-
-  const addClient = async (client: Omit<Client, "id">) => {
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(client),
-    });
-    if (!res.ok) throw new Error("Failed to add client");
-    const newClient = await res.json();
-    setClients((prev) => [...prev, newClient]);
-    return newClient;
-  };
-
-  const updateClient = async (id: string, updates: Partial<Client>) => {
-    const res = await fetch(`/api/clients/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
-    if (!res.ok) throw new Error("Failed to update client");
-    const updated = await res.json();
-    setClients((prev) => prev.map((c) => (c.id === id ? updated : c)));
-    return updated;
-  };
-
-  const deleteClient = async (id: string) => {
-    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete client");
-    setClients((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  return { clients, loading, error, addClient, updateClient, deleteClient, refetch: fetchClients };
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
@@ -396,839 +337,336 @@ function AgentsTab() {
   );
 }
 
-// ─── Clients Tab ──────────────────────────────────────────────────────────────
-
-function ClientsTab() {
-  const { clients, loading, error, addClient, updateClient, deleteClient } = useClients();
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showCancelled, setShowCancelled] = useState(false);
-  const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
-  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
-
-  // ─── Action modal state ─────────────────────────────────────────────────
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel">("menu");
-
-  // Form state
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    coach: "Milzzy" as "Milzzy" | "Miggy",
-    paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
-    weeklyCharge: 0,
-    spreadsheetUrl: "",
-    status: "active" as "active" | "paused" | "cancelled",
-    pausedUntil: "",
-    startDate: "",
-    notes: "",
-    checkInDay: "" as "" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday",
-  });
-
-  const resetForm = () => {
-    setForm({
-      name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie",
-      weeklyCharge: 0, spreadsheetUrl: "", status: "active",
-      pausedUntil: "", startDate: "", notes: "",
-      checkInDay: "",
-    });
-    setShowForm(false);
-    setEditingId(null);
-    setFormError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    try {
-      const payload = {
-        ...form,
-        weeklyCharge: Number(form.weeklyCharge),
-        pausedUntil: form.status === "paused" ? form.pausedUntil : undefined,
-        checkInDay: form.checkInDay || undefined,
-      };
-      if (editingId) {
-        await updateClient(editingId, payload);
-      } else {
-        await addClient(payload as Omit<Client, "id">);
-      }
-      resetForm();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Something went wrong");
-    }
-  };
-
-  const startEdit = (client: Client) => {
-    setForm({
-      name: client.name,
-      email: client.email ?? "",
-      coach: client.coach,
-      paymentPlatform: client.paymentPlatform ?? "Newie",
-      weeklyCharge: client.weeklyCharge ?? 0,
-      spreadsheetUrl: client.spreadsheetUrl ?? "",
-      status: client.status,
-      pausedUntil: client.pausedUntil ?? "",
-      startDate: client.startDate,
-      notes: client.notes ?? "",
-      checkInDay: client.checkInDay ?? "",
-    });
-    setEditingId(client.id);
-    setShowForm(true);
-  };
-
-
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this client?")) return;
-    setDeletingId(id);
-    try {
-      await deleteClient(id);
-    } catch {
-      setFormError("Failed to delete client");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const activeClients = clients.filter((c) => c.status === "active" || c.status === "paused");
-  const coachActiveClients = activeClients.filter((c) => c.coach === selectedCoach);
-  const cancelledClients = clients.filter((c) => c.status === "cancelled");
-  const pausedClients = clients.filter((c) => c.status === "paused");
-
-  const totalActive = clients.filter((c) => c.status === "active").length;
-  const milzzyCount = clients.filter((c) => c.coach === "Milzzy" && (c.status === "active" || c.status === "paused")).length;
-  const miggyCount = clients.filter((c) => c.coach === "Miggy" && (c.status === "active" || c.status === "paused")).length;
-  const pausedCount = pausedClients.length;
-  const coachPausedCount = coachActiveClients.filter((c) => c.status === "paused").length;
-
-  const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-  const [openDays, setOpenDays] = useState<Set<string>>(new Set(DAY_ORDER));
-
-  // When coach or clients change, reset openDays to only days that have clients for this coach
-  useEffect(() => {
-    const daysWithClients = new Set<string>();
-    DAY_ORDER.forEach((day) => {
-      if (grouped[day].length > 0) daysWithClients.add(day);
-    });
-    if (noDayClients.length > 0) daysWithClients.add("No Day Set");
-    setOpenDays(daysWithClients);
-  }, [selectedCoach, coachActiveClients]);
-
-  const toggleDay = (day: string) => {
-    setOpenDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(day)) next.delete(day);
-      else next.add(day);
-      return next;
-    });
-  };
-
-  const grouped = DAY_ORDER.reduce<Record<string, Client[]>>((acc, day) => {
-    acc[day] = coachActiveClients.filter((c) => c.checkInDay === day);
-    return acc;
-  }, {});
-  const noDayClients = coachActiveClients.filter((c) => !c.checkInDay);
-
-  // Pill helpers
-  const paymentPill = (platform: Client["paymentPlatform"]) => {
-    const styles: Record<Client["paymentPlatform"], React.CSSProperties> = {
-      Newie: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.30)" },
-      Upfront: { background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)" },
-      Mentorship: { background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.30)" },
-    };
-    return (
-      <span style={{ ...styles[platform], borderRadius: "6px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
-        {platform}
-      </span>
-    );
-  };
-
-  const statusPill = (client: Client) => {
-    if (client.status === "active") {
-      return (
-        <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
-          Active
-        </span>
-      );
-    }
-    if (client.status === "paused") {
-      const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
-      const label = wks !== null && wks > 0 ? `Paused · ${wks}w` : "Paused";
-      return (
-        <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
-          {label}
-        </span>
-      );
-    }
-    return null;
-  };
-
-  // Coach tab pill style helper
-  const coachTabStyle = (selected: boolean): React.CSSProperties => ({
-    borderRadius: "999px",
-    padding: "6px 18px",
-    fontSize: "12px",
-    cursor: "pointer",
-    fontFamily: "system-ui",
-    ...(selected
-      ? {
-          background: "rgba(59,130,246,0.20)",
-          border: "1px solid rgba(59,130,246,0.35)",
-          color: "#3b82f6",
-          fontWeight: 600,
-        }
-      : {
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          color: "rgba(255,255,255,0.50)",
-        }),
-  });
-
-  const ClientRow = ({ client }: { client: Client }) => {
-    const isPaused = client.status === "paused";
-    const pausedWks = isPaused && client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
-    const pausedLabel = isPaused
-      ? (pausedWks !== null && pausedWks > 0 ? `Paused · ${pausedWks}w` : "Paused")
-      : null;
-
-    return (
-      <>
-        <tr
-          className="border-b last:border-0"
-          style={{
-            borderColor: "rgba(255,255,255,0.05)",
-            background: isPaused ? "rgba(251, 191, 36, 0.05)" : "transparent",
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)";
-          }}
-          onMouseLeave={(e) => {
-            if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
-          }}
-        >
-          {/* Name */}
-          <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
-            <span className="flex items-center gap-2 flex-wrap">
-              {isPaused && (
-                <span
-                  style={{
-                    width: 6, height: 6, borderRadius: "50%",
-                    background: "#fbbf24",
-                    border: "1px solid rgba(251,191,36,0.3)",
-                    display: "inline-block", flexShrink: 0,
-                  }}
-                />
-              )}
-              {client.name}
-            </span>
-          </td>
-          {/* Payment */}
-          <td className="px-4 py-3">
-            {paymentPill(client.paymentPlatform ?? "Newie")}
-          </td>
-          {/* Weekly */}
-          <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.80)" }}>
-            {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
-          </td>
-          {/* Status */}
-          <td className="px-4 py-3">
-            {isPaused && pausedLabel ? (
-              <span style={{
-                background: "rgba(251,191,36,0.15)", color: "#fbbf24",
-                border: "1px solid rgba(251,191,36,0.3)",
-                borderRadius: "999px", padding: "2px 10px", fontSize: "11px",
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500,
-                display: "inline-block",
-              }}>
-                {pausedLabel}
-              </span>
-            ) : statusPill(client)}
-          </td>
-          {/* Actions — three dots */}
-          <td className="px-4 py-3" style={{ textAlign: "right", paddingRight: "12px", position: "static", overflow: "visible" }}>
-            <button
-              onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
-              style={{
-                background: "transparent", border: "none",
-                color: "rgba(255,255,255,0.25)", cursor: "pointer",
-                padding: "4px 8px", borderRadius: "6px", fontSize: "16px",
-                lineHeight: 1, display: "inline-block",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)";
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)";
-                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-              }}
-            >
-              &#x22EE;{/* three dots */}
-            </button>
-
-          </td>
-        </tr>
-      </>
-    );
-  };
-
-  const DayGroup = ({ day, clients }: { day: string; clients: Client[] }) => {
-    const isOpen = openDays.has(day);
-    const bgColor = DAY_COLORS[day] ?? "var(--glass-bg)";
-    const borderColor = DAY_BORDER_COLORS[day] ?? "rgba(255,255,255,0.12)";
-    return (
-      <div
-        className="liquid-glass mb-3"
-        style={{ background: bgColor, borderLeft: `3px solid ${borderColor}`, overflow: "visible" }}
-      >
-        <button
-          onClick={() => toggleDay(day)}
-          className="w-full flex items-center justify-between px-4 py-3 cursor-pointer"
-          style={{ background: "transparent", border: "none" }}
-        >
-          <span
-            style={{
-              fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-              fontSize: "11px",
-              letterSpacing: "0.1em",
-              color: "rgba(255,255,255,0.50)",
-              textTransform: "uppercase",
-            }}
-          >
-            {day.toUpperCase()}
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontSize: "11px",
-                color: "rgba(255,255,255,0.30)",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: "20px",
-                padding: "1px 10px",
-              }}
-            >
-              {clients.length} {clients.length === 1 ? "client" : "clients"}
-            </span>
-            <span style={{ color: "rgba(255,255,255,0.30)", fontSize: "10px", transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block" }}>
-              &#9660;
-            </span>
-          </span>
-        </button>
-        {isOpen && clients.length > 0 && (
-          <div style={{ overflowX: "auto", overflowY: "visible" }}>
-            <table className="w-full text-sm" style={{ overflow: "visible" }}>
-              <thead>
-                <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {["Name", "Payment", "Weekly", "Status", ""].map((h) => (
-                    <th key={h} className="text-left px-4 py-2 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <ClientRow key={client.id} client={client} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {isOpen && clients.length === 0 && (
-          <div className="px-4 pb-4">
-            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "12px" }}>No clients</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: "10px",
-    color: "white",
-    padding: "8px 12px",
-    fontFamily: "system-ui",
-    width: "100%",
-    fontSize: "13px",
-    outline: "none",
-  };
-
-  return (
-    <div>
-      {/* Stats row — compact with 24px numbers */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: "Total Active", value: totalActive, color: "#3b82f6" },
-          { label: "Milzzy", value: milzzyCount, color: "#3b82f6" },
-          { label: "Miggy", value: miggyCount, color: "#3b82f6" },
-          { label: "Paused", value: pausedCount, color: "#fbbf24" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="liquid-glass p-3 text-center">
-            <p
-              className="font-semibold"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color, fontSize: "24px" }}
-            >
-              {loading ? "—" : value}
-            </p>
-            <p
-              className="text-[11px] mt-1"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}
-            >
-              {label}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Coach sub-tabs + Add Client button */}
-      <div className="flex items-center justify-between mb-4">
-        <div style={{ display: "flex", gap: "8px" }}>
-          {(["Milzzy", "Miggy"] as const).map((coach) => (
-            <button
-              key={coach}
-              onClick={() => {
-                setSelectedCoach(coach);
-                setExpandedClientId(null);
-              }}
-              style={coachTabStyle(selectedCoach === coach)}
-            >
-              {coach}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            background: "rgba(59,130,246,0.15)",
-            border: "1px solid rgba(59,130,246,0.30)",
-            color: "#3b82f6",
-          }}
-        >
-          {showForm ? "Cancel" : "+ Add Client"}
-        </button>
-      </div>
-
-      {/* Inline form */}
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="liquid-glass p-5 mb-4 space-y-4"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Name *
-              </label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="Client name" />
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Email *
-              </label>
-              <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" />
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Coach *
-              </label>
-              <select required value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value as "Milzzy" | "Miggy" })} style={inputStyle}>
-                <option value="Milzzy">Milzzy</option>
-                <option value="Miggy">Miggy</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Payment Platform *
-              </label>
-              <select required value={form.paymentPlatform} onChange={(e) => setForm({ ...form, paymentPlatform: e.target.value as "Newie" | "Upfront" | "Mentorship" })} style={inputStyle}>
-                <option value="Newie">Newie</option>
-                <option value="Upfront">Upfront</option>
-                <option value="Mentorship">Mentorship</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Weekly Charge
-              </label>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.40)", fontFamily: "system-ui", fontSize: "13px" }}>$</span>
-                <input type="number" min="0" value={form.weeklyCharge} onChange={(e) => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={{ ...inputStyle, paddingLeft: "24px" }} placeholder="0" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Start Date *
-              </label>
-              <input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Spreadsheet URL
-              </label>
-              <input type="url" value={form.spreadsheetUrl} onChange={(e) => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/spreadsheets/..." />
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Status *
-              </label>
-              <select required value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "active" | "paused" | "cancelled" })} style={inputStyle}>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            {form.status === "paused" && (
-              <div>
-                <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                  Paused Until *
-                </label>
-                <input required type="date" value={form.pausedUntil} onChange={(e) => setForm({ ...form, pausedUntil: e.target.value })} style={inputStyle} />
-              </div>
-            )}
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Notes
-              </label>
-              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." />
-            </div>
-            <div>
-              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Check-in Day
-              </label>
-              <select value={form.checkInDay} onChange={(e) => setForm({ ...form, checkInDay: e.target.value as "" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday" })} style={inputStyle}>
-                <option value="">— Select day —</option>
-                <option value="Monday">Monday</option>
-                <option value="Tuesday">Tuesday</option>
-                <option value="Wednesday">Wednesday</option>
-                <option value="Thursday">Thursday</option>
-                <option value="Friday">Friday</option>
-                <option value="Saturday">Saturday</option>
-                <option value="Sunday">Sunday</option>
-              </select>
-            </div>
-          </div>
-          {formError && (
-            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "12px" }}>
-              {formError}
-            </p>
-          )}
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "#3b82f6", color: "#ffffff" }}
-            >
-              {editingId ? "Save Changes" : "Add Client"}
-            </button>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-80"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Day Groups */}
-      {loading ? (
-        <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>Loading...</p>
-        </div>
-      ) : error ? (
-        <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>{error}</p>
-        </div>
-      ) : coachActiveClients.length === 0 && noDayClients.length === 0 ? (
-        <div className="liquid-glass p-8 text-center" style={{ padding: "40px" }}>
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "13px" }}>
-            {selectedCoach === "Miggy"
-              ? "No clients assigned to Miggy yet."
-              : "No clients yet. Add your first client."}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Build active day groups list */}
-          {(() => {
-            const dayGroupsWithClients: { day: string; clients: Client[] }[] = [];
-            DAY_ORDER.forEach((day) => {
-              if (grouped[day].length > 0) {
-                dayGroupsWithClients.push({ day, clients: grouped[day] });
-              }
-            });
-            if (noDayClients.length > 0) {
-              dayGroupsWithClients.push({ day: "No Day Set", clients: noDayClients });
-            }
-            const count = dayGroupsWithClients.length;
-            const gridClass =
-              count === 1 ? "grid grid-cols-1 gap-4" :
-              count === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4" :
-              count === 3 ? "grid grid-cols-1 lg:grid-cols-3 gap-4" :
-              "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4";
-            return (
-              <div className={gridClass}>
-                {dayGroupsWithClients.map(({ day, clients }) => (
-                  <DayGroup key={day} day={day} clients={clients} />
-                ))}
-              </div>
-            );
-          })()}
-        </>
-      )}
-
-      {/* Cancelled Clients Section */}
-      <div>
-        <button
-          onClick={() => setShowCancelled(!showCancelled)}
-          className="flex items-center gap-2 mb-3 px-3 py-2 rounded-[10px] transition-all duration-200 hover:opacity-80"
-          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.50)", fontSize: "12px" }}
-        >
-          <span style={{ transition: "transform 0.2s", transform: showCancelled ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>
-            &#9654;
-          </span>
-          Cancelled Clients ({cancelledClients.length})
-        </button>
-
-        {showCancelled && (
-          <div className="liquid-glass overflow-hidden">
-            {cancelledClients.length === 0 ? (
-              <div className="p-6 text-center">
-                <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "13px" }}>No cancelled clients.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                      {["Name", "Coach", "Start Date", "Notes"].map((h) => (
-                        <th key={h} className="text-left px-4 py-3 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "11px" }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cancelledClients.map((client) => (
-                      <tr
-                        key={client.id}
-                        className="border-b last:border-0"
-                        style={{ borderColor: "rgba(255,255,255,0.05)" }}
-                      >
-                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
-                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "12px" }}>{client.coach}</td>
-                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>{client.startDate}</td>
-                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "12px" }}>{client.notes || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Client Action Modal (inside ClientsTab) ── */}
-      {selectedClient && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 1000,
-            background: "rgba(0,0,0,0.70)",
-            backdropFilter: "blur(8px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "16px",
-          }}
-          onClick={() => setSelectedClient(null)}
-        >
-          <div
-            style={{
-              background: "rgba(15, 20, 40, 0.97)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: "20px",
-              padding: "28px 28px 24px",
-              width: "100%",
-              maxWidth: "360px",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ marginBottom: "20px" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
-            </div>
-
-            {actionPanel === "menu" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <button
-                  onClick={() => { startEdit(selectedClient); setSelectedClient(null); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "12px",
-                    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "12px", padding: "12px 16px",
-                    color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui",
-                    cursor: "pointer", textAlign: "left",
-                  }}
-                >
-                  Edit Client
-                </button>
-                <button
-                  onClick={() => setActionPanel("pause")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "12px",
-                    background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)",
-                    borderRadius: "12px", padding: "12px 16px",
-                    color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui",
-                    cursor: "pointer", textAlign: "left",
-                  }}
-                >
-                  Pause Client
-                </button>
-                {selectedClient.spreadsheetUrl && (
-                  <button
-                    onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "12px",
-                      background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.25)",
-                      borderRadius: "12px", padding: "12px 16px",
-                      color: "#60a5fa", fontSize: "14px", fontFamily: "system-ui",
-                      cursor: "pointer", textAlign: "left",
-                    }}
-                  >
-                    Open Sheet
-                  </button>
-                )}
-                <button
-                  onClick={() => setActionPanel("cancel")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "12px",
-                    background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)",
-                    borderRadius: "12px", padding: "12px 16px",
-                    color: "#f87171", fontSize: "14px", fontFamily: "system-ui",
-                    cursor: "pointer", textAlign: "left",
-                  }}
-                >
-                  Cancel Client
-                </button>
-              </div>
-            )}
-
-            {actionPanel === "pause" && (
-              <div>
-                <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>
-                  Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:
-                </p>
-                <input
-                  id="pause-date-modal"
-                  type="date"
-                  defaultValue={selectedClient.pausedUntil ?? ""}
-                  style={{
-                    display: "block", width: "100%", marginBottom: "14px",
-                    background: "rgba(255,255,255,0.10)",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    borderRadius: "12px", color: "white",
-                    padding: "12px 14px", fontSize: "14px",
-                    fontFamily: "system-ui", outline: "none", boxSizing: "border-box",
-                  }}
-                />
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    onClick={async () => {
-                      const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value;
-                      if (!date) return;
-                      await updateClient(selectedClient.id, { status: "paused", pausedUntil: date });
-                      setSelectedClient(null);
-                    }}
-                    style={{
-                      flex: 1,
-                      background: "rgba(251,191,36,0.18)",
-                      border: "1px solid rgba(251,191,36,0.35)",
-                      color: "#fbbf24", borderRadius: "12px",
-                      padding: "12px", fontSize: "14px",
-                      fontFamily: "system-ui", cursor: "pointer", fontWeight: 600,
-                    }}
-                  >
-                    Confirm Pause
-                  </button>
-                  <button
-                    onClick={() => setActionPanel("menu")}
-                    style={{
-                      flex: 1,
-                      background: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      color: "rgba(255,255,255,0.55)", borderRadius: "12px",
-                      padding: "12px", fontSize: "14px",
-                      fontFamily: "system-ui", cursor: "pointer",
-                    }}
-                  >
-                    Back
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {actionPanel === "cancel" && (
-              <div>
-                <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "18px", lineHeight: 1.5 }}>
-                  Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?
-                </p>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    onClick={async () => {
-                      await updateClient(selectedClient.id, { status: "cancelled" });
-                      setSelectedClient(null);
-                    }}
-                    style={{
-                      flex: 1,
-                      background: "rgba(248,113,113,0.18)",
-                      border: "1px solid rgba(248,113,113,0.35)",
-                      color: "#f87171", borderRadius: "12px",
-                      padding: "12px", fontSize: "14px",
-                      fontFamily: "system-ui", cursor: "pointer", fontWeight: 600,
-                    }}
-                  >
-                    Yes, Cancel
-                  </button>
-                  <button
-                    onClick={() => setActionPanel("menu")}
-                    style={{
-                      flex: 1,
-                      background: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      color: "rgba(255,255,255,0.55)", borderRadius: "12px",
-                      padding: "12px", fontSize: "14px",
-                      fontFamily: "system-ui", cursor: "pointer",
-                    }}
-                  >
-                    Keep
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("agents");
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // ─── Clients tab state (owned by Home) ─────────────────────────────────
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel">("menu");
+
+  // Fetch clients when clients tab is active
+  useEffect(() => {
+    if (activeTab !== "clients") return;
+    fetch("/api/clients")
+      .then(r => r.json())
+      .then((data: Client[]) => setClients(data))
+      .catch(console.error);
+  }, [activeTab]);
+
+  // Stable updateClient function
+  const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
+    await fetch(`/api/clients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    setSelectedClient(prev => prev ? { ...prev, ...updates } : null);
+  }, []);
+
+  async function deleteClient(id: string) {
+    await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    setClients(prev => prev.filter(c => c.id !== id));
+  }
+
+  // ─── ClientsTab (lives here to access Home's state) ─────────────────────
+  function ClientsTab() {
+    const [form, setForm] = useState({
+      name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
+      paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
+      weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
+      pausedUntil: "", startDate: new Date().toISOString().split("T")[0],
+      notes: "", checkInDay: "" as "" | Client["checkInDay"],
+    });
+    const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [showCancelled, setShowCancelled] = useState(false);
+    const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
+
+    const coachFiltered = clients.filter(c => c.coach === selectedCoach);
+    const dayGroups = DAY_ORDER
+      .map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day) }))
+      .filter(g => g.clients.length > 0);
+    const cancelledClients = coachFiltered.filter(c => c.status === "cancelled");
+    const pausedClients = coachFiltered.filter(c => c.status === "paused");
+    const activeClients = coachFiltered.filter(c => c.status === "active");
+    const miggyClients = clients.filter(c => c.coach === "Miggy");
+    const milzzyClients = clients.filter(c => c.coach === "Milzzy");
+
+    const inputStyle: React.CSSProperties = {
+      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: "10px", color: "white", padding: "10px 12px",
+      fontSize: "13px", fontFamily: "system-ui", outline: "none", width: "100%", boxSizing: "border-box" as const,
+    };
+
+    const startEdit = (client: Client) => {
+      setForm({
+        name: client.name, email: client.email ?? "",
+        coach: client.coach,
+        paymentPlatform: client.paymentPlatform ?? "Newie",
+        weeklyCharge: client.weeklyCharge ?? 0,
+        spreadsheetUrl: client.spreadsheetUrl ?? "",
+        status: client.status,
+        pausedUntil: client.pausedUntil ?? "",
+        startDate: client.startDate,
+        notes: client.notes ?? "",
+        checkInDay: client.checkInDay ?? "",
+      });
+      setEditingId(client.id);
+      setShowForm(true);
+    };
+
+    const handleSave = async () => {
+      if (!form.name.trim()) { setFormError("Name is required"); return; }
+      setFormError(null);
+      if (editingId) {
+        await updateClient(editingId, { ...form, checkInDay: form.checkInDay || undefined });
+        setEditingId(null);
+      } else {
+        const res = await fetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        if (res.ok) {
+          const newClient: Client = await res.json();
+          setClients(prev => [...prev, newClient]);
+        }
+      }
+      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" });
+      setShowForm(false);
+    };
+
+    const statusPill = (client: Client) => {
+      if (client.status === "active") return <span style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Active</span>;
+      if (client.status === "paused") {
+        const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
+        return <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Paused {wks ? `· ${wks}w` : ""}</span>;
+      }
+      return <span style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Cancelled</span>;
+    };
+
+    const platformColors: Record<string, string> = { Newie: "#3b82f6", Upfront: "#a855f7", Mentorship: "#10b981" };
+
+    const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
+      : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
+      : dayGroups.length >= 3 ? "grid grid-cols-1 lg:grid-cols-3 gap-4"
+      : "grid grid-cols-1 gap-4";
+
+    return (
+      <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+        {/* Header + Add */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {(["Milzzy","Miggy"] as const).map(c => (
+              <button key={c} onClick={() => setSelectedCoach(c)}
+                style={{ background: selectedCoach === c ? "rgba(59,130,246,0.20)" : "rgba(255,255,255,0.05)", border: selectedCoach === c ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.10)", borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? "#3b82f6" : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
+                {c} {c === "Milzzy" ? `(${milzzyClients.length})` : `(${miggyClients.length})`}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" }); }}
+            style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.30)", borderRadius: "12px", padding: "8px 18px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+            {showForm ? "Cancel" : "+ Add Client"}
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
+          {[
+            { label: "Total Active", value: activeClients.length, color: "#34d399" },
+            { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: "#3b82f6" },
+            { label: "Miggy", value: miggyClients.filter(c=>c.status==="active").length, color: "#a855f7" },
+            { label: "Paused", value: pausedClients.length, color: "#fbbf24" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Add/Edit Form */}
+        {showForm && (
+          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>{editingId ? "Edit Client" : "Add New Client"}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
+                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="Full name" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</label>
+                <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="client@email.com" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Coach</label>
+                <select value={form.coach} onChange={e => setForm({...form, coach: e.target.value as "Milzzy"|"Miggy"})} style={{ ...inputStyle, marginTop: "4px" }}>
+                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Payment Platform</label>
+                <select value={form.paymentPlatform} onChange={e => setForm({...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship"})} style={{ ...inputStyle, marginTop: "4px" }}>
+                  <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Weekly Charge ($)</label>
+                <input type="number" value={form.weeklyCharge} onChange={e => setForm({...form, weeklyCharge: Number(e.target.value)})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="0" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Check-in Day</label>
+                <select value={form.checkInDay} onChange={e => setForm({...form, checkInDay: e.target.value as ""|Client["checkInDay"]})} style={{ ...inputStyle, marginTop: "4px" }}>
+                  <option value="">— Select day —</option>
+                  {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
+                </select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Spreadsheet URL</label>
+                <input value={form.spreadsheetUrl} onChange={e => setForm({...form, spreadsheetUrl: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="https://docs.google.com/..." /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Start Date</label>
+                <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} /></div>
+            </div>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</label>
+              <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} style={{ ...inputStyle, resize: "none", marginTop: "4px" }} placeholder="Optional notes..." />
+            </div>
+            {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={handleSave} style={{ background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "10px", padding: "10px 24px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+                {editingId ? "Save Changes" : "Add Client"}
+              </button>
+              {editingId && <button onClick={() => { setEditingId(null); setShowForm(false); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
+            </div>
+          </div>
+        )}
+
+        {/* Day Groups Grid */}
+        <div className={gridClass}>
+          {dayGroups.map(({ day, clients: dayClients }) => (
+            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length} clients</span>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>{["Name","Payment","Weekly","Status",""].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {dayClients.map(client => {
+                      const isPaused = client.status === "paused";
+                      return (
+                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : "transparent", transition: "background 0.15s" }}
+                          onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
+                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "transparent"; }}>
+                          <td style={{ padding: "10px 8px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
+                              {client.name}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 8px" }}>
+                            <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
+                          </td>
+                          <td style={{ padding: "10px 8px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                          <td style={{ padding: "10px 8px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "10px 8px", textAlign: "right" }}>
+                            <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
+                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                              &#x22EE;
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Cancelled Section */}
+        {cancelledClients.length > 0 && (
+          <div style={{ marginTop: "20px" }}>
+            <button onClick={() => setShowCancelled(!showCancelled)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", padding: "8px 0" }}>
+              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cancelled ({cancelledClients.length})</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: "12px", transition: "transform 0.2s", transform: showCancelled ? "rotate(180deg)" : "none" }}>⌄</span>
+            </button>
+            {showCancelled && (
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", overflow: "hidden" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%" }}>
+                    <tbody>
+                      {cancelledClients.map(client => (
+                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                          <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
+                          <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)" }}>{statusPill(client)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action Modal */}
+        {selectedClient && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.70)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={() => setSelectedClient(null)}>
+            <div style={{ background: "rgba(15,20,40,0.97)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "20px", padding: "28px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }} onClick={e => e.stopPropagation()}>
+              <div style={{ marginBottom: "20px" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
+                <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
+              </div>
+              {actionPanel === "menu" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <button onClick={() => { startEdit(selectedClient); setSelectedClient(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    ✏️ Edit Client
+                  </button>
+                  <button onClick={() => setActionPanel("pause")}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    ⏸️ Pause Client
+                  </button>
+                  {selectedClient.spreadsheetUrl && (
+                    <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
+                      style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#60a5fa", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                      📊 Open Sheet
+                    </button>
+                  )}
+                  <button onClick={() => setActionPanel("cancel")}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    ✕ Cancel Client
+                  </button>
+                </div>
+              )}
+              {actionPanel === "pause" && (
+                <div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:</p>
+                  <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
+                    style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date }); setSelectedClient(null); }}
+                      style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
+                    <button onClick={() => setActionPanel("menu")}
+                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
+                  </div>
+                </div>
+              )}
+              {actionPanel === "cancel" && (
+                <div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "18px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button onClick={async () => { await updateClient(selectedClient.id, { status: "cancelled" }); setSelectedClient(null); }}
+                      style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Yes, Cancel</button>
+                    <button onClick={() => setActionPanel("menu")}
+                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-[var(--text-primary)] flex flex-col">
