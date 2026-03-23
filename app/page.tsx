@@ -535,25 +535,33 @@ export default function Home() {
                           onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
                           onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
                           onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
-                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              {client.name}
-                              {client.spreadsheetUrl && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                  style={{ background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: "13px", opacity: 0.5 }}
-                                  title="Open spreadsheet"
-                                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.opacity = "1"}
-                                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.opacity = "0.5"}
-                                >
-                                  📊
-                                </button>
-                              )}
-                            </span>
-                          </td>
+                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>{client.name}</td>
                           <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
                           <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)" }}>{client.coach}</td>
                           <td style={{ padding: "10px 12px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                            {client.spreadsheetUrl && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid rgba(59,130,246,0.30)",
+                                  borderRadius: "6px",
+                                  color: "#3b82f6",
+                                  cursor: "pointer",
+                                  padding: "2px 10px",
+                                  fontSize: "11px",
+                                  fontFamily: "system-ui",
+                                  fontWeight: 500,
+                                  lineHeight: 1.5,
+                                  whiteSpace: "nowrap",
+                                }}
+                                title="Open spreadsheet"
+                              >
+                                Spreadsheet Hub
+                              </button>
+                            )}
+                          </td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <button onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setActionPanel("menu"); }} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}>⋯</button>
                           </td>
@@ -589,17 +597,6 @@ export default function Home() {
                             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
                               {client.name}
-                              {client.spreadsheetUrl && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                  style={{ background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: "13px", opacity: 0.5 }}
-                                  title="Open spreadsheet"
-                                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.opacity = "1"}
-                                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.opacity = "0.5"}
-                                >
-                                  📊
-                                </button>
-                              )}
                             </span>
                           </td>
                           <td style={{ padding: "8px 10px" }}>
@@ -607,6 +604,29 @@ export default function Home() {
                           </td>
                           <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
                           <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                            {client.spreadsheetUrl && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid rgba(59,130,246,0.30)",
+                                  borderRadius: "6px",
+                                  color: "#3b82f6",
+                                  cursor: "pointer",
+                                  padding: "2px 10px",
+                                  fontSize: "11px",
+                                  fontFamily: "system-ui",
+                                  fontWeight: 500,
+                                  lineHeight: 1.5,
+                                  whiteSpace: "nowrap",
+                                }}
+                                title="Open spreadsheet"
+                              >
+                                Spreadsheet Hub
+                              </button>
+                            )}
+                          </td>
                           <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
                             <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
