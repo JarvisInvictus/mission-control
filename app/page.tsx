@@ -614,7 +614,22 @@ export default function Home() {
               </div>
               {actionPanel === "menu" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <button onClick={() => { startEdit(selectedClient); setActionPanel("edit"); }}
+                  <button onClick={() => {
+                    setForm({
+                      name: selectedClient.name, email: selectedClient.email ?? "",
+                      coach: selectedClient.coach,
+                      paymentPlatform: selectedClient.paymentPlatform ?? "Newie",
+                      weeklyCharge: selectedClient.weeklyCharge ?? 0,
+                      spreadsheetUrl: selectedClient.spreadsheetUrl ?? "",
+                      status: selectedClient.status,
+                      pausedUntil: selectedClient.pausedUntil ?? "",
+                      startDate: selectedClient.startDate,
+                      notes: selectedClient.notes ?? "",
+                      checkInDay: selectedClient.checkInDay ?? "",
+                    });
+                    setEditingId(selectedClient.id);
+                    setActionPanel("edit");
+                  }}
                     style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
                     ✏️ Edit Client
                   </button>
