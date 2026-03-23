@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AgentCard } from "@/components/AgentCard";
 import { HeartbeatCard } from "@/components/HeartbeatCard";
 import { CronCard, type CronJob } from "@/components/CronCard";
@@ -412,6 +413,9 @@ function ClientsTab() {
   const [dropdownOpenId, setDropdownOpenId] = useState<string | null>(null);
   // "menu" | "pause" | "cancel"
   const [dropdownPanel, setDropdownPanel] = useState<Record<string, "menu" | "pause" | "cancel">>({});
+  // Portal position for fixed dropdown
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<Record<string, HTMLButtonElement | null>>({});
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -600,6 +604,9 @@ function ClientsTab() {
 
     const openDropdown = (e: React.MouseEvent) => {
       e.stopPropagation();
+      const btn = (e.currentTarget as HTMLButtonElement);
+      const rect = btn.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right });
       setDropdownOpenId(client.id);
       setDropdownPanel((prev) => ({ ...prev, [client.id]: "menu" }));
     };
@@ -687,7 +694,7 @@ function ClientsTab() {
             ) : statusPill(client)}
           </td>
           {/* Actions — three dots */}
-          <td className="px-4 py-3" style={{ textAlign: "right", paddingRight: "12px", position: "relative" }}>
+          <td className="px-4 py-3" style={{ textAlign: "right", paddingRight: "12px", position: "static", overflow: "visible" }}>
             <button
               onClick={openDropdown}
               style={{
@@ -708,205 +715,208 @@ function ClientsTab() {
               &#x22EE;{/* three dots */}
             </button>
 
-            {/* Dropdown */}
-            {isDropdownOpen && (
-              <div
-                style={{
-                  position: "absolute", right: 0, top: "100%",
-                  zIndex: 50,
-                  background: "rgba(15, 20, 40, 0.95)",
-                  backdropFilter: "blur(20px)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "12px",
-                  padding: "6px",
-                  minWidth: "180px",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* ── Menu panel ── */}
-                {panel === "menu" && (
-                  <>
-                    <button
-                      onClick={() => startEdit(client)}
-                      style={{
-                        display: "block", width: "100%",
-                        background: "transparent", border: "none",
-                        color: "rgba(255,255,255,0.70)", cursor: "pointer",
-                        borderRadius: "8px", padding: "8px 12px",
-                        fontSize: "13px", fontFamily: "system-ui",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.90)";
-                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)";
-                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
-                    <button
-                      onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "pause" }))}
-                      style={{
-                        display: "block", width: "100%",
-                        background: "transparent", border: "none",
-                        color: "rgba(255,255,255,0.70)", cursor: "pointer",
-                        borderRadius: "8px", padding: "8px 12px",
-                        fontSize: "13px", fontFamily: "system-ui",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.90)";
-                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)";
-                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                      }}
-                    >
-                      Pause
-                    </button>
-                    <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
-                    <button
-                      onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "cancel" }))}
-                      style={{
-                        display: "block", width: "100%",
-                        background: "transparent", border: "none",
-                        color: "rgba(248,113,113,0.85)", cursor: "pointer",
-                        borderRadius: "8px", padding: "8px 12px",
-                        fontSize: "13px", fontFamily: "system-ui",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(248,113,113,0.10)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                      }}
-                    >
-                      Cancel Client
-                    </button>
-                    {client.spreadsheetUrl && (
-                      <>
-                        <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
-                        <button
-                          onClick={() => { window.open(client.spreadsheetUrl, "_blank"); setDropdownOpenId(null); }}
-                          style={{
-                            display: "block", width: "100%",
-                            background: "rgba(59,130,246,0.10)", border: "none",
-                            color: "#3b82f6", cursor: "pointer",
-                            borderRadius: "8px", padding: "8px 12px",
-                            fontSize: "13px", fontFamily: "system-ui",
-                            textAlign: "left",
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.background = "rgba(59,130,246,0.18)";
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.background = "rgba(59,130,246,0.10)";
-                          }}
-                        >
-                          Open Sheet
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-
-                {/* ── Pause panel ── */}
-                {panel === "pause" && (
-                  <div>
-                    <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)", padding: "4px 12px 8px", margin: 0 }}>
-                      Pause until:
-                    </p>
-                    <input
-                      id={`pause-date-${client.id}`}
-                      type="date"
-                      defaultValue={client.pausedUntil ?? ""}
-                      style={{
-                        display: "block", width: "calc(100% - 24px)",
-                        margin: "0 12px 8px",
-                        background: "rgba(255,255,255,0.08)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: "8px", color: "white",
-                        padding: "6px 10px", fontSize: "12px",
-                        fontFamily: "system-ui", outline: "none",
-                      }}
-                    />
-                    <div style={{ display: "flex", gap: "6px", padding: "0 12px 4px" }}>
-                      <button
-                        onClick={handlePauseConfirm}
-                        style={{
-                          flex: 1,
-                          background: "rgba(251,191,36,0.15)",
-                          border: "1px solid rgba(251,191,36,0.30)",
-                          color: "#fbbf24", borderRadius: "8px",
-                          padding: "6px 14px", fontSize: "12px",
-                          fontFamily: "system-ui", cursor: "pointer",
-                        }}
-                      >
-                        Confirm Pause
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "menu" }))}
-                      style={{
-                        display: "block", width: "100%",
-                        background: "transparent", border: "none",
-                        color: "rgba(255,255,255,0.30)", cursor: "pointer",
-                        padding: "4px 12px", fontSize: "11px",
-                        fontFamily: "system-ui", textAlign: "center",
-                      }}
-                    >
-                      Back
-                    </button>
-                  </div>
-                )}
-
-                {/* ── Cancel panel ── */}
-                {panel === "cancel" && (
-                  <div>
-                    <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)", padding: "4px 12px 10px", margin: 0, lineHeight: 1.4 }}>
-                      Remove {client.name} from active clients?
-                    </p>
-                    <div style={{ display: "flex", gap: "6px", padding: "0 12px" }}>
-                      <button
-                        onClick={handleCancelConfirm}
-                        style={{
-                          flex: 1,
-                          background: "rgba(248,113,113,0.15)",
-                          border: "1px solid rgba(248,113,113,0.30)",
-                          color: "#f87171", borderRadius: "8px",
-                          padding: "6px 10px", fontSize: "12px",
-                          fontFamily: "system-ui", cursor: "pointer",
-                        }}
-                      >
-                        Yes, cancel
-                      </button>
-                      <button
-                        onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "menu" }))}
-                        style={{
-                          flex: 1,
-                          background: "rgba(255,255,255,0.08)",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          color: "rgba(255,255,255,0.60)", borderRadius: "8px",
-                          padding: "6px 10px", fontSize: "12px",
-                          fontFamily: "system-ui", cursor: "pointer",
-                        }}
-                      >
-                        Keep
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </td>
         </tr>
+        {/* Portal dropdown — rendered outside table to avoid overflow clipping */}
+        {isDropdownOpen && dropdownPos && createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: dropdownPos.top,
+              right: dropdownPos.right,
+              zIndex: 9999,
+              background: "rgba(15, 20, 40, 0.97)",
+              backdropFilter: "blur(24px)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: "14px",
+              padding: "6px",
+              minWidth: "195px",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* ── Menu panel ── */}
+            {panel === "menu" && (
+              <>
+                <button
+                  onClick={() => startEdit(client)}
+                  style={{
+                    display: "block", width: "100%",
+                    background: "transparent", border: "none",
+                    color: "rgba(255,255,255,0.75)", cursor: "pointer",
+                    borderRadius: "8px", padding: "9px 14px",
+                    fontSize: "13px", fontFamily: "system-ui",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.95)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.07)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  }}
+                >
+                  Edit
+                </button>
+                <div style={{ height: "1px", background: "rgba(255,255,255,0.07)", margin: "3px 0" }} />
+                <button
+                  onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "pause" }))}
+                  style={{
+                    display: "block", width: "100%",
+                    background: "transparent", border: "none",
+                    color: "rgba(255,255,255,0.75)", cursor: "pointer",
+                    borderRadius: "8px", padding: "9px 14px",
+                    fontSize: "13px", fontFamily: "system-ui",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.95)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.07)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  }}
+                >
+                  Pause
+                </button>
+                <div style={{ height: "1px", background: "rgba(255,255,255,0.07)", margin: "3px 0" }} />
+                <button
+                  onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "cancel" }))}
+                  style={{
+                    display: "block", width: "100%",
+                    background: "transparent", border: "none",
+                    color: "rgba(248,113,113,0.90)", cursor: "pointer",
+                    borderRadius: "8px", padding: "9px 14px",
+                    fontSize: "13px", fontFamily: "system-ui",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(248,113,113,0.10)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  }}
+                >
+                  Cancel Client
+                </button>
+                {client.spreadsheetUrl && (
+                  <>
+                    <div style={{ height: "1px", background: "rgba(255,255,255,0.07)", margin: "3px 0" }} />
+                    <button
+                      onClick={() => { window.open(client.spreadsheetUrl, "_blank"); setDropdownOpenId(null); }}
+                      style={{
+                        display: "block", width: "100%",
+                        background: "rgba(59,130,246,0.12)", border: "none",
+                        color: "#60a5fa", cursor: "pointer",
+                        borderRadius: "8px", padding: "9px 14px",
+                        fontSize: "13px", fontFamily: "system-ui",
+                        textAlign: "left",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(59,130,246,0.20)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(59,130,246,0.12)";
+                      }}
+                    >
+                      Open Sheet
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── Pause panel ── */}
+            {panel === "pause" && (
+              <div>
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)", padding: "4px 14px 8px", margin: 0 }}>
+                  Pause until:
+                </p>
+                <input
+                  id={`pause-date-${client.id}`}
+                  type="date"
+                  defaultValue={client.pausedUntil ?? ""}
+                  style={{
+                    display: "block", width: "calc(100% - 28px)",
+                    margin: "0 14px 10px",
+                    background: "rgba(255,255,255,0.10)",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    borderRadius: "10px", color: "white",
+                    padding: "8px 12px", fontSize: "13px",
+                    fontFamily: "system-ui", outline: "none",
+                  }}
+                />
+                <div style={{ display: "flex", gap: "8px", padding: "0 14px 4px" }}>
+                  <button
+                    onClick={handlePauseConfirm}
+                    style={{
+                      flex: 1,
+                      background: "rgba(251,191,36,0.18)",
+                      border: "1px solid rgba(251,191,36,0.35)",
+                      color: "#fbbf24", borderRadius: "10px",
+                      padding: "8px 14px", fontSize: "13px",
+                      fontFamily: "system-ui", cursor: "pointer",
+                    }}
+                  >
+                    Confirm
+                  </button>
+                </div>
+                <button
+                  onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "menu" }))}
+                  style={{
+                    display: "block", width: "100%",
+                    background: "transparent", border: "none",
+                    color: "rgba(255,255,255,0.30)", cursor: "pointer",
+                    padding: "4px 14px", fontSize: "11px",
+                    fontFamily: "system-ui", textAlign: "center",
+                  }}
+                >
+                  Back
+                </button>
+              </div>
+            )}
+
+            {/* ── Cancel panel ── */}
+            {panel === "cancel" && (
+              <div>
+                <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.65)", padding: "4px 14px 12px", margin: 0, lineHeight: 1.5 }}>
+                  Remove {client.name} from active clients?
+                </p>
+                <div style={{ display: "flex", gap: "8px", padding: "0 14px" }}>
+                  <button
+                    onClick={handleCancelConfirm}
+                    style={{
+                      flex: 1,
+                      background: "rgba(248,113,113,0.18)",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                      color: "#f87171", borderRadius: "10px",
+                      padding: "8px 10px", fontSize: "12px",
+                      fontFamily: "system-ui", cursor: "pointer",
+                    }}
+                  >
+                    Yes, cancel
+                  </button>
+                  <button
+                    onClick={() => setDropdownPanel((prev) => ({ ...prev, [client.id]: "menu" }))}
+                    style={{
+                      flex: 1,
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      color: "rgba(255,255,255,0.60)", borderRadius: "10px",
+                      padding: "8px 10px", fontSize: "12px",
+                      fontFamily: "system-ui", cursor: "pointer",
+                    }}
+                  >
+                    Keep
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
       </>
     );
   };
