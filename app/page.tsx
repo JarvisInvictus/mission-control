@@ -472,6 +472,24 @@ function ClientsTab() {
   const miggyCount = clients.filter((c) => c.coach === "Miggy" && (c.status === "active" || c.status === "paused")).length;
   const pausedCount = pausedClients.length;
 
+  const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+  const [openDays, setOpenDays] = useState<Set<string>>(new Set(DAY_ORDER));
+
+  const toggleDay = (day: string) => {
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  };
+
+  const grouped = DAY_ORDER.reduce<Record<string, Client[]>>((acc, day) => {
+    acc[day] = activeClients.filter((c) => c.checkInDay === day);
+    return acc;
+  }, {});
+  const noDayClients = activeClients.filter((c) => !c.checkInDay);
+
   // Pill helpers
   const paymentPill = (platform: Client["paymentPlatform"]) => {
     const styles: Record<Client["paymentPlatform"], React.CSSProperties> = {
@@ -504,6 +522,120 @@ function ClientsTab() {
       );
     }
     return null;
+  };
+
+  const ClientRow = ({ client }: { client: Client }) => (
+    <tr
+      className="border-b last:border-0 transition-colors"
+      style={{ borderColor: "rgba(255,255,255,0.05)" }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)")}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")}
+    >
+      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
+        <span className="flex items-center gap-2 flex-wrap">
+          {client.name}
+          {client.spreadsheetUrl && (
+            <button
+              onClick={() => window.open(client.spreadsheetUrl, "_blank")}
+              style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "rgba(59,130,246,0.85)", borderRadius: "5px", padding: "2px 7px", fontSize: "10px", cursor: "pointer", fontWeight: 500, fontFamily: "system-ui" }}
+            >
+              Sheet
+            </button>
+          )}
+        </span>
+      </td>
+      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.70)", fontSize: "12px" }}>
+        {client.coach}
+      </td>
+      <td className="px-4 py-3">
+        {paymentPill(client.paymentPlatform ?? "Newie")}
+      </td>
+      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>
+        {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
+      </td>
+      <td className="px-4 py-3">{statusPill(client)}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => startEdit(client)}
+            className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(client.id)}
+            disabled={deletingId === client.id}
+            className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-40"
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(248,113,113,0.15)", color: "#f87171" }}
+          >
+            {deletingId === client.id ? "..." : "Delete"}
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+
+  const DayGroup = ({ day, clients }: { day: string; clients: Client[] }) => {
+    const isOpen = openDays.has(day);
+    return (
+      <div className="liquid-glass overflow-hidden mb-3">
+        <button
+          onClick={() => toggleDay(day)}
+          className="w-full flex items-center justify-between px-4 py-3 cursor-pointer"
+          style={{ background: "transparent", border: "none" }}
+        >
+          <span
+            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}
+          >
+            {day.toUpperCase()}
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontSize: "11px",
+                color: "rgba(255,255,255,0.30)",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: "20px",
+                padding: "1px 10px",
+              }}
+            >
+              {clients.length} {clients.length === 1 ? "client" : "clients"}
+            </span>
+            <span style={{ color: "rgba(255,255,255,0.30)", fontSize: "10px", transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block" }}>
+              &#9660;
+            </span>
+          </span>
+        </button>
+        {isOpen && clients.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  {["Name", "Coach", "Payment", "Weekly", "Status", "Actions"].map((h) => (
+                    <th key={h} className="text-left px-4 py-2 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((client) => (
+                  <ClientRow key={client.id} client={client} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {isOpen && clients.length === 0 && (
+          <div className="px-4 pb-4">
+            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "12px" }}>No clients</p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const inputStyle: React.CSSProperties = {
@@ -691,7 +823,7 @@ function ClientsTab() {
         </form>
       )}
 
-      {/* Table */}
+      {/* Day Groups */}
       {loading ? (
         <div className="liquid-glass p-8 text-center">
           <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>Loading...</p>
@@ -700,85 +832,19 @@ function ClientsTab() {
         <div className="liquid-glass p-8 text-center">
           <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>{error}</p>
         </div>
-      ) : activeClients.length === 0 ? (
+      ) : activeClients.length === 0 && noDayClients.length === 0 ? (
         <div className="liquid-glass p-8 text-center">
           <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>No clients yet. Add your first client.</p>
         </div>
       ) : (
-        <div className="liquid-glass overflow-hidden mb-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {["Name", "Coach", "Payment", "Weekly", "Check-in", "Status", "Actions"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeClients.map((client) => (
-                  <tr
-                    key={client.id}
-                    className="border-b last:border-0 transition-colors"
-                    style={{ borderColor: "rgba(255,255,255,0.05)" }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")}
-                  >
-                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
-                      <span className="flex items-center gap-2 flex-wrap">
-                        {client.name}
-                        {client.spreadsheetUrl && (
-                          <button
-                            onClick={() => window.open(client.spreadsheetUrl, "_blank")}
-                            style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "rgba(59,130,246,0.85)", borderRadius: "5px", padding: "2px 7px", fontSize: "10px", cursor: "pointer", fontWeight: 500, fontFamily: "system-ui" }}
-                          >
-                            Sheet
-                          </button>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.70)", fontSize: "12px" }}>
-                      {client.coach}
-                    </td>
-                    <td className="px-4 py-3">
-                      {paymentPill(client.paymentPlatform ?? "Newie")}
-                    </td>
-                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>
-                      {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
-                    </td>
-                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)", fontSize: "12px" }}>
-                      {client.checkInDay
-                        ? ({"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"} as Record<string,string>)[client.checkInDay]
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">{statusPill(client)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => startEdit(client)}
-                          className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80"
-                          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(client.id)}
-                          disabled={deletingId === client.id}
-                          className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-40"
-                          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(248,113,113,0.15)", color: "#f87171" }}
-                        >
-                          {deletingId === client.id ? "..." : "Delete"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <>
+          {DAY_ORDER.map((day) => (
+            <DayGroup key={day} day={day} clients={grouped[day]} />
+          ))}
+          {noDayClients.length > 0 && (
+            <DayGroup day="No Day Set" clients={noDayClients} />
+          )}
+        </>
       )}
 
       {/* Cancelled Clients Section */}
