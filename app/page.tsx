@@ -917,8 +917,8 @@ function ClientsTab() {
     const borderColor = DAY_BORDER_COLORS[day] ?? "rgba(255,255,255,0.12)";
     return (
       <div
-        className="liquid-glass overflow-hidden mb-3"
-        style={{ background: bgColor, borderLeft: `3px solid ${borderColor}` }}
+        className="liquid-glass mb-3"
+        style={{ background: bgColor, borderLeft: `3px solid ${borderColor}`, overflow: "visible" }}
       >
         <button
           onClick={() => toggleDay(day)}
@@ -956,8 +956,8 @@ function ClientsTab() {
           </span>
         </button>
         {isOpen && clients.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: "auto", overflowY: "visible" }}>
+            <table className="w-full text-sm" style={{ overflow: "visible" }}>
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                   {["Name", "Payment", "Weekly", "Status", ""].map((h) => (
