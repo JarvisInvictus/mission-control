@@ -542,28 +542,29 @@ export default function Home() {
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>{["Name","Payment","Weekly","Status",""].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>)}</tr>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 5, backdropFilter: "blur(8px)" }}>
+                    <tr style={{ background: "rgba(255,255,255,0.04)" }}>{["Name","Payment","Weekly","Status",""].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {dayClients.map(client => {
+                    {dayClients.map((client, idx) => {
                       const isPaused = client.status === "paused";
+                      const rowBg = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent";
                       return (
-                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : "transparent", transition: "background 0.15s" }}
+                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
                           onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
-                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "transparent"; }}>
-                          <td style={{ padding: "10px 8px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
+                          <td style={{ padding: "12px 14px", minWidth: "140px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
                               {client.name}
                             </span>
                           </td>
-                          <td style={{ padding: "10px 8px" }}>
+                          <td style={{ padding: "12px 14px" }}>
                             <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
                           </td>
-                          <td style={{ padding: "10px 8px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
-                          <td style={{ padding: "10px 8px" }}>{statusPill(client)}</td>
-                          <td style={{ padding: "10px 8px", textAlign: "right" }}>
+                          <td style={{ padding: "12px 14px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                          <td style={{ padding: "12px 14px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "12px 14px", textAlign: "right" }}>
                             <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
