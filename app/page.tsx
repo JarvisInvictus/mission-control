@@ -382,11 +382,20 @@ export default function Home() {
       pausedUntil: "", startDate: new Date().toISOString().split("T")[0],
       notes: "", checkInDay: "" as "" | Client["checkInDay"],
     });
+    const [searchQuery, setSearchQuery] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [showCancelled, setShowCancelled] = useState(false);
     const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
+
+    // When search is active, show all matching clients in one list
+    const searchResults = searchQuery
+      ? clients.filter(c =>
+          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
+        )
+      : [];
 
     const coachFiltered = clients.filter(c => c.coach === selectedCoach);
     const dayGroups = DAY_ORDER
@@ -459,6 +468,24 @@ export default function Home() {
 
     return (
       <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+        {/* Search bar */}
+        <div style={{ position: "relative", marginBottom: "14px" }}>
+          <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", fontSize: "14px", pointerEvents: "none" }}>🔍</span>
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search clients..."
+            style={{
+              width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "12px", color: "white", padding: "10px 14px 10px 40px",
+              fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box",
+            }}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "14px" }}>✕</button>
+          )}
+        </div>
+
         {/* Header + Add */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -490,9 +517,117 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Add/Edit Form */}
-        {showForm && (
-          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
+        {/* Search Results Section */}
+        {searchQuery && (
+          <div style={{ marginBottom: "20px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", marginBottom: "10px" }}>
+              {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
+            </p>
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "12px" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <tbody>
+                    {searchResults.map((client, idx) => {
+                      const isPaused = client.status === "paused";
+                      return (
+                        <tr key={client.id}
+                          style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
+                          onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
+                          onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
+                          onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
+                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {client.name}
+                              {client.spreadsheetUrl && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                  style={{ background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: "13px", opacity: 0.5 }}
+                                  title="Open spreadsheet"
+                                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.opacity = "1"}
+                                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.opacity = "0.5"}
+                                >
+                                  📊
+                                </button>
+                              )}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
+                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)" }}>{client.coach}</td>
+                          <td style={{ padding: "10px 12px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setActionPanel("menu"); }} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}>⋯</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Day Groups Grid */}
+        {!searchQuery && <div className={gridClass}>
+          {dayGroups.map(({ day, clients: dayClients }) => (
+            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "10px 12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
+              </div>
+              <div>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <tbody>
+                    {dayClients.map((client, idx) => {
+                      const isPaused = client.status === "paused";
+                      const rowBg = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent";
+                      return (
+                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
+                          onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
+                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
+                          <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
+                              {client.name}
+                              {client.spreadsheetUrl && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                  style={{ background: "transparent", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: "13px", opacity: 0.5 }}
+                                  title="Open spreadsheet"
+                                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.opacity = "1"}
+                                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.opacity = "0.5"}
+                                >
+                                  📊
+                                </button>
+                              )}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 10px" }}>
+                            <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
+                          </td>
+                          <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
+                          <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
+                            <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
+                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                              &#x22EE;
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>}
+
+        {/* Add/Edit Form (rendered after day-groups so it overlays on top) */}
+        {!searchQuery && showForm && (
+          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginTop: "20px" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>{editingId ? "Edit Client" : "Add New Client"}</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
               <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
@@ -530,53 +665,6 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        {/* Day Groups Grid */}
-        <div className={gridClass}>
-          {dayGroups.map(({ day, clients: dayClients }) => (
-            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "10px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
-                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
-              </div>
-              <div>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <tbody>
-                    {dayClients.map((client, idx) => {
-                      const isPaused = client.status === "paused";
-                      const rowBg = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent";
-                      return (
-                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
-                          onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
-                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
-                          <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
-                              {client.name}
-                            </span>
-                          </td>
-                          <td style={{ padding: "8px 10px" }}>
-                            <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
-                          </td>
-                          <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
-                          <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
-                          <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
-                            <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
-                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-                              &#x22EE;
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>
 
         {/* Cancelled Section */}
         {cancelledClients.length > 0 && (
