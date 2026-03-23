@@ -514,6 +514,16 @@ function ClientsTab() {
   const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
   const [openDays, setOpenDays] = useState<Set<string>>(new Set(DAY_ORDER));
 
+  // When coach or clients change, reset openDays to only days that have clients for this coach
+  useEffect(() => {
+    const daysWithClients = new Set<string>();
+    DAY_ORDER.forEach((day) => {
+      if (grouped[day].length > 0) daysWithClients.add(day);
+    });
+    if (noDayClients.length > 0) daysWithClients.add("No Day Set");
+    setOpenDays(daysWithClients);
+  }, [selectedCoach, coachActiveClients]);
+
   const toggleDay = (day: string) => {
     setOpenDays((prev) => {
       const next = new Set(prev);
