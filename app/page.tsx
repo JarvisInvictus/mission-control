@@ -838,12 +838,31 @@ function ClientsTab() {
         </div>
       ) : (
         <>
-          {DAY_ORDER.map((day) => (
-            <DayGroup key={day} day={day} clients={grouped[day]} />
-          ))}
-          {noDayClients.length > 0 && (
-            <DayGroup day="No Day Set" clients={noDayClients} />
-          )}
+          {/* Build active day groups list */}
+          {(() => {
+            const dayGroupsWithClients: { day: string; clients: Client[] }[] = [];
+            DAY_ORDER.forEach((day) => {
+              if (grouped[day].length > 0) {
+                dayGroupsWithClients.push({ day, clients: grouped[day] });
+              }
+            });
+            if (noDayClients.length > 0) {
+              dayGroupsWithClients.push({ day: "No Day Set", clients: noDayClients });
+            }
+            const count = dayGroupsWithClients.length;
+            const gridClass =
+              count === 1 ? "grid grid-cols-1 gap-4" :
+              count === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4" :
+              count === 3 ? "grid grid-cols-1 lg:grid-cols-3 gap-4" :
+              "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4";
+            return (
+              <div className={gridClass}>
+                {dayGroupsWithClients.map(({ day, clients }) => (
+                  <DayGroup key={day} day={day} clients={clients} />
+                ))}
+              </div>
+            );
+          })()}
         </>
       )}
 
