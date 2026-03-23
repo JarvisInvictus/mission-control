@@ -384,6 +384,13 @@ function ClientsTab() {
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
+  const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+
+  // Pause mini-form state per client (keyed by client id)
+  const [pauseDate, setPauseDate] = useState<Record<string, string>>({});
+  // Cancel confirmation state per client
+  const [confirmCancel, setConfirmCancel] = useState<Record<string, boolean>>({});
 
   // Form state
   const [form, setForm] = useState({
@@ -451,6 +458,36 @@ function ClientsTab() {
     setShowForm(true);
   };
 
+  const handlePauseClient = async (clientId: string) => {
+    const date = pauseDate[clientId];
+    if (!date) return;
+    try {
+      await updateClient(clientId, { status: "paused", pausedUntil: date });
+      setPauseDate((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
+      setExpandedClientId(null);
+    } catch {
+      // silent fail
+    }
+  };
+
+  const handleCancelClient = async (clientId: string) => {
+    try {
+      await updateClient(clientId, { status: "cancelled" });
+      setConfirmCancel((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
+      setExpandedClientId(null);
+    } catch {
+      // silent fail
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this client?")) return;
     setDeletingId(id);
@@ -464,6 +501,7 @@ function ClientsTab() {
   };
 
   const activeClients = clients.filter((c) => c.status === "active" || c.status === "paused");
+  const coachActiveClients = activeClients.filter((c) => c.coach === selectedCoach);
   const cancelledClients = clients.filter((c) => c.status === "cancelled");
   const pausedClients = clients.filter((c) => c.status === "paused");
 
@@ -471,6 +509,7 @@ function ClientsTab() {
   const milzzyCount = clients.filter((c) => c.coach === "Milzzy" && (c.status === "active" || c.status === "paused")).length;
   const miggyCount = clients.filter((c) => c.coach === "Miggy" && (c.status === "active" || c.status === "paused")).length;
   const pausedCount = pausedClients.length;
+  const coachPausedCount = coachActiveClients.filter((c) => c.status === "paused").length;
 
   const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
   const [openDays, setOpenDays] = useState<Set<string>>(new Set(DAY_ORDER));
@@ -485,10 +524,10 @@ function ClientsTab() {
   };
 
   const grouped = DAY_ORDER.reduce<Record<string, Client[]>>((acc, day) => {
-    acc[day] = activeClients.filter((c) => c.checkInDay === day);
+    acc[day] = coachActiveClients.filter((c) => c.checkInDay === day);
     return acc;
   }, {});
-  const noDayClients = activeClients.filter((c) => !c.checkInDay);
+  const noDayClients = coachActiveClients.filter((c) => !c.checkInDay);
 
   // Pill helpers
   const paymentPill = (platform: Client["paymentPlatform"]) => {
@@ -498,7 +537,7 @@ function ClientsTab() {
       Mentorship: { background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.30)" },
     };
     return (
-      <span style={{ ...styles[platform], borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
+      <span style={{ ...styles[platform], borderRadius: "6px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
         {platform}
       </span>
     );
@@ -514,7 +553,7 @@ function ClientsTab() {
     }
     if (client.status === "paused") {
       const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
-      const label = wks !== null && wks > 0 ? `Paused · ${wks} wks` : "Paused";
+      const label = wks !== null && wks > 0 ? `Paused · ${wks}w` : "Paused";
       return (
         <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
           {label}
@@ -524,57 +563,159 @@ function ClientsTab() {
     return null;
   };
 
-  const ClientRow = ({ client }: { client: Client }) => (
-    <tr
-      className="border-b last:border-0 transition-colors"
-      style={{ borderColor: "rgba(255,255,255,0.05)" }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)")}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")}
-    >
-      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
-        <span className="flex items-center gap-2 flex-wrap">
-          {client.name}
-          {client.spreadsheetUrl && (
-            <button
-              onClick={() => window.open(client.spreadsheetUrl, "_blank")}
-              style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "rgba(59,130,246,0.85)", borderRadius: "5px", padding: "2px 7px", fontSize: "10px", cursor: "pointer", fontWeight: 500, fontFamily: "system-ui" }}
-            >
-              Sheet
-            </button>
-          )}
-        </span>
-      </td>
-      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.70)", fontSize: "12px" }}>
-        {client.coach}
-      </td>
-      <td className="px-4 py-3">
-        {paymentPill(client.paymentPlatform ?? "Newie")}
-      </td>
-      <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>
-        {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
-      </td>
-      <td className="px-4 py-3">{statusPill(client)}</td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => startEdit(client)}
-            className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => handleDelete(client.id)}
-            disabled={deletingId === client.id}
-            className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-40"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(248,113,113,0.15)", color: "#f87171" }}
-          >
-            {deletingId === client.id ? "..." : "Delete"}
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
+  // Coach tab pill style helper
+  const coachTabStyle = (selected: boolean): React.CSSProperties => ({
+    borderRadius: "999px",
+    padding: "6px 18px",
+    fontSize: "12px",
+    cursor: "pointer",
+    fontFamily: "system-ui",
+    ...(selected
+      ? {
+          background: "rgba(59,130,246,0.20)",
+          border: "1px solid rgba(59,130,246,0.35)",
+          color: "#3b82f6",
+          fontWeight: 600,
+        }
+      : {
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          color: "rgba(255,255,255,0.50)",
+        }),
+  });
+
+  const ClientRow = ({ client }: { client: Client }) => {
+    const isExpanded = expandedClientId === client.id;
+    const hasPauseForm = !!pauseDate[client.id];
+    const hasCancelConfirm = !!confirmCancel[client.id];
+
+    return (
+      <>
+        <tr
+          className="border-b last:border-0"
+          style={{
+            borderColor: "rgba(255,255,255,0.05)",
+            background: isExpanded ? "rgba(255,255,255,0.02)" : "transparent",
+            transition: "background 0.15s",
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            if (!isExpanded) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)";
+          }}
+          onMouseLeave={(e) => {
+            if (!isExpanded) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
+          }}
+          onClick={() => setExpandedClientId(isExpanded ? null : client.id)}
+        >
+          <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
+            <span className="flex items-center gap-2 flex-wrap">
+              {client.name}
+            </span>
+          </td>
+          <td className="px-4 py-3">
+            {paymentPill(client.paymentPlatform ?? "Newie")}
+          </td>
+          <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.80)" }}>
+            {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
+          </td>
+          <td className="px-4 py-3">{statusPill(client)}</td>
+          <td className="px-4 py-3" style={{ color: isExpanded ? "rgba(255,255,255,0.40)" : "rgba(255,255,255,0.20)", fontSize: "12px", textAlign: "right", paddingRight: "16px" }}>
+            {isExpanded ? "⌄" : "›"}
+          </td>
+        </tr>
+        {isExpanded && (
+          <tr className="border-0">
+            <td colSpan={5} style={{ background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "10px 12px" }}>
+              <div onClick={(e) => e.stopPropagation()}>
+                {/* Summary line */}
+                <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginBottom: "10px" }}>
+                  {client.email || "—"} · {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"} · {paymentPill(client.paymentPlatform ?? "Newie")}
+                </p>
+
+                {/* Pause mini-form */}
+                {hasPauseForm && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)" }}>Pause until:</span>
+                    <input
+                      type="date"
+                      value={pauseDate[client.id]}
+                      onChange={(e) => setPauseDate((prev) => ({ ...prev, [client.id]: e.target.value }))}
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "4px 8px", fontFamily: "system-ui", fontSize: "12px", outline: "none" }}
+                    />
+                    <button
+                      onClick={() => handlePauseClient(client.id)}
+                      style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.30)", color: "#3b82f6", borderRadius: "8px", padding: "4px 12px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setPauseDate((prev) => { const n = { ...prev }; delete n[client.id]; return n; })}
+                      style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.60)", borderRadius: "8px", padding: "4px 12px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Cancel confirmation */}
+                {hasCancelConfirm && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "#f87171" }}>
+                      Remove {client.name} from active clients?
+                    </span>
+                    <button
+                      onClick={() => handleCancelClient(client.id)}
+                      style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171", borderRadius: "8px", padding: "4px 12px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmCancel((prev) => { const n = { ...prev }; delete n[client.id]; return n; })}
+                      style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.60)", borderRadius: "8px", padding: "4px 12px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      No
+                    </button>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {!hasPauseForm && !hasCancelConfirm && (
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => startEdit(client)}
+                      style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.60)", borderRadius: "8px", padding: "5px 14px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setPauseDate((prev) => ({ ...prev, [client.id]: "" }))}
+                      style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24", borderRadius: "8px", padding: "5px 14px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Pause
+                    </button>
+                    <button
+                      onClick={() => setConfirmCancel((prev) => ({ ...prev, [client.id]: true }))}
+                      style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171", borderRadius: "8px", padding: "5px 14px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Cancel client
+                    </button>
+                    {client.spreadsheetUrl && (
+                      <button
+                        onClick={() => window.open(client.spreadsheetUrl, "_blank")}
+                        style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "#3b82f6", borderRadius: "8px", padding: "5px 14px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, cursor: "pointer" }}
+                      >
+                        Sheet
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </td>
+          </tr>
+        )}
+      </>
+    );
+  };
 
   const DayGroup = ({ day, clients }: { day: string; clients: Client[] }) => {
     const isOpen = openDays.has(day);
@@ -586,7 +727,15 @@ function ClientsTab() {
           style={{ background: "transparent", border: "none" }}
         >
           <span
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}
+            style={{
+              fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+              fontSize: "11px",
+              letterSpacing: "0.1em",
+              color: "rgba(255,255,255,0.50)",
+              textTransform: "uppercase",
+              borderLeft: "3px solid rgba(59,130,246,0.4)",
+              paddingLeft: "12px",
+            }}
           >
             {day.toUpperCase()}
           </span>
@@ -614,7 +763,7 @@ function ClientsTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {["Name", "Coach", "Payment", "Weekly", "Status", "Actions"].map((h) => (
+                  {["Name", "Payment", "Weekly", "Status", ""].map((h) => (
                     <th key={h} className="text-left px-4 py-2 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
                       {h}
                     </th>
@@ -652,7 +801,7 @@ function ClientsTab() {
 
   return (
     <div>
-      {/* Stats row */}
+      {/* Stats row — compact with 24px numbers */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
           { label: "Total Active", value: totalActive, color: "#3b82f6" },
@@ -660,10 +809,10 @@ function ClientsTab() {
           { label: "Miggy", value: miggyCount, color: "#3b82f6" },
           { label: "Paused", value: pausedCount, color: "#fbbf24" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="liquid-glass p-4 text-center">
+          <div key={label} className="liquid-glass p-3 text-center">
             <p
-              className="text-2xl font-semibold"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color }}
+              className="font-semibold"
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color, fontSize: "24px" }}
             >
               {loading ? "—" : value}
             </p>
@@ -677,14 +826,22 @@ function ClientsTab() {
         ))}
       </div>
 
-      {/* Table header */}
+      {/* Coach sub-tabs + Add Client button */}
       <div className="flex items-center justify-between mb-4">
-        <h2
-          className="text-sm font-bold tracking-[0.15em] uppercase"
-          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}
-        >
-          Clients
-        </h2>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {(["Milzzy", "Miggy"] as const).map((coach) => (
+            <button
+              key={coach}
+              onClick={() => {
+                setSelectedCoach(coach);
+                setExpandedClientId(null);
+              }}
+              style={coachTabStyle(selectedCoach === coach)}
+            >
+              {coach}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
@@ -832,9 +989,13 @@ function ClientsTab() {
         <div className="liquid-glass p-8 text-center">
           <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>{error}</p>
         </div>
-      ) : activeClients.length === 0 && noDayClients.length === 0 ? (
-        <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>No clients yet. Add your first client.</p>
+      ) : coachActiveClients.length === 0 && noDayClients.length === 0 ? (
+        <div className="liquid-glass p-8 text-center" style={{ padding: "40px" }}>
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "13px" }}>
+            {selectedCoach === "Miggy"
+              ? "No clients assigned to Miggy yet."
+              : "No clients yet. Add your first client."}
+          </p>
         </div>
       ) : (
         <>
