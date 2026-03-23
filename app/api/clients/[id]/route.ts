@@ -28,7 +28,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const allowedFields = ["name", "coach", "status", "startDate", "notes"];
+  const allowedFields = [
+    "name", "email", "coach", "paymentPlatform", "weeklyCharge",
+    "spreadsheetUrl", "status", "pausedUntil", "startDate", "notes",
+  ];
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {
     if (body[field] !== undefined) updates[field] = body[field];
@@ -42,15 +45,31 @@ export async function PATCH(
     );
   }
 
+  // Validate paymentPlatform if provided
+  if (
+    updates.paymentPlatform &&
+    !["Newie", "Upfront", "Mentorship"].includes(updates.paymentPlatform as string)
+  ) {
+    return NextResponse.json(
+      { error: "paymentPlatform must be Newie, Upfront, or Mentorship" },
+      { status: 400 }
+    );
+  }
+
   // Validate status if provided
   if (
     updates.status &&
-    !["active", "paused", "completed"].includes(updates.status as string)
+    !["active", "paused", "cancelled"].includes(updates.status as string)
   ) {
     return NextResponse.json(
-      { error: "status must be active, paused, or completed" },
+      { error: "status must be active, paused, or cancelled" },
       { status: 400 }
     );
+  }
+
+  // Clear pausedUntil if status is not paused
+  if (updates.status && updates.status !== "paused") {
+    updates.pausedUntil = undefined;
   }
 
   clients[idx] = { ...clients[idx], ...updates };

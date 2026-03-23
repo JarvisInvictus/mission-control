@@ -40,13 +40,27 @@ interface StatusData {
 interface Client {
   id: string;
   name: string;
+  email: string;
   coach: "Milzzy" | "Miggy";
-  status: "active" | "paused" | "completed";
+  paymentPlatform: "Newie" | "Upfront" | "Mentorship";
+  weeklyCharge: number;
+  spreadsheetUrl: string;
+  status: "active" | "paused" | "cancelled";
+  pausedUntil?: string;
   startDate: string;
   notes?: string;
 }
 
 type Tab = "agents" | "clients" | "finance";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function weeksRemaining(pausedUntil: string): number {
+  const now = new Date();
+  const until = new Date(pausedUntil);
+  const diff = until.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24 * 7)));
+}
 
 // ─── Status hook ─────────────────────────────────────────────────────────────
 
@@ -368,18 +382,28 @@ function ClientsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
     name: "",
+    email: "",
     coach: "Milzzy" as "Milzzy" | "Miggy",
-    status: "active" as "active" | "paused" | "completed",
+    paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
+    weeklyCharge: 0,
+    spreadsheetUrl: "",
+    status: "active" as "active" | "paused" | "cancelled",
+    pausedUntil: "",
     startDate: "",
     notes: "",
   });
 
   const resetForm = () => {
-    setForm({ name: "", coach: "Milzzy", status: "active", startDate: "", notes: "" });
+    setForm({
+      name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie",
+      weeklyCharge: 0, spreadsheetUrl: "", status: "active",
+      pausedUntil: "", startDate: "", notes: "",
+    });
     setShowForm(false);
     setEditingId(null);
     setFormError(null);
@@ -389,10 +413,15 @@ function ClientsTab() {
     e.preventDefault();
     setFormError(null);
     try {
+      const payload = {
+        ...form,
+        weeklyCharge: Number(form.weeklyCharge),
+        pausedUntil: form.status === "paused" ? form.pausedUntil : undefined,
+      };
       if (editingId) {
-        await updateClient(editingId, form);
+        await updateClient(editingId, payload);
       } else {
-        await addClient(form);
+        await addClient(payload as Omit<Client, "id">);
       }
       resetForm();
     } catch (err) {
@@ -403,8 +432,13 @@ function ClientsTab() {
   const startEdit = (client: Client) => {
     setForm({
       name: client.name,
+      email: client.email ?? "",
       coach: client.coach,
+      paymentPlatform: client.paymentPlatform ?? "Newie",
+      weeklyCharge: client.weeklyCharge ?? 0,
+      spreadsheetUrl: client.spreadsheetUrl ?? "",
       status: client.status,
+      pausedUntil: client.pausedUntil ?? "",
       startDate: client.startDate,
       notes: client.notes ?? "",
     });
@@ -424,36 +458,75 @@ function ClientsTab() {
     }
   };
 
-  const activeCount = clients.filter((c) => c.status === "active").length;
-  const milzzyCount = clients.filter((c) => c.coach === "Milzzy" && c.status === "active").length;
-  const miggyCount = clients.filter((c) => c.coach === "Miggy" && c.status === "active").length;
+  const activeClients = clients.filter((c) => c.status === "active" || c.status === "paused");
+  const cancelledClients = clients.filter((c) => c.status === "cancelled");
+  const pausedClients = clients.filter((c) => c.status === "paused");
 
-  const statusPill = (status: Client["status"]) => {
-    const map = {
-      active: "status-pill-active",
-      paused: "status-pill-paused",
-      completed: "status-pill-completed",
+  const totalActive = clients.filter((c) => c.status === "active").length;
+  const milzzyCount = clients.filter((c) => c.coach === "Milzzy" && (c.status === "active" || c.status === "paused")).length;
+  const miggyCount = clients.filter((c) => c.coach === "Miggy" && (c.status === "active" || c.status === "paused")).length;
+  const pausedCount = pausedClients.length;
+
+  // Pill helpers
+  const paymentPill = (platform: Client["paymentPlatform"]) => {
+    const styles: Record<Client["paymentPlatform"], React.CSSProperties> = {
+      Newie: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.30)" },
+      Upfront: { background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)" },
+      Mentorship: { background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.30)" },
     };
     return (
-      <span className={map[status]} style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <span style={{ ...styles[platform], borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
+        {platform}
       </span>
     );
+  };
+
+  const statusPill = (client: Client) => {
+    if (client.status === "active") {
+      return (
+        <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
+          Active
+        </span>
+      );
+    }
+    if (client.status === "paused") {
+      const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
+      const label = wks !== null && wks > 0 ? `Paused · ${wks} wks` : "Paused";
+      return (
+        <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontWeight: 500 }}>
+          {label}
+        </span>
+      );
+    }
+    return null;
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "10px",
+    color: "white",
+    padding: "8px 12px",
+    fontFamily: "system-ui",
+    width: "100%",
+    fontSize: "13px",
+    outline: "none",
   };
 
   return (
     <div>
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Total Active", value: activeCount },
-          { label: "Milzzy", value: milzzyCount },
-          { label: "Miggy", value: miggyCount },
-        ].map(({ label, value }) => (
+          { label: "Total Active", value: totalActive, color: "#3b82f6" },
+          { label: "Milzzy", value: milzzyCount, color: "#3b82f6" },
+          { label: "Miggy", value: miggyCount, color: "#3b82f6" },
+          { label: "Paused", value: pausedCount, color: "#fbbf24" },
+        ].map(({ label, value, color }) => (
           <div key={label} className="liquid-glass p-4 text-center">
             <p
               className="text-2xl font-semibold"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color }}
             >
               {loading ? "—" : value}
             </p>
@@ -480,8 +553,8 @@ function ClientsTab() {
           className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
           style={{
             fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            background: "var(--accent-soft)",
-            border: "1px solid rgba(59,130,246,0.3)",
+            background: "rgba(59,130,246,0.15)",
+            border: "1px solid rgba(59,130,246,0.30)",
             color: "#3b82f6",
           }}
         >
@@ -500,104 +573,78 @@ function ClientsTab() {
               <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Name *
               </label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.92)",
-                  outline: "none",
-                }}
-                placeholder="Client name"
-              />
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="Client name" />
+            </div>
+            <div>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Email *
+              </label>
+              <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" />
             </div>
             <div>
               <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Coach *
               </label>
-              <select
-                required
-                value={form.coach}
-                onChange={(e) => setForm({ ...form, coach: e.target.value as "Milzzy" | "Miggy" })}
-                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.92)",
-                  outline: "none",
-                }}
-              >
+              <select required value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value as "Milzzy" | "Miggy" })} style={inputStyle}>
                 <option value="Milzzy">Milzzy</option>
                 <option value="Miggy">Miggy</option>
               </select>
             </div>
             <div>
               <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-                Status *
+                Payment Platform *
               </label>
-              <select
-                required
-                value={form.status}
-                onChange={(e) =>
-                  setForm({ ...form, status: e.target.value as "active" | "paused" | "completed" })
-                }
-                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.92)",
-                  outline: "none",
-                }}
-              >
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="completed">Completed</option>
+              <select required value={form.paymentPlatform} onChange={(e) => setForm({ ...form, paymentPlatform: e.target.value as "Newie" | "Upfront" | "Mentorship" })} style={inputStyle}>
+                <option value="Newie">Newie</option>
+                <option value="Upfront">Upfront</option>
+                <option value="Mentorship">Mentorship</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Weekly Charge
+              </label>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.40)", fontFamily: "system-ui", fontSize: "13px" }}>$</span>
+                <input type="number" min="0" value={form.weeklyCharge} onChange={(e) => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={{ ...inputStyle, paddingLeft: "24px" }} placeholder="0" />
+              </div>
             </div>
             <div>
               <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
                 Start Date *
               </label>
-              <input
-                required
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors"
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.92)",
-                  outline: "none",
-                }}
-              />
+              <input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
             </div>
-          </div>
-          <div>
-            <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
-              Notes
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              rows={2}
-              className="w-full rounded-[10px] px-3 py-2 text-sm transition-colors resize-none"
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                color: "rgba(255,255,255,0.92)",
-                outline: "none",
-              }}
-              placeholder="Optional notes..."
-            />
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Spreadsheet URL
+              </label>
+              <input type="url" value={form.spreadsheetUrl} onChange={(e) => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/spreadsheets/..." />
+            </div>
+            <div>
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Status *
+              </label>
+              <select required value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "active" | "paused" | "cancelled" })} style={inputStyle}>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            {form.status === "paused" && (
+              <div>
+                <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                  Paused Until *
+                </label>
+                <input required type="date" value={form.pausedUntil} onChange={(e) => setForm({ ...form, pausedUntil: e.target.value })} style={inputStyle} />
+              </div>
+            )}
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] mb-1 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>
+                Notes
+              </label>
+              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." />
+            </div>
           </div>
           {formError && (
             <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "12px" }}>
@@ -608,11 +655,7 @@ function ClientsTab() {
             <button
               type="submit"
               className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-90"
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                background: "#3b82f6",
-                color: "#ffffff",
-              }}
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "#3b82f6", color: "#ffffff" }}
             >
               {editingId ? "Save Changes" : "Add Client"}
             </button>
@@ -620,11 +663,7 @@ function ClientsTab() {
               type="button"
               onClick={resetForm}
               className="px-4 py-2 rounded-[10px] text-sm transition-all duration-200 hover:opacity-80"
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                background: "rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.60)",
-              }}
+              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
             >
               Cancel
             </button>
@@ -635,41 +674,31 @@ function ClientsTab() {
       {/* Table */}
       {loading ? (
         <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>
-            Loading...
-          </p>
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>Loading...</p>
         </div>
       ) : error ? (
         <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>
-            {error}
-          </p>
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171", fontSize: "13px" }}>{error}</p>
         </div>
-      ) : clients.length === 0 ? (
+      ) : activeClients.length === 0 ? (
         <div className="liquid-glass p-8 text-center">
-          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>
-            No clients yet. Add your first client.
-          </p>
+          <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "13px" }}>No clients yet. Add your first client.</p>
         </div>
       ) : (
-        <div className="liquid-glass overflow-hidden">
+        <div className="liquid-glass overflow-hidden mb-4">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {["Name", "Coach", "Status", "Start Date", "Actions"].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 uppercase tracking-wider"
-                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}
-                    >
+                  {["Name", "Coach", "Payment", "Weekly", "Status", "Actions"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)", fontSize: "11px" }}>
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {clients.map((client) => (
+                {activeClients.map((client) => (
                   <tr
                     key={client.id}
                     className="border-b last:border-0 transition-colors"
@@ -677,35 +706,35 @@ function ClientsTab() {
                     onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)")}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")}
                   >
-                    <td
-                      className="px-4 py-3"
-                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}
-                    >
-                      {client.name}
+                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.92)" }}>
+                      <span className="flex items-center gap-2 flex-wrap">
+                        {client.name}
+                        {client.spreadsheetUrl && (
+                          <button
+                            onClick={() => window.open(client.spreadsheetUrl, "_blank")}
+                            style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "rgba(59,130,246,0.85)", borderRadius: "5px", padding: "2px 7px", fontSize: "10px", cursor: "pointer", fontWeight: 500, fontFamily: "system-ui" }}
+                          >
+                            Sheet
+                          </button>
+                        )}
+                      </span>
                     </td>
-                    <td
-                      className="px-4 py-3"
-                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}
-                    >
+                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.70)", fontSize: "12px" }}>
                       {client.coach}
                     </td>
-                    <td className="px-4 py-3">{statusPill(client.status)}</td>
-                    <td
-                      className="px-4 py-3"
-                      style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}
-                    >
-                      {client.startDate}
+                    <td className="px-4 py-3">
+                      {paymentPill(client.paymentPlatform ?? "Newie")}
                     </td>
+                    <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.60)" }}>
+                      {client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}
+                    </td>
+                    <td className="px-4 py-3">{statusPill(client)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => startEdit(client)}
                           className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80"
-                          style={{
-                            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                            background: "rgba(255,255,255,0.08)",
-                            color: "rgba(255,255,255,0.60)",
-                          }}
+                          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.60)" }}
                         >
                           Edit
                         </button>
@@ -713,11 +742,7 @@ function ClientsTab() {
                           onClick={() => handleDelete(client.id)}
                           disabled={deletingId === client.id}
                           className="text-[11px] px-3 py-1 rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-40"
-                          style={{
-                            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                            background: "rgba(248,113,113,0.15)",
-                            color: "#f87171",
-                          }}
+                          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(248,113,113,0.15)", color: "#f87171" }}
                         >
                           {deletingId === client.id ? "..." : "Delete"}
                         </button>
@@ -730,6 +755,58 @@ function ClientsTab() {
           </div>
         </div>
       )}
+
+      {/* Cancelled Clients Section */}
+      <div>
+        <button
+          onClick={() => setShowCancelled(!showCancelled)}
+          className="flex items-center gap-2 mb-3 px-3 py-2 rounded-[10px] transition-all duration-200 hover:opacity-80"
+          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.50)", fontSize: "12px" }}
+        >
+          <span style={{ transition: "transform 0.2s", transform: showCancelled ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>
+            &#9654;
+          </span>
+          Cancelled Clients ({cancelledClients.length})
+        </button>
+
+        {showCancelled && (
+          <div className="liquid-glass overflow-hidden">
+            {cancelledClients.length === 0 ? (
+              <div className="p-6 text-center">
+                <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "13px" }}>No cancelled clients.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                      {["Name", "Coach", "Start Date", "Notes"].map((h) => (
+                        <th key={h} className="text-left px-4 py-3 uppercase tracking-wider" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "11px" }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cancelledClients.map((client) => (
+                      <tr
+                        key={client.id}
+                        className="border-b last:border-0"
+                        style={{ borderColor: "rgba(255,255,255,0.05)" }}
+                      >
+                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
+                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)", fontSize: "12px" }}>{client.coach}</td>
+                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.40)" }}>{client.startDate}</td>
+                        <td className="px-4 py-3" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.30)", fontSize: "12px" }}>{client.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
