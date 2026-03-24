@@ -225,16 +225,12 @@ function Sidebar({
   mobileOpen,
   onClose,
   sections,
-  isHovered,
-  onHoverChange,
 }: {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   mobileOpen: boolean;
   onClose: () => void;
   sections: NavSection[];
-  isHovered: boolean;
-  onHoverChange: (hovered: boolean) => void;
 }) {
   return (
     <>
@@ -247,32 +243,25 @@ function Sidebar({
         />
       )}
 
-      {/* Desktop Sidebar — hover-expand icon strip */}
+      {/* Desktop Sidebar — fixed, always visible */}
       <aside
         style={{
           position: "fixed",
           left: 0,
           top: 0,
           bottom: 0,
-          width: isHovered ? "180px" : "60px",
+          width: "200px",
           zIndex: 40,
-          transition: "width 0.2s ease",
           overflow: "hidden",
           background: "rgba(10,10,20,0.97)",
           borderRight: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",
         }}
-        onMouseEnter={() => onHoverChange(true)}
-        onMouseLeave={() => onHoverChange(false)}
       >
-        <div
-          className="flex flex-col h-full pt-20 px-3 gap-0.5"
-          style={{ opacity: isHovered ? 1 : 0.85, transition: "opacity 0.2s" }}
-        >
+        <div className="flex flex-col h-full pt-20 px-3 gap-0.5">
           {sections.map((section) => (
             <div key={section.label}>
-              {/* Section header — only visible when expanded */}
               <div
                 style={{
                   fontFamily: "system-ui",
@@ -281,23 +270,14 @@ function Sidebar({
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   padding: "12px 0 4px 12px",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  opacity: isHovered ? 1 : 0,
-                  transition: "opacity 0.15s",
-                  height: isHovered ? "auto" : "0",
                 }}
               >
                 {section.label}
               </div>
-              {/* Section items */}
               {section.items.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    onTabChange(item.id);
-                    onClose();
-                  }}
+                  onClick={() => { onTabChange(item.id); onClose(); }}
                   className={`
                     w-full text-left py-2.5 rounded-[10px] text-sm transition-all duration-200
                     ${activeTab === item.id
@@ -310,60 +290,24 @@ function Sidebar({
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    padding: isHovered ? "8px 12px" : "8px 0",
-                    justifyContent: isHovered ? "flex-start" : "center",
+                    padding: "8px 12px",
                     whiteSpace: "nowrap",
-                    overflow: "hidden",
                   }}
                 >
-                  {/* Icon placeholder — these use emoji, centered when collapsed */}
-                  <span
-                    style={{
-                      fontSize: "16px",
-                      flexShrink: 0,
-                      display: "inline-block",
-                      width: isHovered ? "auto" : "20px",
-                      textAlign: "center",
-                    }}
-                  >
+                  <span style={{ fontSize: "16px", flexShrink: 0, display: "inline-block", width: "20px", textAlign: "center" }}>
                     {item.id === "dashboard" ? "◈" :
                      item.id === "clients" ? "◉" :
                      item.id === "leads" ? "◎" :
                      item.id === "finance" ? "◑" :
                      item.id === "agents" ? "◧" : "◨"}
                   </span>
-                  {/* Label — only visible when expanded */}
-                  <span
-                    style={{
-                      fontSize: "13px",
-                      overflow: "hidden",
-                      opacity: isHovered ? 1 : 0,
-                      transition: "opacity 0.15s",
-                      flex: isHovered ? 1 : 0,
-                    }}
-                  >
-                    {item.label}
-                  </span>
+                  <span style={{ fontSize: "13px" }}>{item.label}</span>
                 </button>
               ))}
             </div>
           ))}
-
-          {/* Brand label — only when expanded */}
           <div className="mt-auto pt-4">
-            <p
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontSize: "9px",
-                textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                color: "rgba(255,255,255,0.20)",
-                opacity: isHovered ? 1 : 0,
-                transition: "opacity 0.15s",
-                textAlign: isHovered ? "left" : "center",
-                paddingLeft: isHovered ? "12px" : "0",
-              }}
-            >
+            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.2em", color: "rgba(255,255,255,0.20)", paddingLeft: "12px" }}>
               Invictus Physiques
             </p>
           </div>
@@ -1752,7 +1696,6 @@ function TeamTab() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarHovered, setSidebarHovered] = useState(false);
 
   // ─── Clients tab state (owned by Home) ─────────────────────────────────
   const [clients, setClients] = useState<Client[]>([]);
@@ -2610,14 +2553,13 @@ export default function Home() {
           mobileOpen={mobileOpen}
           onClose={() => setMobileOpen(false)}
           sections={sidebarSections}
-          isHovered={sidebarHovered}
-          onHoverChange={setSidebarHovered}
+
         />
 
-        {/* Main content — always ml-[60px] to account for collapsed sidebar */}
+        {/* Main content — always ml-[200px] to account for sidebar */}
         <main
           className="overflow-y-auto p-4 lg:py-6"
-          style={{ marginLeft: "60px", width: "calc(100% - 60px)" }}
+          style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}
         >
           {/* Content wrapper — centered with max-width per tab */}
           <div
