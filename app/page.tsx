@@ -740,8 +740,9 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                     <input
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTask(day as Task["day"], newTaskText); } if (e.key === "Escape") setAddingToDay(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const val = (e.currentTarget as HTMLInputElement).value; addTask(day as Task["day"], val); } if (e.key === "Escape") setAddingToDay(null); }}
                       placeholder="Task name..."
+                      id={"task-input-" + day}
                       autoFocus
                       style={{
                         background: "rgba(255,255,255,0.07)",
@@ -758,7 +759,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                     />
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
-                        onClick={() => addTask(day as Task["day"], newTaskText)}
+                        onClick={() => { const input = document.getElementById("task-input-" + day) as HTMLInputElement; const val = input ? input.value : newTaskText; addTask(day as Task["day"], val); }}
                         style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "8px", color: Tiffany, padding: "5px", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}
                       >
                         Add
