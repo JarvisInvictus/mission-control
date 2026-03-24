@@ -1449,12 +1449,22 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
   }
 
   function cycleStatus(clientId: string, current: CheckInStatus | null) {
+    const CYCLE: CheckInStatus[] = ["submitted", "late", "never", "sick"];
     if (current === null) {
-      setStatus(clientId, "ontime");
+      setStatus(clientId, "submitted");
     } else {
-      const idx = STATUS_CYCLE.indexOf(current);
-      const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-      setStatus(clientId, next);
+      const idx = CYCLE.indexOf(current);
+      const next = CYCLE[(idx + 1) % CYCLE.length];
+      if (next === "submitted" && current === "sick") {
+        // clear: remove the status entry
+        setCheckIns(prev => {
+          const weekKeyClients = prev[weekKey] ?? {};
+          const { [clientId]: _, ...rest } = weekKeyClients;
+          return { ...prev, [weekKey]: rest };
+        });
+      } else {
+        setStatus(clientId, next);
+      }
     }
   }
 
@@ -1497,7 +1507,27 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
         </span>
       );
     }
-    if (!status) return null;
+    if (!status) return (
+      <button
+        onClick={() => cycleStatus(clientId, null)}
+        style={{
+          background: "transparent",
+          color: "rgba(255,255,255,0.25)",
+          border: "1px dashed rgba(255,255,255,0.25)",
+          borderRadius: "999px",
+          padding: "2px 10px",
+          fontSize: "11px",
+          fontFamily: "system-ui",
+          fontWeight: 400,
+          display: "inline-block",
+          cursor: "pointer",
+          transition: "all 0.15s",
+        }}
+        title="Click to set status"
+      >
+        Set status
+      </button>
+    );
     const meta = STATUS_META[status];
     return (
       <button
