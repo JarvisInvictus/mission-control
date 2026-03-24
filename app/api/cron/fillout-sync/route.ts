@@ -1,6 +1,7 @@
 /**
  * app/api/cron/fillout-sync/route.ts
- * Vercel Cron Job – runs every 5 minutes via vercel.json crons config.
+ * Vercel Cron Job – runs daily at 9 AM via vercel.json crons config.
+ * Note: Hobby plan only allows once/day. Pro plan allows every-5-min schedule.
  * 
  * GET  – health check / manual trigger (no auth for cron)
  * POST – actual sync logic (called by Vercel Cron)
