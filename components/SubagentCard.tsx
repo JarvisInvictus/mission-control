@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export interface SubAgent {
   id: string;
   task: string;
@@ -36,15 +38,16 @@ function formatTime(dateStr: string): string {
 
 function StatusIndicator({ status }: { status: SubAgent["status"] }) {
   if (status === "active") {
+    // In Progress — amber
     return (
       <span className="relative flex h-2 w-2 flex-shrink-0">
         <span
           className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-          style={{ backgroundColor: "#3b82f6", opacity: 0.4 }}
+          style={{ backgroundColor: "#fbbf24", opacity: 0.4 }}
         />
         <span
           className="relative inline-flex rounded-full h-2 w-2"
-          style={{ backgroundColor: "#3b82f6" }}
+          style={{ backgroundColor: "#fbbf24" }}
         />
       </span>
     );
@@ -52,6 +55,7 @@ function StatusIndicator({ status }: { status: SubAgent["status"] }) {
   if (status === "completed") {
     return <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#34d399" }} />;
   }
+  // Failed
   return <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#f87171" }} />;
 }
 
@@ -65,9 +69,20 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
 }
 
 export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+
   const isLoading = loading && agents.length === 0;
   const active = agents.filter((a) => a.status === "active");
   const recent = agents.filter((a) => a.status !== "active").slice(0, 4);
+
+  function toggleLog(id: string) {
+    setExpandedLogs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -83,7 +98,7 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
           <div className="flex items-center gap-1.5">
             <span
               className="h-1.5 w-1.5 rounded-full animate-pulse"
-              style={{ backgroundColor: "#3b82f6" }}
+              style={{ backgroundColor: "#fbbf24" }}
             />
             <span
               className="text-[11px]"
@@ -101,12 +116,12 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
         </div>
       </div>
 
-      {/* Blue accent line */}
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0.1) 100%)" }} />
+      {/* Amber accent line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, #fbbf24 0%, rgba(251,191,36,0.1) 100%)" }} />
 
       {isLoading ? (
         <>
-          <div className="rounded-[10px] p-3" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
+          <div className="rounded-[10px] p-3" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
             <SkeletonBlock className="h-4 w-3/4 mb-2" />
             <SkeletonBlock className="h-3 w-1/2" />
           </div>
@@ -133,9 +148,9 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
                   key={agent.id}
                   className="rounded-[10px] p-3"
                   style={{
-                    background: "rgba(59,130,246,0.05)",
-                    border: "1px solid rgba(59,130,246,0.25)",
-                    boxShadow: "0 0 16px rgba(59,130,246,0.08)",
+                    background: "rgba(251,191,36,0.05)",
+                    border: "1px solid rgba(251,191,36,0.25)",
+                    boxShadow: "0 0 16px rgba(251,191,36,0.08)",
                   }}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
@@ -151,7 +166,7 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
                     className="flex justify-between text-[11px]"
                     style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
                   >
-                    <span style={{ fontFamily: "system-ui, monospace", color: "rgba(59,130,246,0.70)" }}>
+                    <span style={{ fontFamily: "system-ui, monospace", color: "rgba(251,191,36,0.70)" }}>
                       {agent.model}
                     </span>
                     <span style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.40)" }}>

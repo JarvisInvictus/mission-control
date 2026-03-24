@@ -356,7 +356,11 @@ function DirectDebitTable({ items, total }: { items: DirectDebit[]; total: numbe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function FinanceTab() {
+interface FinanceTabProps {
+  revPerWeek?: number;
+}
+
+export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProps) {
   const [reviewOpen, setReviewOpen] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
   const [checkedActions, setCheckedActions] = useState<Set<number>>(() => {
@@ -597,6 +601,36 @@ export function FinanceTab() {
           </div>
         ))}
       </div>
+
+      {/* Projected Revenue — 30 / 60 / 90 day */}
+      {(() => {
+        const revPerWeek = revPerWeekProp;
+        const monthlyRevenue = (revPerWeek * 52) / 12;
+        const projections = [
+          { label: "30 Days", value: monthlyRevenue },
+          { label: "60 Days", value: monthlyRevenue * 1.97 },
+          { label: "90 Days", value: monthlyRevenue * 1.94 },
+        ];
+        return (
+          <div style={{ marginBottom: "24px" }}>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "12px" }}>
+              Projected Revenue
+            </p>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              {projections.map(({ label, value }) => (
+                <div key={label} style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "16px", padding: "16px 20px", flex: 1, minWidth: "120px", textAlign: "center" }}>
+                  <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "24px", fontWeight: 700, color: "#0abab5", margin: 0 }}>
+                    ${Math.round(value).toLocaleString("en-AU")}
+                  </p>
+                  <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Net Position Card */}
       <div className="liquid-glass p-5 mb-6" style={{ borderColor: "rgba(52,211,153,0.30)" }}>
