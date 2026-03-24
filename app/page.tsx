@@ -1010,11 +1010,9 @@ function AgentsTab() {
 
       {/* Footer */}
       <footer className="py-4 mt-4">
-  const today = new Date();
-  const currentMonday = new Date(today);
-  currentMonday.setDate(today.getDate() - ((today.getDay() === 0 ? 6 : today.getDay() - 1));
-  const currentWeekStart = new Date(currentMonday);
-  currentWeekStart.setDate(currentMonday.getDate() + weekOffset * 7);
+        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
+          Last refreshed: {pushedAt ? pushedAt.toLocaleTimeString("en-AU", { hour12: false }) : "—"} · Auto-refresh every 30s · v2.0.0
+        </p>
       </footer>
     </div>
   );
@@ -1402,14 +1400,17 @@ function getWeekKey(date: Date): string {
 }
 
 function getWeekDates(offset: number) {
-  const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const week1Start = new Date(startOfYear);
-  week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
-  const currentWeekStart = new Date(week1Start);
-  currentWeekStart.setDate(week1Start.getDate() + offset * 7);
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun
+  const daysFromMonday = dow === 0 ? 6 : dow - 1;
+  const currentMonday = new Date(today);
+  currentMonday.setDate(today.getDate() - daysFromMonday);
+  currentMonday.setHours(0, 0, 0, 0);
+  const currentWeekStart = new Date(currentMonday);
+  currentWeekStart.setDate(currentMonday.getDate() + offset * 7);
   const weekEnd = new Date(currentWeekStart);
   weekEnd.setDate(currentWeekStart.getDate() + 4);
+  weekEnd.setHours(23, 59, 59, 999);
   return { start: currentWeekStart, end: weekEnd };
 }
 
@@ -1496,7 +1497,8 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
         </span>
       );
     }
-    const meta = status ? STATUS_META[status] : { label: "On Time", color: Tiffany, bg: TiffanySoft };
+    if (!status) return null;
+    const meta = STATUS_META[status];
     return (
       <button
         onClick={() => cycleStatus(clientId, status)}
