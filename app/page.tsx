@@ -1932,7 +1932,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-visible">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sections={sidebarSections} />
 
-        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}>
+        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "180px", width: "calc(100% - 180px)" }}>
           <div style={{
             maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : "100%",
             margin: "0 auto", width: "100%", boxSizing: "border-box",
