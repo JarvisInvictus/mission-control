@@ -67,7 +67,7 @@ interface Lead {
   followUpDue?: string;
 }
 
-type Tab = "dashboard" | "agents" | "clients" | "finance" | "leads";
+type Tab = "dashboard" | "agents" | "team" | "clients" | "finance" | "leads";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -155,6 +155,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
   const labels: Record<Tab, string> = {
     dashboard: "Dashboard",
     agents: "Agents",
+    team: "Team",
     clients: "Clients",
     finance: "Finance",
     leads: "Leads",
@@ -978,6 +979,650 @@ function AgentsTab() {
   );
 }
 
+// ─── Team Tab ─────────────────────────────────────────────────────────────────
+
+interface TeamMember {
+  name: string;
+  role: string;
+  description: string;
+  tags: { label: string; color: string }[];
+  avatar: string;
+  avatarBg: string;
+  lastActive: string;
+  isAI: boolean;
+}
+
+const TEAM_MEMBERS: TeamMember[] = [
+  {
+    name: "Jarvis",
+    role: "AI Operating System / Chief of Staff",
+    description: "Coordinates, delegates, keeps the ship tight. The first point of contact between coach and machine.",
+    tags: [
+      { label: "Orchestration", color: "#14b8a6" },
+      { label: "Clarity", color: "#14b8a6" },
+      { label: "Delegation", color: "#14b8a6" },
+    ],
+    avatar: "🤖",
+    avatarBg: "#14b8a6",
+    lastActive: "Always on",
+    isAI: true,
+  },
+  {
+    name: "Milzzy",
+    role: "Founder, Head Coach",
+    description: "Runs the show. Builds the business, trains the team, leads the vision.",
+    tags: [
+      { label: "Leadership", color: "#3b82f6" },
+      { label: "Coaching", color: "#14b8a6" },
+      { label: "Growth", color: "#22c55e" },
+    ],
+    avatar: "💪",
+    avatarBg: "#f59e0b",
+    lastActive: "Today, 2:30 PM",
+    isAI: false,
+  },
+  {
+    name: "Sonieta",
+    role: "Admin & Finance",
+    description: "Handles invoicing, payments, Xero, and keeps the financial house in order.",
+    tags: [
+      { label: "Finance", color: "#f59e0b" },
+      { label: "Admin", color: "#3b82f6" },
+      { label: "Organisation", color: "#14b8a6" },
+    ],
+    avatar: "📊",
+    avatarBg: "#22c55e",
+    lastActive: "Today, 1:15 PM",
+    isAI: false,
+  },
+  {
+    name: "Coach Miggy",
+    role: "Client Plans & Onboarding",
+    description: "Manages client programming and onboarding for his roster of athletes.",
+    tags: [
+      { label: "Programming", color: "#a855f7" },
+      { label: "Coaching", color: "#14b8a6" },
+      { label: "Structure", color: "#3b82f6" },
+    ],
+    avatar: "🏋️",
+    avatarBg: "#3b82f6",
+    lastActive: "Today, 11:00 AM",
+    isAI: false,
+  },
+  {
+    name: "Scout",
+    role: "Lead Generation",
+    description: "Finds new prospects, tracks referral sources, monitors inbound enquiry signals.",
+    tags: [
+      { label: "Speed", color: "#22c55e" },
+      { label: "Radar", color: "#3b82f6" },
+      { label: "Intuition", color: "#f59e0b" },
+    ],
+    avatar: "🔍",
+    avatarBg: "#22c55e",
+    lastActive: "Always on",
+    isAI: true,
+  },
+  {
+    name: "Quill",
+    role: "Content Writer",
+    description: "Writes Instagram captions, client messages, emails, and script drafts.",
+    tags: [
+      { label: "Voice", color: "#14b8a6" },
+      { label: "Quality", color: "#f59e0b" },
+      { label: "Design", color: "#a855f7" },
+    ],
+    avatar: "✍️",
+    avatarBg: "#a855f7",
+    lastActive: "Always on",
+    isAI: true,
+  },
+  {
+    name: "Pixel",
+    role: "Visual Designer",
+    description: "Designs thumbnails, social graphics, and brand visual assets.",
+    tags: [
+      { label: "Visual", color: "#a855f7" },
+      { label: "Attention", color: "#3b82f6" },
+      { label: "Style", color: "#14b8a6" },
+    ],
+    avatar: "🎨",
+    avatarBg: "#ec4899",
+    lastActive: "Always on",
+    isAI: true,
+  },
+  {
+    name: "Echo",
+    role: "Social Media Manager",
+    description: "Schedules posts, engages comments, grows the Instagram audience.",
+    tags: [
+      { label: "Viral", color: "#22c55e" },
+      { label: "Speed", color: "#14b8a6" },
+      { label: "Reach", color: "#f59e0b" },
+    ],
+    avatar: "📱",
+    avatarBg: "#3b82f6",
+    lastActive: "Always on",
+    isAI: true,
+  },
+  {
+    name: "Codex",
+    role: "Lead Engineer",
+    description: "Builds Mission Control, integrations, automation. The quiet one who makes everything work.",
+    tags: [
+      { label: "Code", color: "#14b8a6" },
+      { label: "Systems", color: "#3b82f6" },
+      { label: "Reliability", color: "#f59e0b" },
+    ],
+    avatar: "⚙️",
+    avatarBg: "#14b8a6",
+    lastActive: "Always on",
+    isAI: true,
+  },
+];
+
+function TeamTab() {
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+
+  function TagPill({ label, color }: { label: string; color: string }) {
+    return (
+      <span
+        style={{
+          background: `${color}26`,
+          color,
+          borderRadius: "999px",
+          padding: "3px 10px",
+          fontSize: "11px",
+          fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+          fontWeight: 500,
+          display: "inline-block",
+        }}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  function AgentCard({ member }: { member: TeamMember }) {
+    return (
+      <div
+        onClick={() => setSelectedMember(member)}
+        style={{
+          background: "#2a2a2e",
+          borderRadius: "12px",
+          padding: "20px",
+          cursor: "pointer",
+          transition: "background 0.15s",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLDivElement).style.background = "#303035";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.background = "#2a2a2e";
+        }}
+      >
+        {/* Avatar + name row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: member.avatarBg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              flexShrink: 0,
+            }}
+          >
+            {member.avatar}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontSize: "17px",
+                fontWeight: 700,
+                color: "white",
+                margin: 0,
+                lineHeight: 1.2,
+              }}
+            >
+              {member.name}
+            </p>
+            <p
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontSize: "13px",
+                color: "#999",
+                margin: "2px 0 0",
+                lineHeight: 1.3,
+              }}
+            >
+              {member.role}
+            </p>
+          </div>
+        </div>
+
+        {/* Description */}
+        <p
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "12px",
+            color: "#888",
+            margin: 0,
+            lineHeight: 1.5,
+          }}
+        >
+          {member.description}
+        </p>
+
+        {/* Tags */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {member.tags.map((tag) => (
+            <TagPill key={tag.label} label={tag.label} color={tag.color} />
+          ))}
+        </div>
+
+        {/* Role card button */}
+        <div
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "12px",
+            color: "#60a5fa",
+            fontWeight: 600,
+            letterSpacing: "0.03em",
+          }}
+        >
+          ROLE CARD →
+        </div>
+      </div>
+    );
+  }
+
+  function SectionDivider({
+    left,
+    right,
+  }: {
+    left: string;
+    right: string;
+  }) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          margin: "0",
+          width: "100%",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.30)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {left}
+        </span>
+        <div
+          style={{
+            flex: 1,
+            borderTop: "1px dashed rgba(255,255,255,0.12)",
+            height: "1px",
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.30)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {right}
+        </span>
+      </div>
+    );
+  }
+
+  function MetaDivider() {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          margin: "0",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            borderTop: "1px dashed rgba(255,255,255,0.12)",
+            height: "1px",
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.25)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          ◆ META LAYER ◆
+        </span>
+        <div
+          style={{
+            flex: 1,
+            borderTop: "1px dashed rgba(255,255,255,0.12)",
+            height: "1px",
+          }}
+        />
+      </div>
+    );
+  }
+
+  const tier1 = TEAM_MEMBERS[0];
+  const tier2 = TEAM_MEMBERS.slice(1, 4);
+  const tier3 = TEAM_MEMBERS.slice(4);
+
+  return (
+    <div
+      style={{
+        maxWidth: "900px",
+        margin: "0 auto",
+        padding: "8px 4px 40px",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: "8px" }}>
+        <h1
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "36px",
+            fontWeight: 700,
+            color: "white",
+            margin: "0 0 10px",
+            lineHeight: 1.1,
+          }}
+        >
+          Meet the Team
+        </h1>
+        <p
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "16px",
+            color: "#999",
+            margin: "0 0 12px",
+          }}
+        >
+          The people + agents behind Invictus Physiques
+        </p>
+        <p
+          style={{
+            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+            fontSize: "14px",
+            color: "#888",
+            margin: "0 auto 32px",
+            maxWidth: "600px",
+            lineHeight: 1.6,
+            textAlign: "center",
+          }}
+        >
+          From founder to AI agents — everyone has a role. Tap any card to
+          learn more about how they keep Invictus Physiques running.
+        </p>
+      </div>
+
+      {/* TIER 1: Jarvis */}
+      <div style={{ marginBottom: "24px" }}>
+        <AgentCard member={tier1} />
+        {/* Connector line down to team */}
+        <div
+          style={{
+            width: "2px",
+            height: "30px",
+            background: "rgba(20,184,166,0.3)",
+            margin: "0 auto",
+          }}
+        />
+      </div>
+
+      {/* Divider: INPUT SIGNAL / OUTPUT ACTION */}
+      <div style={{ marginBottom: "24px" }}>
+        <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
+      </div>
+
+      {/* TIER 2: Human Team row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "24px",
+        }}
+      >
+        {tier2.map((member) => (
+          <AgentCard key={member.name} member={member} />
+        ))}
+      </div>
+
+      {/* Divider: META LAYER */}
+      <div style={{ marginBottom: "24px" }}>
+        <MetaDivider />
+      </div>
+
+      {/* TIER 3: AI Agents */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+        }}
+      >
+        {tier3.map((member) => (
+          <AgentCard key={member.name} member={member} />
+        ))}
+      </div>
+
+      {/* Role Card Modal */}
+      {selectedMember && (
+        <div
+          onClick={() => setSelectedMember(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.70)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "rgba(15,20,40,0.97)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: "20px",
+              padding: "32px",
+              width: "100%",
+              maxWidth: "380px",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+          >
+            {/* Close */}
+            <button
+              onClick={() => setSelectedMember(null)}
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.30)",
+                cursor: "pointer",
+                fontSize: "18px",
+                padding: "4px",
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+
+            {/* Large avatar */}
+            <div
+              style={{
+                width: "64px",
+                height: "64px",
+                borderRadius: "50%",
+                background: selectedMember.avatarBg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "32px",
+                margin: "0 auto",
+              }}
+            >
+              {selectedMember.avatar}
+            </div>
+
+            {/* Name + role */}
+            <div style={{ textAlign: "center" }}>
+              <p
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "white",
+                  margin: "0 0 6px",
+                }}
+              >
+                {selectedMember.name}
+              </p>
+              <p
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  fontSize: "13px",
+                  color: "#999",
+                  margin: 0,
+                }}
+              >
+                {selectedMember.role}
+              </p>
+            </div>
+
+            {/* Description */}
+            <p
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontSize: "13px",
+                color: "#888",
+                margin: 0,
+                lineHeight: 1.6,
+                textAlign: "center",
+              }}
+            >
+              {selectedMember.description}
+            </p>
+
+            {/* Tags */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+                justifyContent: "center",
+              }}
+            >
+              {selectedMember.tags.map((tag) => (
+                <TagPill key={tag.label} label={tag.label} color={tag.color} />
+              ))}
+            </div>
+
+            {/* Last active */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: selectedMember.isAI ? "#14b8a6" : "#f59e0b",
+                  display: "inline-block",
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.45)",
+                }}
+              >
+                Last active:{" "}
+                <strong style={{ color: "rgba(255,255,255,0.70)" }}>
+                  {selectedMember.lastActive}
+                </strong>
+              </span>
+            </div>
+
+            {/* Send message button */}
+            <button
+              onClick={() => {
+                console.log(`Send message to ${selectedMember.name}`);
+              }}
+              style={{
+                background: "rgba(59,130,246,0.20)",
+                border: "1px solid rgba(59,130,246,0.35)",
+                borderRadius: "12px",
+                padding: "12px 24px",
+                color: "#3b82f6",
+                fontSize: "14px",
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontWeight: 600,
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              Send Message
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1041,6 +1686,7 @@ export default function Home() {
       label: "AI",
       items: [
         { id: "agents", label: "Agents" },
+        { id: "team", label: "Team" },
       ],
     },
   ];
@@ -1868,6 +2514,7 @@ export default function Home() {
 
           {activeTab === "dashboard" ? <DashboardTab clients={clients} /> :
            activeTab === "agents" ? <AgentsTab /> :
+           activeTab === "team" ? <TeamTab /> :
            activeTab === "clients" ? <ClientsTab /> :
            activeTab === "finance" ? <FinanceTab /> :
            <LeadsTab />}
