@@ -372,7 +372,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     return taskCreated <= taskDate && taskCreated >= mondayOfWeek;
   });
 
-  function addTask(day: string) {
+  function addTask(day: Task["day"]) {
     if (!newTaskText.trim()) return;
     setTasks((prev) => [
       ...prev,
