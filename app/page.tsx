@@ -1898,7 +1898,7 @@ export default function Home() {
   }
 
   const [clients, setClients] = useState<Client[]>([]);
-  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit">("menu");
+  const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit" | null>("menu");
 
   const [leads, setLeads] = useState<Lead[]>([]);
 
