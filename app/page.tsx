@@ -505,11 +505,12 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
     return taskCreated <= taskDate && taskCreated >= mondayOfWeek;
   });
 
-  function addTask(day: Task["day"]) {
-    if (!newTaskText.trim()) return;
+  function addTask(day: Task["day"], text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
     setTasks((prev) => [
       ...prev,
-      { id: Date.now().toString(), text: newTaskText.trim(), day, done: false, createdAt: new Date().toISOString() },
+      { id: Date.now().toString(), text: trimmed, day, done: false, createdAt: new Date().toISOString() },
     ]);
     setNewTaskText("");
     setAddingToDay(null);
@@ -531,7 +532,10 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
   const activeClients = clients.filter((c) => c.status === "active");
   const activeCount = activeClients.length;
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const newThisMonth = clients.filter(c => c.startDate && c.startDate.startsWith(thisMonth)).length;
+  const newThisMonthRaw = clients.filter(c => c.startDate && c.startDate.startsWith(thisMonth)).length;
+  const totalClients = clients.length;
+  // If newThisMonth equals total clients, all were imported on same day — show — instead
+  const newThisMonth = (newThisMonthRaw === totalClients && totalClients > 0) ? null : newThisMonthRaw;
   const totalRevenuePerWeek = clients
     .filter(c => c.status === "active")
     .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
@@ -736,7 +740,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                     <input
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") addTask(day as Task["day"]); if (e.key === "Escape") setAddingToDay(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTask(day as Task["day"], newTaskText); } if (e.key === "Escape") setAddingToDay(null); }}
                       placeholder="Task name..."
                       autoFocus
                       style={{
@@ -754,7 +758,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                     />
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
-                        onClick={() => addTask(day as Task["day"])}
+                        onClick={() => addTask(day as Task["day"], newTaskText)}
                         style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "8px", color: Tiffany, padding: "5px", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}
                       >
                         Add
@@ -799,7 +803,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <StatCard value={activeCount} label="Clients" color="#34d399" />
           <StatCard value={`$${totalRevenuePerWeek.toLocaleString()}`} label="Rev / wk" color={Tiffany} />
-          <StatCard value={`+${newThisMonth}`} label="New this mo" color="#a855f7" />
+          <StatCard value={newThisMonth !== null ? `+${newThisMonth}` : "—"} label="New this mo" color="#a855f7" />
           <StatCard value={convRate !== null ? `${convRate}%` : "—"} label="Conv." color={convRate !== null ? "#34d399" : "rgba(255,255,255,0.50)"} />
         </div>
       </section>

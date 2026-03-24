@@ -609,7 +609,7 @@ export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProp
         const projections = [
           { label: "30 Days", value: monthlyRevenue },
           { label: "60 Days", value: monthlyRevenue * 1.97 },
-          { label: "90 Days", value: monthlyRevenue * 1.94 },
+          { label: "90 Days", value: monthlyRevenue * 2.91 },
         ];
         return (
           <div style={{ marginBottom: "24px" }}>

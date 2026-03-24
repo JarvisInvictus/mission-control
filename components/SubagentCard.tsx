@@ -167,7 +167,7 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
                     style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
                   >
                     <span style={{ fontFamily: "system-ui, monospace", color: "rgba(251,191,36,0.70)" }}>
-                      {agent.model}
+                      {agent.model.replace("minimax/", "").replace("anthropic/", "").replace("kimi/", "")}
                     </span>
                     <span style={{ fontFamily: "system-ui, monospace", color: "rgba(255,255,255,0.40)" }}>
                       {formatDuration(agent.startedAt, null)} elapsed
@@ -216,7 +216,7 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
                     style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
                   >
                     <span style={{ fontFamily: "system-ui, monospace", opacity: 0.6 }}>
-                      {agent.model}
+                      {agent.model.replace("minimax/", "").replace("anthropic/", "").replace("kimi/", "")}
                     </span>
                     <span style={{ fontFamily: "system-ui, monospace" }}>
                       {formatDuration(agent.startedAt, agent.completedAt)} · {formatTime(agent.startedAt)}
@@ -227,9 +227,9 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
             </div>
           )}
 
-          {(agents.length === 0 || agents.every(a => a.model === "Min-Max-M2.7")) && (
+          {(agents.length === 0 || agents.every((a) => !a.task || a.task === "Subagent task")) && (
             <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.30)", textAlign: "center", padding: "20px 0" }}>
-              No recent sub-agent activity.
+              No agent activity yet.
             </p>
           )}
         </>
