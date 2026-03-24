@@ -688,7 +688,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                     <input
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") addTask(day); if (e.key === "Escape") setAddingToDay(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") addTask(day as Task["day"]); if (e.key === "Escape") setAddingToDay(null); }}
                       placeholder="Task name..."
                       autoFocus
                       style={{
@@ -706,7 +706,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                     />
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
-                        onClick={() => addTask(day)}
+                        onClick={() => addTask(day as Task["day"])}
                         style={{
                           flex: 1,
                           background: "rgba(59,130,246,0.20)",
