@@ -67,7 +67,28 @@ interface Lead {
   followUpDue?: string;
 }
 
-type Tab = "agents" | "clients" | "finance" | "leads";
+type Tab = "dashboard" | "agents" | "clients" | "finance" | "leads";
+
+// ─── Dashboard Types ──────────────────────────────────────────────────────────
+
+interface Task {
+  id: string;
+  text: string;
+  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  done: boolean;
+  createdAt: string;
+}
+
+interface ProjectStep {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+interface Project {
+  title: string;
+  steps: ProjectStep[];
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -131,6 +152,14 @@ function useStatus() {
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 function Header({ activeTab }: { activeTab: Tab }) {
+  const labels: Record<Tab, string> = {
+    dashboard: "Dashboard",
+    agents: "Agents",
+    clients: "Clients",
+    finance: "Finance",
+    leads: "Leads",
+  };
+
   return (
     <header className="liquid-glass-header sticky top-0 z-20">
       <div className="flex items-center justify-between px-4 sm:px-6 py-4">
@@ -175,7 +204,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
           className="text-[11px] tracking-[0.15em] uppercase"
           style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
-          {activeTab === "agents" ? "Agents" : activeTab === "clients" ? "Clients" : activeTab === "finance" ? "Finance" : "Leads"}
+          {labels[activeTab]}
         </span>
       </div>
     </header>
@@ -184,24 +213,24 @@ function Header({ activeTab }: { activeTab: Tab }) {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
+type NavSection = {
+  label: string;
+  items: { id: Tab; label: string }[];
+};
+
 function Sidebar({
   activeTab,
   onTabChange,
   mobileOpen,
   onClose,
+  sections,
 }: {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   mobileOpen: boolean;
   onClose: () => void;
+  sections: NavSection[];
 }) {
-  const navItems: { id: Tab; label: string }[] = [
-    { id: "agents", label: "Agents" },
-    { id: "clients", label: "Clients" },
-    { id: "finance", label: "Finance" },
-    { id: "leads", label: "Leads" },
-  ];
-
   return (
     <>
       {/* Mobile overlay */}
@@ -222,25 +251,43 @@ function Sidebar({
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        <div className="flex flex-col h-full pt-20 px-4 gap-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                onTabChange(item.id);
-                onClose();
-              }}
-              className={`
-                w-full text-left px-3 py-2.5 rounded-[10px] text-sm transition-all duration-200
-                ${activeTab === item.id
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(255,255,255,0.04)]"
-                }
-              `}
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
-            >
-              {item.label}
-            </button>
+        <div className="flex flex-col h-full pt-20 px-4 gap-0.5">
+          {sections.map((section) => (
+            <div key={section.label}>
+              {/* Section header */}
+              <div
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "10px",
+                  color: "rgba(255,255,255,0.30)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  padding: "12px 0 4px 12px",
+                }}
+              >
+                {section.label}
+              </div>
+              {/* Section items */}
+              {section.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onTabChange(item.id);
+                    onClose();
+                  }}
+                  className={`
+                    w-full text-left px-3 py-2.5 rounded-[10px] text-sm transition-all duration-200
+                    ${activeTab === item.id
+                      ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(255,255,255,0.04)]"
+                    }
+                  `}
+                  style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
 
           {/* Brand label */}
@@ -255,6 +302,584 @@ function Sidebar({
         </div>
       </aside>
     </>
+  );
+}
+
+// ─── Dashboard Tab ───────────────────────────────────────────────────────────
+
+function DashboardTab({ clients }: { clients: Client[] }) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskText, setNewTaskText] = useState("");
+  const [newTaskDay, setNewTaskDay] = useState<"Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday">("Monday");
+  const [project, setProject] = useState<Project>({ title: "", steps: [] });
+  const [editingTitle, setEditingTitle] = useState(false);
+
+  // Load tasks from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dashboard_tasks");
+      if (stored) setTasks(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist tasks
+  useEffect(() => {
+    localStorage.setItem("dashboard_tasks", JSON.stringify(tasks));
+  }, [tasks]);
+
+  // Load project from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dashboard_project");
+      if (stored) setProject(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist project
+  useEffect(() => {
+    localStorage.setItem("dashboard_project", JSON.stringify(project));
+  }, [project]);
+
+  // Current ISO week helpers
+  const today = new Date();
+  const currentDayIndex = (today.getDay() + 6) % 7; // Mon=0, Sun=6
+  const mondayOfWeek = new Date(today);
+  mondayOfWeek.setDate(today.getDate() - currentDayIndex);
+  mondayOfWeek.setHours(0, 0, 0, 0);
+
+  // Tasks for current week only
+  const weekTasks = tasks.filter((t) => {
+    const taskDayIndex = DAY_ORDER.indexOf(t.day);
+    const taskDate = new Date(mondayOfWeek);
+    taskDate.setDate(mondayOfWeek.getDate() + taskDayIndex);
+    const taskCreated = new Date(t.createdAt);
+    return taskCreated <= taskDate && taskCreated >= mondayOfWeek;
+  });
+
+  function addTask() {
+    if (!newTaskText.trim()) return;
+    setTasks((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        text: newTaskText.trim(),
+        day: newTaskDay,
+        done: false,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    setNewTaskText("");
+    setAddingTask(false);
+  }
+
+  function toggleTask(id: string) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+    );
+  }
+
+  function deleteTask(id: string) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  // Business stats
+  const activeClients = clients.filter((c) => c.status === "active");
+  const activeCount = activeClients.length;
+  const now = new Date();
+  const newThisMonth = clients.filter((c) => {
+    const d = new Date(c.startDate);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+  // Use $600/week as placeholder for revenue (weekly transfer amount from business context)
+  const revenue = 600;
+
+  // Project helpers
+  function addStep() {
+    setProject((prev) => ({
+      ...prev,
+      steps: [
+        ...prev.steps,
+        { id: Date.now().toString(), text: "", done: false },
+      ],
+    }));
+  }
+
+  function updateStepText(id: string, text: string) {
+    setProject((prev) => ({
+      ...prev,
+      steps: prev.steps.map((s) => (s.id === id ? { ...s, text } : s)),
+    }));
+  }
+
+  function toggleStep(id: string) {
+    setProject((prev) => ({
+      ...prev,
+      steps: prev.steps.map((s) => (s.id === id ? { ...s, done: !s.done } : s)),
+    }));
+  }
+
+  function deleteStep(id: string) {
+    setProject((prev) => ({
+      ...prev,
+      steps: prev.steps.filter((s) => s.id !== id),
+    }));
+  }
+
+  function clearProject() {
+    setProject({ title: "", steps: [] });
+  }
+
+  const checkedSteps = project.steps.filter((s) => s.done).length;
+  const totalSteps = project.steps.length;
+  const progressPct = totalSteps > 0 ? Math.round((checkedSteps / totalSteps) * 100) : 0;
+
+  // Section header style
+  const sectionHeaderStyle: React.CSSProperties = {
+    fontFamily: "system-ui",
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.40)",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginBottom: "12px",
+  };
+
+  // Stat card style helper
+  const statCard = (value: string | number, label: string, color: string) => (
+    <div
+      key={label}
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        padding: "16px",
+        textAlign: "center",
+        flex: 1,
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "system-ui",
+          fontSize: "22px",
+          fontWeight: 700,
+          color,
+          margin: 0,
+        }}
+      >
+        {value}
+      </p>
+      <p
+        style={{
+          fontFamily: "system-ui",
+          fontSize: "10px",
+          color: "rgba(255,255,255,0.40)",
+          margin: "4px 0 0",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+        }}
+      >
+        {label}
+      </p>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
+      {/* ── Weekly To-Do List ── */}
+      <section style={{ marginBottom: "32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <p style={sectionHeaderStyle}>This Week</p>
+          <button
+            onClick={() => setAddingTask(!addingTask)}
+            style={{
+              background: "rgba(59,130,246,0.12)",
+              border: "1px solid rgba(59,130,246,0.25)",
+              borderRadius: "8px",
+              padding: "4px 12px",
+              color: "#60a5fa",
+              fontSize: "12px",
+              cursor: "pointer",
+              fontFamily: "system-ui",
+            }}
+          >
+            {addingTask ? "Cancel" : "+ Add task"}
+          </button>
+        </div>
+
+        {/* Add task inline form */}
+        {addingTask && (
+          <div
+            style={{
+              background: "rgba(15,20,40,0.50)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "14px",
+              padding: "14px",
+              marginBottom: "14px",
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              value={newTaskText}
+              onChange={(e) => setNewTaskText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addTask()}
+              placeholder="Task description..."
+              autoFocus
+              style={{
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: "8px",
+                color: "white",
+                padding: "7px 12px",
+                fontSize: "13px",
+                fontFamily: "system-ui",
+                outline: "none",
+                flex: 1,
+                minWidth: "160px",
+              }}
+            />
+            <select
+              value={newTaskDay}
+              onChange={(e) => setNewTaskDay(e.target.value as typeof newTaskDay)}
+              style={{
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: "8px",
+                color: "white",
+                padding: "7px 10px",
+                fontSize: "13px",
+                fontFamily: "system-ui",
+                outline: "none",
+              }}
+            >
+              {DAY_ORDER.map((d) => (
+                <option key={d} value={d} style={{ background: "#1a1a2e" }}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={addTask}
+              style={{
+                background: "rgba(59,130,246,0.20)",
+                border: "1px solid rgba(59,130,246,0.35)",
+                borderRadius: "8px",
+                padding: "7px 16px",
+                color: "#3b82f6",
+                fontSize: "13px",
+                cursor: "pointer",
+                fontFamily: "system-ui",
+                fontWeight: 600,
+              }}
+            >
+              Add
+            </button>
+          </div>
+        )}
+
+        {/* 7-day grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gap: "8px",
+          }}
+        >
+          {DAY_ORDER.map((day, dayIdx) => {
+            const isToday = dayIdx === currentDayIndex;
+            const dayTasks = weekTasks.filter((t) => t.day === day);
+            return (
+              <div
+                key={day}
+                style={{
+                  background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
+                  border: isToday
+                    ? `1px solid ${DAY_BORDER_COLORS[day]}`
+                    : "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: "14px",
+                  padding: "10px 8px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  position: "relative",
+                }}
+              >
+                {/* Day label */}
+                <div style={{ textAlign: "center", marginBottom: "4px" }}>
+                  <p
+                    style={{
+                      fontFamily: "system-ui",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: isToday ? DAY_BORDER_COLORS[day].replace("0.50", "1") : "rgba(255,255,255,0.45)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      textDecoration: isToday ? "underline" : "none",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    {day.slice(0, 3)}
+                  </p>
+                </div>
+                {/* Tasks for this day */}
+                {dayTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: "8px",
+                      padding: "6px 8px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "6px",
+                      opacity: task.done ? 0.45 : 1,
+                      textDecoration: task.done ? "line-through" : "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={task.done}
+                      onChange={() => toggleTask(task.id)}
+                      style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0, marginTop: "1px" }}
+                    />
+                    <span
+                      style={{
+                        fontFamily: "system-ui",
+                        fontSize: "11px",
+                        color: "rgba(255,255,255,0.80)",
+                        lineHeight: 1.4,
+                        flex: 1,
+                        textDecoration: task.done ? "line-through" : "none",
+                      }}
+                    >
+                      {task.text}
+                    </span>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,0.25)",
+                        cursor: "pointer",
+                        padding: "0",
+                        fontSize: "11px",
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {dayTasks.length === 0 && (
+                  <div style={{ minHeight: "32px" }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Business Stats ── */}
+      <section style={{ marginBottom: "32px" }}>
+        <p style={sectionHeaderStyle}>Business Stats</p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {statCard(activeCount, "Clients", "#34d399")}
+          {statCard(`$${revenue}`, "Rev / wk", "#3b82f6")}
+          {statCard(`+${newThisMonth}`, "New this mo", "#a855f7")}
+          {statCard("—", "Conv.", "rgba(255,255,255,0.50)")}
+        </div>
+      </section>
+
+      {/* ── Project Focus ── */}
+      <section>
+        <p style={sectionHeaderStyle}>Project Focus</p>
+        <div
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "18px",
+            padding: "20px",
+          }}
+        >
+          {/* Title row */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px" }}>
+            {editingTitle ? (
+              <input
+                value={project.title}
+                onChange={(e) => setProject((prev) => ({ ...prev, title: e.target.value }))}
+                onBlur={() => setEditingTitle(false)}
+                onKeyDown={(e) => e.key === "Enter" && setEditingTitle(false)}
+                autoFocus
+                placeholder="Project title..."
+                style={{
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(59,130,246,0.35)",
+                  borderRadius: "8px",
+                  color: "white",
+                  padding: "6px 12px",
+                  fontSize: "16px",
+                  fontFamily: "system-ui",
+                  fontWeight: 700,
+                  outline: "none",
+                  flex: 1,
+                }}
+              />
+            ) : (
+              <h3
+                onClick={() => setEditingTitle(true)}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: project.title ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.30)",
+                  cursor: "pointer",
+                  flex: 1,
+                  borderBottom: project.title ? "1px dashed rgba(255,255,255,0.15)" : "none",
+                  paddingBottom: "2px",
+                }}
+              >
+                {project.title || "Untitled project"}
+              </h3>
+            )}
+            <button
+              onClick={clearProject}
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: "8px",
+                padding: "5px 12px",
+                color: "rgba(255,255,255,0.35)",
+                fontSize: "11px",
+                cursor: "pointer",
+                fontFamily: "system-ui",
+                flexShrink: 0,
+              }}
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Progress bar */}
+          {totalSteps > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  borderRadius: "999px",
+                  height: "6px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progressPct}%`,
+                    height: "100%",
+                    background: "rgba(59,130,246,0.50)",
+                    borderRadius: "999px",
+                    transition: "width 0.35s ease",
+                  }}
+                />
+              </div>
+              <p
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "10px",
+                  color: "rgba(255,255,255,0.30)",
+                  marginTop: "4px",
+                }}
+              >
+                {checkedSteps} of {totalSteps} steps complete
+              </p>
+            </div>
+          )}
+
+          {/* Steps */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {project.steps.map((step) => (
+              <div
+                key={step.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  opacity: step.done ? 0.50 : 1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={step.done}
+                  onChange={() => toggleStep(step.id)}
+                  style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0 }}
+                />
+                <input
+                  value={step.text}
+                  onChange={(e) => updateStepText(step.id, e.target.value)}
+                  placeholder="Step description..."
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: "1px dashed rgba(255,255,255,0.15)",
+                    color: "rgba(255,255,255,0.80)",
+                    fontSize: "13px",
+                    fontFamily: "system-ui",
+                    outline: "none",
+                    flex: 1,
+                    padding: "2px 0",
+                    textDecoration: step.done ? "line-through" : "none",
+                  }}
+                />
+                <button
+                  onClick={() => deleteStep(step.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.20)",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    padding: "2px 4px",
+                    flexShrink: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add step */}
+          <button
+            onClick={addStep}
+            style={{
+              background: "transparent",
+              border: "1px dashed rgba(255,255,255,0.15)",
+              borderRadius: "10px",
+              padding: "8px 16px",
+              color: "rgba(255,255,255,0.30)",
+              fontSize: "13px",
+              cursor: "pointer",
+              fontFamily: "system-ui",
+              width: "100%",
+              marginTop: "12px",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.30)";
+              (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.50)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.15)";
+              (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)";
+            }}
+          >
+            + Add step
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -356,7 +981,7 @@ function AgentsTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<Tab>("agents");
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // ─── Clients tab state (owned by Home) ─────────────────────────────────
@@ -367,9 +992,9 @@ export default function Home() {
   // ─── Leads tab state (owned by Home) ──────────────────────────────────
   const [leads, setLeads] = useState<Lead[]>([]);
 
-  // Fetch clients when clients tab is active
+  // Fetch clients when clients tab or dashboard is active
   useEffect(() => {
-    if (activeTab !== "clients") return;
+    if (activeTab !== "clients" && activeTab !== "dashboard") return;
     fetch("/api/clients")
       .then(r => r.json())
       .then((data: Client[]) => setClients(data))
@@ -400,6 +1025,25 @@ export default function Home() {
     await fetch(`/api/clients/${id}`, { method: "DELETE" });
     setClients(prev => prev.filter(c => c.id !== id));
   }
+
+  // ─── Sidebar nav sections ──────────────────────────────────────────────
+  const sidebarSections: { label: string; items: { id: Tab; label: string }[] }[] = [
+    {
+      label: "Business",
+      items: [
+        { id: "dashboard", label: "Dashboard" },
+        { id: "clients", label: "Clients" },
+        { id: "leads", label: "Leads" },
+        { id: "finance", label: "Finance" },
+      ],
+    },
+    {
+      label: "AI",
+      items: [
+        { id: "agents", label: "Agents" },
+      ],
+    },
+  ];
 
   // ─── ClientsTab (lives here to access Home's state) ─────────────────────
   function ClientsTab() {
@@ -849,6 +1493,7 @@ export default function Home() {
                       </select>
                     </div>
                     <div>
+
                       <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label>
                       <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
                     </div>
@@ -1193,6 +1838,7 @@ export default function Home() {
           onTabChange={setActiveTab}
           mobileOpen={mobileOpen}
           onClose={() => setMobileOpen(false)}
+          sections={sidebarSections}
         />
 
         {/* Main content */}
@@ -1220,7 +1866,11 @@ export default function Home() {
             </svg>
           </button>
 
-          {activeTab === "agents" ? <AgentsTab /> : activeTab === "clients" ? <ClientsTab /> : activeTab === "finance" ? <FinanceTab /> : <LeadsTab />}
+          {activeTab === "dashboard" ? <DashboardTab clients={clients} /> :
+           activeTab === "agents" ? <AgentsTab /> :
+           activeTab === "clients" ? <ClientsTab /> :
+           activeTab === "finance" ? <FinanceTab /> :
+           <LeadsTab />}
         </main>
       </div>
     </div>
