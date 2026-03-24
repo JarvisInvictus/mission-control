@@ -782,7 +782,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
           {[
             { label: '30 Days', value: Math.round(totalRevenuePerWeek * 52 / 12), suffix: '' },
             { label: '60 Days', value: Math.round(totalRevenuePerWeek * 52 / 12 * 1.97), suffix: '' },
-            { label: '90 Days', value: Math.round(totalRevenuePerWeek * 52 / 12 * 1.94), suffix: '' },
+            { label: '90 Days', value: Math.round(totalRevenuePerWeek * 52 / 12 * 2.91), suffix: '' },
           ].map(p => (
             <div key={p.label} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '12px', padding: '12px 20px', flex: 1, minWidth: '100px', textAlign: 'center' }}>
               <p style={{ fontFamily: 'system-ui', fontSize: '18px', fontWeight: 700, color: '#0abab5', margin: 0 }}>${p.value.toLocaleString()}</p>
@@ -1010,11 +1010,11 @@ function AgentsTab() {
 
       {/* Footer */}
       <footer className="py-4 mt-4">
-        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
-          Last refreshed:{" "}
-          {pushedAt ? pushedAt.toLocaleTimeString("en-AU", { hour12: false }) : "—"}{" "}
-          · Auto-refresh every 30s · v2.0.0
-        </p>
+  const today = new Date();
+  const currentMonday = new Date(today);
+  currentMonday.setDate(today.getDate() - ((today.getDay() === 0 ? 6 : today.getDay() - 1));
+  const currentWeekStart = new Date(currentMonday);
+  currentWeekStart.setDate(currentMonday.getDate() + weekOffset * 7);
       </footer>
     </div>
   );
