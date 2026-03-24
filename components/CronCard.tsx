@@ -183,7 +183,7 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
       </div>
     </div>
   );
