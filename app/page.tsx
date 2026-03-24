@@ -321,10 +321,9 @@ function Sidebar({
 
 function DashboardTab({ clients }: { clients: Client[] }) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [addingTask, setAddingTask] = useState(false);
+  const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
-  const [newTaskDay, setNewTaskDay] = useState<"Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday">("Monday");
-  const [project, setProject] = useState<Project>({ title: "", steps: [] });
+    const [project, setProject] = useState<Project>({ title: "", steps: [] });
   const [editingTitle, setEditingTitle] = useState(false);
 
   // Drag-and-drop state for Trello-style todo board
@@ -373,20 +372,20 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     return taskCreated <= taskDate && taskCreated >= mondayOfWeek;
   });
 
-  function addTask() {
+  function addTask(day: string) {
     if (!newTaskText.trim()) return;
     setTasks((prev) => [
       ...prev,
       {
         id: Date.now().toString(),
         text: newTaskText.trim(),
-        day: newTaskDay,
+        day,
         done: false,
         createdAt: new Date().toISOString(),
       },
     ]);
     setNewTaskText("");
-    setAddingTask(false);
+    setAddingToDay(null);
   }
 
   function toggleTask(id: string) {
@@ -529,78 +528,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
           </button>
         </div>
 
-        {/* Add task inline form */}
-        {addingTask && (
-          <div
-            style={{
-              background: "rgba(15,20,40,0.50)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: "14px",
-              padding: "14px",
-              marginBottom: "14px",
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <input
-              value={newTaskText}
-              onChange={(e) => setNewTaskText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTask()}
-              placeholder="Task description..."
-              autoFocus
-              style={{
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: "8px",
-                color: "white",
-                padding: "7px 12px",
-                fontSize: "13px",
-                fontFamily: "system-ui",
-                outline: "none",
-                flex: 1,
-                minWidth: "160px",
-              }}
-            />
-            <select
-              value={newTaskDay}
-              onChange={(e) => setNewTaskDay(e.target.value as typeof newTaskDay)}
-              style={{
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: "8px",
-                color: "white",
-                padding: "7px 10px",
-                fontSize: "13px",
-                fontFamily: "system-ui",
-                outline: "none",
-              }}
-            >
-              {DAY_ORDER.map((d) => (
-                <option key={d} value={d} style={{ background: "#1a1a2e" }}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={addTask}
-              style={{
-                background: "rgba(59,130,246,0.20)",
-                border: "1px solid rgba(59,130,246,0.35)",
-                borderRadius: "8px",
-                padding: "7px 16px",
-                color: "#3b82f6",
-                fontSize: "13px",
-                cursor: "pointer",
-                fontFamily: "system-ui",
-                fontWeight: 600,
-              }}
-            >
-              Add
-            </button>
-          </div>
-        )}
+
 
         {/* 7-day grid — centered */}
         <div
@@ -745,6 +673,90 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                       transition: "border-color 0.15s",
                     }}
                   />
+                )}
+
+                {/* + Add a card button */}
+                <button
+                  onClick={() => { setAddingToDay(day); setNewTaskText(" "); }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.30)",
+                    cursor: "pointer",
+                    fontSize: "11px",
+                    fontFamily: "system-ui",
+                    textAlign: "left",
+                    padding: "4px 2px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    width: "100%",
+                    marginTop: "4px",
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.60)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)"}
+                >
+                  + Add a card
+                </button>
+
+                {/* Inline add form */}
+                {addingToDay === day && (
+                  <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <input
+                      value={newTaskText}
+                      onChange={(e) => setNewTaskText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") addTask(day); if (e.key === "Escape") setAddingToDay(null); }}
+                      placeholder="Task name..."
+                      autoFocus
+                      style={{
+                        background: "rgba(255,255,255,0.07)",
+                        border: "1px solid rgba(59,130,246,0.35)",
+                        borderRadius: "8px",
+                        color: "white",
+                        padding: "6px 10px",
+                        fontSize: "12px",
+                        fontFamily: "system-ui",
+                        outline: "none",
+                        width: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={() => addTask(day)}
+                        style={{
+                          flex: 1,
+                          background: "rgba(59,130,246,0.20)",
+                          border: "1px solid rgba(59,130,246,0.35)",
+                          borderRadius: "8px",
+                          color: "#3b82f6",
+                          padding: "5px",
+                          fontSize: "11px",
+                          cursor: "pointer",
+                          fontFamily: "system-ui",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setAddingToDay(null)}
+                        style={{
+                          flex: 1,
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: "8px",
+                          color: "rgba(255,255,255,0.45)",
+                          padding: "5px",
+                          fontSize: "11px",
+                          cursor: "pointer",
+                          fontFamily: "system-ui",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             );
