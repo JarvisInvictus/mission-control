@@ -62,8 +62,18 @@ export async function POST(req: NextRequest) {
   const raw = await redis.get("jarvis:clients");
   const clients = parseClients(raw);
 
+  function slugify(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+  const baseSlug = slugify(name);
+  // Ensure unique slug by appending counter if needed
+  const existingSlugs = new Set(clients.map((c: any) => c.id));
+  let slug = baseSlug;
+  let counter = 1;
+  while (existingSlugs.has(slug)) { slug = `${baseSlug}-${counter}`; counter++; }
+
   const newClient = {
-    id: Date.now().toString(),
+    id: slug,
     name,
     email: email ?? "",
     coach,

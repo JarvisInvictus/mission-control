@@ -7,6 +7,9 @@ import { CronCard, type CronJob } from "@/components/CronCard";
 import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
 import { FinanceTab } from "@/components/FinanceTab";
+import { ClientProfilePanel } from "@/components/ClientProfilePanel";
+import { Toast, type ToastMessage } from "@/components/Toast";
+import { RevenueTrend } from "@/components/RevenueTrend";
 
 // ─── Design System Constants ─────────────────────────────────────────────────
 const Tiffany = "#0abab5";
@@ -65,7 +68,7 @@ interface StatusData {
   pushedAt: string;
 }
 
-interface Client {
+export interface Client {
   id: string;
   name: string;
   email: string;
@@ -80,7 +83,7 @@ interface Client {
   checkInDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
 
-interface Lead {
+export interface Lead {
   id: string;
   name: string;
   email: string;
@@ -460,7 +463,7 @@ function Sidebar({
 
 // ─── Dashboard Tab ───────────────────────────────────────────────────────────
 
-function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange: (tab: Tab) => void }) {
+function DashboardTab({ clients, onTabChange, onClientClick }: { clients: Client[]; onTabChange: (tab: Tab) => void; onClientClick: (c: Client) => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
@@ -598,16 +601,76 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
   const totalSteps = project.steps.length;
   const progressPct = totalSteps > 0 ? Math.round((checkedSteps / totalSteps) * 100) : 0;
 
-  const dayOfWeek = today.getDay(); // 1=Mon
-  const alerts = [
-    ...(clients.filter(c => {
-      if (c.status !== 'active') return false;
-      if (!c.checkInDay) return false;
-      const dayNum = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(c.checkInDay);
-      return dayNum >= 1 && dayNum <= 5 && dayNum < dayOfWeek;
-    }).map(c => ({ type: 'missing', color: '#f87171', message: `${c.name} — check-in missing since ${c.checkInDay}` }))),
-    ...(clients.filter(c => c.paymentPlatform === 'Upfront').map(c => ({ type: 'payment', color: '#fbbf24', message: `${c.name} — Upfront payment review due` }))),
-  ];
+  // ── Retention Alerts ──────────────────────────────────────────────────────────
+  function getRetentionAlerts() {
+    const today2 = new Date();
+    const alertsList: { type: string; color: string; message: string; client: Client }[] = [];
+
+    // Load check-in history
+    let checkIns: Record<string, Record<string, string>> = {};
+    try { const s = localStorage.getItem("mc_checkins"); if (s) checkIns = JSON.parse(s); } catch { /* */ }
+
+    for (const c of clients) {
+      // 1. Missing check-in (existing logic)
+      if (c.status === 'active' && c.checkInDay) {
+        const dayNum = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(c.checkInDay);
+        if (dayNum >= 1 && dayNum <= 5 && dayNum < today2.getDay()) {
+          alertsList.push({ type: 'missing', color: '#f87171', message: `${c.name} — check-in missing since ${c.checkInDay}`, client: c });
+        }
+      }
+
+      // 2. Upfront payment review
+      if (c.paymentPlatform === 'Upfront') {
+        alertsList.push({ type: 'payment', color: '#fbbf24', message: `${c.name} — Upfront payment review due`, client: c });
+      }
+
+      // 3. Week milestone (4 / 8 / 12 weeks) — only if startDate exists
+      if (c.startDate && c.status === 'active') {
+        const start = new Date(c.startDate);
+        const weeksElapsed = Math.floor((today2.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        if ([4, 8, 12].includes(weeksElapsed)) {
+          alertsList.push({ type: 'milestone', color: '#fbbf24', message: `${c.name} — approaching ${weeksElapsed} week mark`, client: c });
+        }
+      }
+
+      // 4. Paused 2+ weeks
+      if (c.status === 'paused') {
+        const pausedDate = c.pausedUntil ? new Date(c.pausedUntil) : new Date(c.startDate);
+        if (pausedDate) {
+          const weeksPaused = Math.floor((today2.getTime() - pausedDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+          if (weeksPaused >= 2) {
+            alertsList.push({ type: 'paused', color: '#fbbf24', message: `${c.name} — paused ${weeksPaused} weeks, follow up`, client: c });
+          }
+        }
+      }
+
+      // 5. No check-in for 2 consecutive weeks
+      if (c.status === 'active' && c.startDate) {
+        let missedWeeks = 0;
+        for (let w = 1; w <= 2; w++) {
+          const dow = today2.getDay() === 0 ? 6 : today2.getDay() - 1;
+          const currentMonday = new Date(today2);
+          currentMonday.setDate(today2.getDate() - dow);
+          const checkMonday = new Date(currentMonday);
+          checkMonday.setDate(currentMonday.getDate() - w * 7);
+          const year = checkMonday.getFullYear();
+          const startOfYear = new Date(year, 0, 1);
+          const week1Start = new Date(startOfYear);
+          week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
+          const weekNum = Math.floor((checkMonday.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+          const wKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
+          if (!checkIns[wKey]?.[c.id]) missedWeeks++;
+        }
+        if (missedWeeks >= 2) {
+          alertsList.push({ type: 'consecutive', color: '#f87171', message: `${c.name} — no check-in 2 weeks running`, client: c });
+        }
+      }
+    }
+
+    return alertsList;
+  }
+
+  const alerts = getRetentionAlerts();
 
   return (
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
@@ -844,8 +907,8 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {alerts.slice(0, 5).map((alert, i) => (
               <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${alert.color}`, borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>{alert.message}</span>
-                <button onClick={() => {}} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.30)', cursor: 'pointer', fontSize: '12px', fontFamily: 'system-ui' }}>View →</button>
+                <span style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.80)', cursor: 'pointer' }} onClick={() => onClientClick(alert.client)}>{alert.message}</span>
+                <button onClick={() => onClientClick(alert.client)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.30)', cursor: 'pointer', fontSize: '12px', fontFamily: 'system-ui' }}>View →</button>
               </div>
             ))}
           </div>
@@ -1449,7 +1512,7 @@ function getWeekDates(offset: number) {
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function CheckInsTab({ clients }: { clients: Client[] }) {
+function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientClick: (c: Client) => void }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
 
@@ -1469,6 +1532,42 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
   useEffect(() => {
     localStorage.setItem("mc_checkins", JSON.stringify(checkIns));
   }, [checkIns]);
+
+  // Auto-advance to current week on mount or tab focus
+  useEffect(() => {
+    function ensureCurrentWeek() {
+      const now = new Date();
+      const dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+      const currentMonday = new Date(now);
+      currentMonday.setDate(now.getDate() - dow);
+      currentMonday.setHours(0, 0, 0, 0);
+      const displayedMonday = new Date(week.start);
+      displayedMonday.setHours(0, 0, 0, 0);
+      if (displayedMonday.getTime() !== currentMonday.getTime()) {
+        setWeekOffset(0);
+      }
+    }
+    ensureCurrentWeek();
+    // Also run when tab becomes visible (focus)
+    const handleFocus = () => ensureCurrentWeek();
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => document.removeEventListener("visibilitychange", handleFocus);
+  }, [week.start]);
+
+  // Check every minute for midnight Monday → auto-advance
+  useEffect(() => {
+    function checkMidnightMonday() {
+      const now = new Date();
+      const dow = now.getDay(); // 1=Mon
+      const isMonday = dow === 1;
+      const isJustAfterMidnight = now.getHours() === 0 && now.getMinutes() <= 5;
+      if (isMonday && isJustAfterMidnight && weekOffset !== 0) {
+        setWeekOffset(0);
+      }
+    }
+    const interval = setInterval(checkMidnightMonday, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [weekOffset]);
 
   function getStatus(clientId: string): CheckInStatus | null {
     return checkIns[weekKey]?.[clientId] ?? null;
@@ -1719,15 +1818,20 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
                       }}>
                         {/* Name + status badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
-                          <span style={{
-                            fontFamily: "system-ui",
-                            fontSize: "13px",
-                            color: "rgba(255,255,255,0.90)",
-                            fontWeight: 500,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}>
+                          <span
+                            style={{
+                              fontFamily: "system-ui",
+                              fontSize: "13px",
+                              color: "rgba(255,255,255,0.90)",
+                              fontWeight: 500,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => onClientClick(client)}
+                            title="View profile"
+                          >
                             {client.name}
                           </span>
                           <StatusBadge clientId={client.id} status={status} />
@@ -1778,11 +1882,20 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const windowWidth = useWindowSize();
   const isDesktop = windowWidth >= 768;
 
+  function addToast(message: string, type: ToastMessage["type"] = "success") {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+  }
+  function dismissToast(id: string) {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }
+
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit">("menu");
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -1839,7 +1952,7 @@ export default function Home() {
   ];
 
   // ─── ClientsTab ──────────────────────────────────────────────────────────────
-  function ClientsTab() {
+  function ClientsTab({ onClientClick }: { onClientClick: (c: Client) => void }) {
     const [form, setForm] = useState({
       name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
       paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
@@ -1979,12 +2092,16 @@ export default function Home() {
                       return (
                         <tr key={client.id}
                           style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
-                          onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
+                          onClick={() => { onClientClick?.(client); }}
                           onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
                           onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
                           <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                              {client.name}
+                              <span
+                                style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
+                                onClick={() => { onClientClick?.(client); }}
+                                title="View profile"
+                              >{client.name}</span>
                               {client.spreadsheetUrl && (
                                 <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
                                   style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
@@ -2037,7 +2154,11 @@ export default function Home() {
                           <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
                             <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                               {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
-                              {client.name}
+                              <span
+                                style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
+                                onClick={() => { onClientClick?.(client); }}
+                                title="View profile"
+                              >{client.name}</span>
                               {client.spreadsheetUrl && (
                                 <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
                                   style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
@@ -2052,7 +2173,7 @@ export default function Home() {
                           <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
                           <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
                           <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
-                            <button onClick={() => { setSelectedClient(client); setActionPanel("menu"); }}
+                            <button onClick={() => { onClientClick?.(client); }}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
@@ -2230,7 +2351,7 @@ export default function Home() {
   }
 
   // ─── LeadsTab ─────────────────────────────────────────────────────────────
-  function LeadsTab() {
+  function LeadsTab({ onConvertLead }: { onConvertLead: (lead: Lead) => void }) {
     const [showForm, setShowForm] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
     const [form, setForm] = useState({ name: "", email: "", phone: "", source: "other" as Lead["source"], notes: "", assignedTo: "Milzzy" as Lead["assignedTo"] });
@@ -2310,6 +2431,7 @@ export default function Home() {
     async function moveLeadStage(lead: Lead, newStage: Lead["stage"]) {
       const res = await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: newStage }) });
       if (res.ok) { const updated: Lead = await res.json(); setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)); }
+      if (newStage === "active") { onConvertLead(lead); }
       setMoveStage(null);
       setMenuOpen(false);
       setMenuLead(null);
@@ -2464,8 +2586,9 @@ export default function Home() {
                             )}
                           </div>
                         </div>
-                        <div style={{ marginBottom: "6px" }}>
+                        <div style={{ marginBottom: "6px", display: "flex", gap: "4px", flexWrap: "wrap" }}>
                           <span style={{ background: src.bg, color: src.color, border: `1px solid ${src.color}40`, borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}</span>
+                          {lead.stage === "active" && <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.35)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>✅ Converted</span>}
                         </div>
                         <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>{days === 0 ? "Today" : `${days}d ago`}</p>
                         {fu === "follow" && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>⚠️ Follow up</span>}
@@ -2513,15 +2636,43 @@ export default function Home() {
               </svg>
             </button>
 
-            {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} /> :
+            {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} onClientClick={setSelectedClient} /> :
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "team" ? <TeamTab /> :
-             activeTab === "clients" ? <ClientsTab /> :
-             activeTab === "checkins" ? <CheckInsTab clients={clients} /> :
-             activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} /> :
-             <LeadsTab />}
+             activeTab === "clients" ? <ClientsTab onClientClick={setSelectedClient} /> :
+             activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
+             activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
+<LeadsTab onConvertLead={(lead) => {
+               const newClient: Client = {
+                 id: `lead-${lead.id}`,
+                 name: lead.name,
+                 email: lead.email,
+                 coach: lead.assignedTo,
+                 paymentPlatform: "Newie",
+                 weeklyCharge: 0,
+                 spreadsheetUrl: "",
+                 status: "active",
+                 startDate: new Date().toISOString().split("T")[0],
+                 notes: `Converted from lead (source: ${lead.source})`,
+               };
+               fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newClient) })
+                 .then(r => r.json())
+                 .then(created => { setClients(prev => [...prev, created]); addToast(`${lead.name} has been added to Clients ✅`, "success"); })
+                 .catch(() => addToast("Failed to add client", "error"));
+             }} />}
           </div>
         </main>
+
+        {/* Client Profile Panel */}
+        {selectedClient && (
+          <ClientProfilePanel
+            client={selectedClient}
+            onClose={() => setSelectedClient(null)}
+          />
+        )}
+
+        {/* Toast notifications */}
+        <Toast toasts={toasts} onDismiss={dismissToast} />
       </div>
     </div>
   );

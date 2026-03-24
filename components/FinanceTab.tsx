@@ -356,11 +356,15 @@ function DirectDebitTable({ items, total }: { items: DirectDebit[]; total: numbe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+import { RevenueTrend } from "./RevenueTrend";
+import type { Client } from "@/app/page";
+
 interface FinanceTabProps {
   revPerWeek?: number;
+  clients?: Client[];
 }
 
-export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProps) {
+export function FinanceTab({ revPerWeek: revPerWeekProp = 5000, clients = [] }: FinanceTabProps) {
   const [reviewOpen, setReviewOpen] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
   const [checkedActions, setCheckedActions] = useState<Set<number>>(() => {
@@ -602,11 +606,13 @@ export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProp
         ))}
       </div>
 
-      {/* Projected Revenue — 30 / 60 / 90 day */}
+      {/* Projected Revenue — MRR + 30 / 60 / 90 day */}
       {(() => {
         const revPerWeek = revPerWeekProp;
         const monthlyRevenue = (revPerWeek * 52) / 12;
+        const mrr = monthlyRevenue;
         const projections = [
+          { label: "MRR", value: mrr },
           { label: "30 Days", value: monthlyRevenue },
           { label: "60 Days", value: monthlyRevenue * 1.97 },
           { label: "90 Days", value: monthlyRevenue * 2.91 },
@@ -618,7 +624,7 @@ export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProp
             </p>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               {projections.map(({ label, value }) => (
-                <div key={label} style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "16px", padding: "16px 20px", flex: 1, minWidth: "120px", textAlign: "center" }}>
+                <div key={label} style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(20px)", border: `1px solid ${label === "MRR" ? "rgba(10,186,181,0.30)" : "rgba(255,255,255,0.10)"}`, borderRadius: "16px", padding: "16px 20px", flex: 1, minWidth: "110px", textAlign: "center" }}>
                   <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "24px", fontWeight: 700, color: "#0abab5", margin: 0 }}>
                     ${Math.round(value).toLocaleString("en-AU")}
                   </p>
@@ -631,6 +637,11 @@ export function FinanceTab({ revPerWeek: revPerWeekProp = 5000 }: FinanceTabProp
           </div>
         );
       })()}
+
+      {/* Revenue Trend */}
+      <div style={{ marginBottom: "24px" }}>
+        <RevenueTrend clients={clients} revPerWeek={revPerWeekProp} />
+      </div>
 
       {/* Net Position Card */}
       <div className="liquid-glass p-5 mb-6" style={{ borderColor: "rgba(52,211,153,0.30)" }}>
