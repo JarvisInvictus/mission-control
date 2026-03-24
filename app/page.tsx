@@ -8,6 +8,21 @@ import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
 import { FinanceTab } from "@/components/FinanceTab";
 
+// ─── Design System Constants ─────────────────────────────────────────────────
+const Tiffany = "#0abab5";
+const TiffanySoft = "rgba(10,186,181,0.12)";
+const TiffanyBorder = "rgba(10,186,181,0.25)";
+const GlassBg = "rgba(255,255,255,0.05)";
+const GlassBorder = "rgba(255,255,255,0.10)";
+const GlassBlur = "blur(20px)";
+
+const GlassStyle: React.CSSProperties = {
+  background: GlassBg,
+  backdropFilter: GlassBlur,
+  border: `1px solid ${GlassBorder}`,
+  borderRadius: "20px",
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Business {
@@ -149,6 +164,81 @@ function useStatus() {
   return { data, loading, error };
 }
 
+// ─── Shared Glass Components ─────────────────────────────────────────────────
+
+const sectionHeaderStyle: React.CSSProperties = {
+  fontFamily: "system-ui",
+  fontSize: "11px",
+  color: "rgba(255,255,255,0.35)",
+  textTransform: "uppercase",
+  letterSpacing: "0.10em",
+  marginBottom: "12px",
+};
+
+function StatCard({ value, label, color }: { value: string | number; label: string; color: string }) {
+  return (
+    <div style={{
+      background: GlassBg,
+      backdropFilter: GlassBlur,
+      border: `1px solid ${GlassBorder}`,
+      borderRadius: "16px",
+      padding: "16px 20px",
+      flex: 1,
+      minWidth: "120px",
+      textAlign: "center",
+    }}>
+      <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color, margin: 0 }}>{value}</p>
+      <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: "12px",
+  color: "white",
+  padding: "10px 14px",
+  fontSize: "13px",
+  fontFamily: "system-ui",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
+function GlassModal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(12px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "16px",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "rgba(20, 20, 40, 0.95)",
+          backdropFilter: "blur(30px)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: "24px",
+          padding: "28px",
+          width: "100%",
+          maxWidth: "400px",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 function Header({ activeTab }: { activeTab: Tab }) {
@@ -162,21 +252,22 @@ function Header({ activeTab }: { activeTab: Tab }) {
   };
 
   return (
-    <header className="liquid-glass-header sticky top-0 z-20">
+    <header style={{
+      position: "sticky", top: 0, zIndex: 20,
+      background: "rgba(10,10,20,0.90)",
+      backdropFilter: "blur(20px)",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+    }}>
       <div className="flex items-center justify-between px-4 sm:px-6 py-4">
         <div>
           <h1
-            className="text-[1.1rem] tracking-[0.1em] font-bold"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
+            style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.10em" }}
           >
             <span style={{ color: "rgba(255,255,255,0.92)" }}>JARVIS</span>
             <span style={{ color: "rgba(255,255,255,0.40)", margin: "0 0.6rem" }}>//</span>
             <span style={{ color: "rgba(255,255,255,0.40)" }}>MISSION CONTROL</span>
           </h1>
-          <p
-            className="text-[11px] mt-1 tracking-wide"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
-          >
+          <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", marginTop: "4px", letterSpacing: "0.05em", color: "rgba(255,255,255,0.35)" }}>
             Invictus Physiques · Operations
           </p>
         </div>
@@ -186,25 +277,19 @@ function Header({ activeTab }: { activeTab: Tab }) {
           <span className="relative flex h-2 w-2">
             <span
               className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-              style={{ backgroundColor: "#3b82f6", opacity: 0.4 }}
+              style={{ backgroundColor: Tiffany, opacity: 0.4 }}
             />
             <span
               className="relative inline-flex rounded-full h-2 w-2"
-              style={{ backgroundColor: "#3b82f6" }}
+              style={{ backgroundColor: Tiffany }}
             />
           </span>
-          <span
-            className="text-[11px] tracking-[0.15em] uppercase"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
-          >
+          <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: Tiffany }}>
             Live
           </span>
         </div>
 
-        <span
-          className="text-[11px] tracking-[0.15em] uppercase"
-          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
-        >
+        <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>
           {labels[activeTab]}
         </span>
       </div>
@@ -237,19 +322,16 @@ function Sidebar({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-20 lg:hidden"
-          style={{ background: "rgba(0,0,0,0.5)" }}
+          style={{ position: "fixed", inset: 0, zIndex: 20, background: "rgba(0,0,0,0.5)" }}
           onClick={onClose}
         />
       )}
 
-      {/* Desktop Sidebar — fixed, always visible */}
+      {/* Sidebar — fixed, always visible */}
       <aside
         style={{
           position: "fixed",
-          left: 0,
-          top: 0,
-          bottom: 0,
+          left: 0, top: 0, bottom: 0,
           width: "200px",
           zIndex: 40,
           overflow: "hidden",
@@ -259,55 +341,76 @@ function Sidebar({
           flexDirection: "column",
         }}
       >
-        <div className="flex flex-col h-full pt-20 px-3 gap-0.5">
+        <div className="flex flex-col h-full pt-16 px-3 gap-0.5">
+
+          {/* Sidebar header */}
+          <div style={{ padding: "20px 12px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "18px" }}>🤖</span>
+            </div>
+            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white", margin: 0, letterSpacing: "0.08em", lineHeight: 1.2 }}>JARVIS</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", margin: 0, letterSpacing: "0.03em" }}>Invictus Physiques</p>
+          </div>
+
           {sections.map((section) => (
             <div key={section.label}>
-              <div
-                style={{
-                  fontFamily: "system-ui",
-                  fontSize: "10px",
-                  color: "rgba(255,255,255,0.30)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  padding: "12px 0 4px 12px",
-                }}
-              >
+              <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "12px 12px 4px" }}>
                 {section.label}
               </div>
               {section.items.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => { onTabChange(item.id); onClose(); }}
-                  className={`
-                    w-full text-left py-2.5 rounded-[10px] text-sm transition-all duration-200
-                    ${activeTab === item.id
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(255,255,255,0.04)]"
-                    }
-                  `}
                   style={{
-                    fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                    fontFamily: "system-ui",
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    padding: "8px 12px",
-                    whiteSpace: "nowrap",
+                    padding: "10px 12px",
+                    borderRadius: "12px",
+                    border: activeTab === item.id
+                      ? `1px solid rgba(10, 186, 181, 0.35)`
+                      : "1px solid transparent",
+                    background: activeTab === item.id
+                      ? "rgba(10, 186, 181, 0.12)"
+                      : "transparent",
+                    color: activeTab === item.id
+                      ? Tiffany
+                      : "rgba(255,255,255,0.50)",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    width: "100%",
+                    textAlign: "left",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => {
+                    if (activeTab !== item.id) {
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)";
+                      (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.80)";
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (activeTab !== item.id) {
+                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                      (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.50)";
+                    }
                   }}
                 >
-                  <span style={{ fontSize: "16px", flexShrink: 0, display: "inline-block", width: "20px", textAlign: "center" }}>
+                  <span style={{ fontSize: "14px", flexShrink: 0, display: "inline-block", width: "20px", textAlign: "center" }}>
                     {item.id === "dashboard" ? "◈" :
                      item.id === "clients" ? "◉" :
                      item.id === "leads" ? "◎" :
                      item.id === "finance" ? "◑" :
                      item.id === "agents" ? "◧" : "◨"}
                   </span>
-                  <span style={{ fontSize: "13px" }}>{item.label}</span>
+                  <span>{item.label}</span>
                 </button>
               ))}
             </div>
           ))}
+
           <div className="mt-auto pt-4">
-            <p style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.2em", color: "rgba(255,255,255,0.20)", paddingLeft: "12px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.2em", color: "rgba(255,255,255,0.20)", paddingLeft: "12px" }}>
               Invictus Physiques
             </p>
           </div>
@@ -323,10 +426,9 @@ function DashboardTab({ clients }: { clients: Client[] }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
-    const [project, setProject] = useState<Project>({ title: "", steps: [] });
+  const [project, setProject] = useState<Project>({ title: "", steps: [] });
   const [editingTitle, setEditingTitle] = useState(false);
 
-  // Drag-and-drop state for Trello-style todo board
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
 
@@ -338,12 +440,10 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     } catch { /* ignore */ }
   }, []);
 
-  // Persist tasks
   useEffect(() => {
     localStorage.setItem("dashboard_tasks", JSON.stringify(tasks));
   }, [tasks]);
 
-  // Load project from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem("dashboard_project");
@@ -351,19 +451,16 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     } catch { /* ignore */ }
   }, []);
 
-  // Persist project
   useEffect(() => {
     localStorage.setItem("dashboard_project", JSON.stringify(project));
   }, [project]);
 
-  // Current ISO week helpers
   const today = new Date();
-  const currentDayIndex = (today.getDay() + 6) % 7; // Mon=0, Sun=6
+  const currentDayIndex = (today.getDay() + 6) % 7;
   const mondayOfWeek = new Date(today);
   mondayOfWeek.setDate(today.getDate() - currentDayIndex);
   mondayOfWeek.setHours(0, 0, 0, 0);
 
-  // Tasks for current week only
   const weekTasks = tasks.filter((t) => {
     const taskDayIndex = DAY_ORDER.indexOf(t.day);
     const taskDate = new Date(mondayOfWeek);
@@ -376,36 +473,25 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     if (!newTaskText.trim()) return;
     setTasks((prev) => [
       ...prev,
-      {
-        id: Date.now().toString(),
-        text: newTaskText.trim(),
-        day,
-        done: false,
-        createdAt: new Date().toISOString(),
-      },
+      { id: Date.now().toString(), text: newTaskText.trim(), day, done: false, createdAt: new Date().toISOString() },
     ]);
     setNewTaskText("");
     setAddingToDay(null);
   }
 
   function toggleTask(id: string) {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   }
 
   function moveTask(taskId: string, fromDay: string, toDay: string) {
     if (fromDay === toDay) return;
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, day: toDay as Task["day"] } : t))
-    );
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, day: toDay as Task["day"] } : t)));
   }
 
   function deleteTask(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
-  // Business stats
   const activeClients = clients.filter((c) => c.status === "active");
   const activeCount = activeClients.length;
   const now = new Date();
@@ -413,144 +499,64 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     const d = new Date(c.startDate);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
-  // Use $600/week as placeholder for revenue (weekly transfer amount from business context)
   const revenue = 600;
 
-  // Project helpers
   function addStep() {
     setProject((prev) => ({
       ...prev,
-      steps: [
-        ...prev.steps,
-        { id: Date.now().toString(), text: "", done: false },
-      ],
+      steps: [...prev.steps, { id: Date.now().toString(), text: "", done: false }],
     }));
   }
 
   function updateStepText(id: string, text: string) {
-    setProject((prev) => ({
-      ...prev,
-      steps: prev.steps.map((s) => (s.id === id ? { ...s, text } : s)),
-    }));
+    setProject((prev) => ({ ...prev, steps: prev.steps.map((s) => (s.id === id ? { ...s, text } : s)) }));
   }
 
   function toggleStep(id: string) {
-    setProject((prev) => ({
-      ...prev,
-      steps: prev.steps.map((s) => (s.id === id ? { ...s, done: !s.done } : s)),
-    }));
+    setProject((prev) => ({ ...prev, steps: prev.steps.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) }));
   }
 
   function deleteStep(id: string) {
-    setProject((prev) => ({
-      ...prev,
-      steps: prev.steps.filter((s) => s.id !== id),
-    }));
+    setProject((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== id) }));
   }
 
-  function clearProject() {
-    setProject({ title: "", steps: [] });
-  }
+  function clearProject() { setProject({ title: "", steps: [] }); }
 
   const checkedSteps = project.steps.filter((s) => s.done).length;
   const totalSteps = project.steps.length;
   const progressPct = totalSteps > 0 ? Math.round((checkedSteps / totalSteps) * 100) : 0;
 
-  // Section header style
-  const sectionHeaderStyle: React.CSSProperties = {
-    fontFamily: "system-ui",
-    fontSize: "11px",
-    color: "rgba(255,255,255,0.40)",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: "12px",
-  };
-
-  // Stat card style helper
-  const statCard = (value: string | number, label: string, color: string) => (
-    <div
-      key={label}
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: "16px",
-        padding: "16px",
-        textAlign: "center",
-        flex: 1,
-      }}
-    >
-      <p
-        style={{
-          fontFamily: "system-ui",
-          fontSize: "22px",
-          fontWeight: 700,
-          color,
-          margin: 0,
-        }}
-      >
-        {value}
-      </p>
-      <p
-        style={{
-          fontFamily: "system-ui",
-          fontSize: "10px",
-          color: "rgba(255,255,255,0.40)",
-          margin: "4px 0 0",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </p>
-    </div>
-  );
-
   return (
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
+
       {/* ── Weekly To-Do List ── */}
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>This Week</p>
 
-
-
-        {/* 7-day grid — centered */}
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            justifyContent: "center",
-            flexWrap: "nowrap",
-            overflowX: "auto",
-            paddingBottom: "4px",
-          }}
-        >
+        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "nowrap", overflowX: "auto", paddingBottom: "4px" }}>
           {DAY_ORDER.map((day, dayIdx) => {
             const isToday = dayIdx === currentDayIndex;
             const dayTasks = weekTasks.filter((t) => t.day === day);
             const isDragOver = dragOverDay === day;
-            const isDraggingFrom = draggingTask?.fromDay === day;
+
             return (
               <div
                 key={day}
                 draggable={false}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverDay(day);
-                }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverDay(day); }}
                 onDragLeave={() => setDragOverDay(null)}
                 onDrop={() => {
-                  if (draggingTask) {
-                    moveTask(draggingTask.id, draggingTask.fromDay, day);
-                  }
+                  if (draggingTask) moveTask(draggingTask.id, draggingTask.fromDay, day);
                   setDragOverDay(null);
                   setDraggingTask(null);
                 }}
                 style={{
                   background: isDragOver
-                    ? "rgba(59,130,246,0.08)"
+                    ? "rgba(10,186,181,0.08)"
                     : DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
+                  backdropFilter: GlassBlur,
                   border: isDragOver
-                    ? "1px solid rgba(59,130,246,0.50)"
+                    ? `1px solid ${TiffanyBorder}`
                     : isToday
                     ? `1px solid ${DAY_BORDER_COLORS[day]}`
                     : "1px solid rgba(255,255,255,0.06)",
@@ -563,28 +569,21 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                   minWidth: "110px",
                   maxWidth: "140px",
                   flex: "1",
-                  boxShadow: isDragOver ? "0 0 0 2px rgba(59,130,246,0.30)" : "none",
+                  boxShadow: isDragOver ? `0 0 0 2px ${TiffanyBorder}` : "none",
                   transition: "background 0.15s, box-shadow 0.15s",
                 }}
               >
-                {/* Day label */}
                 <div style={{ textAlign: "center", marginBottom: "4px" }}>
-                  <p
-                    style={{
-                      fontFamily: "system-ui",
-                      fontSize: "10px",
-                      fontWeight: 600,
-                      color: isToday ? DAY_BORDER_COLORS[day].replace("0.50", "1") : "rgba(255,255,255,0.45)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      textDecoration: isToday ? "underline" : "none",
-                      textUnderlineOffset: "3px",
-                    }}
-                  >
+                  <p style={{
+                    fontFamily: "system-ui", fontSize: "10px", fontWeight: 600,
+                    color: isToday ? DAY_BORDER_COLORS[day].replace("0.50", "1") : "rgba(255,255,255,0.45)",
+                    textTransform: "uppercase", letterSpacing: "0.06em",
+                    textDecoration: isToday ? "underline" : "none", textUnderlineOffset: "3px",
+                  }}>
                     {day.slice(0, 3)}
                   </p>
                 </div>
-                {/* Tasks for this day */}
+
                 {dayTasks.map((task) => {
                   const isDraggingThis = draggingTask?.id === task.id;
                   return (
@@ -592,10 +591,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                       key={task.id}
                       draggable
                       onDragStart={() => setDraggingTask({ id: task.id, fromDay: task.day })}
-                      onDragEnd={() => {
-                        setDraggingTask(null);
-                        setDragOverDay(null);
-                      }}
+                      onDragEnd={() => { setDraggingTask(null); setDragOverDay(null); }}
                       style={{
                         background: "rgba(255,255,255,0.06)",
                         border: "1px solid rgba(255,255,255,0.10)",
@@ -605,7 +601,6 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                         alignItems: "flex-start",
                         gap: "6px",
                         opacity: isDraggingThis ? 0.5 : task.done ? 0.45 : 1,
-                        textDecoration: task.done ? "line-through" : "none",
                         cursor: isDraggingThis ? "grabbing" : "grab",
                         transform: isDraggingThis ? "rotate(2deg)" : "none",
                         transition: "opacity 0.15s, transform 0.15s",
@@ -615,74 +610,34 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                         type="checkbox"
                         checked={task.done}
                         onChange={() => toggleTask(task.id)}
-                        style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0, marginTop: "1px" }}
+                        style={{ accentColor: Tiffany, cursor: "pointer", flexShrink: 0, marginTop: "1px" }}
                       />
-                      <span
-                        style={{
-                          fontFamily: "system-ui",
-                          fontSize: "11px",
-                          color: "rgba(255,255,255,0.80)",
-                          lineHeight: 1.4,
-                          flex: 1,
-                          textDecoration: task.done ? "line-through" : "none",
-                        }}
-                      >
+                      <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.80)", lineHeight: 1.4, flex: 1, textDecoration: task.done ? "line-through" : "none" }}>
                         {task.text}
                       </span>
                       <button
                         onClick={() => deleteTask(task.id)}
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: "rgba(255,255,255,0.25)",
-                          cursor: "pointer",
-                          padding: "0",
-                          fontSize: "11px",
-                          lineHeight: 1,
-                          flexShrink: 0,
-                        }}
+                        style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "0", fontSize: "11px", lineHeight: 1, flexShrink: 0 }}
                       >
                         ✕
                       </button>
                     </div>
                   );
                 })}
+
                 {dayTasks.length === 0 && (
-                  <div
-                    style={{
-                      minHeight: "32px",
-                      border: isDragOver ? "1px dashed rgba(59,130,246,0.40)" : "1px dashed rgba(255,255,255,0.08)",
-                      borderRadius: "8px",
-                      transition: "border-color 0.15s",
-                    }}
-                  />
+                  <div style={{ minHeight: "32px", border: isDragOver ? `1px dashed ${TiffanyBorder}` : "1px dashed rgba(255,255,255,0.08)", borderRadius: "8px", transition: "border-color 0.15s" }} />
                 )}
 
-                {/* + Add a card button */}
                 <button
                   onClick={() => { setAddingToDay(day); setNewTaskText(" "); }}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "rgba(255,255,255,0.30)",
-                    cursor: "pointer",
-                    fontSize: "11px",
-                    fontFamily: "system-ui",
-                    textAlign: "left",
-                    padding: "4px 2px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    width: "100%",
-                    marginTop: "4px",
-                  }}
+                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "11px", fontFamily: "system-ui", textAlign: "left", padding: "4px 2px", display: "flex", alignItems: "center", gap: "4px", width: "100%", marginTop: "4px" }}
                   onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.60)"}
                   onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)"}
                 >
                   + Add a card
                 </button>
 
-                {/* Inline add form */}
                 {addingToDay === day && (
                   <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
                     <input
@@ -693,7 +648,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                       autoFocus
                       style={{
                         background: "rgba(255,255,255,0.07)",
-                        border: "1px solid rgba(59,130,246,0.35)",
+                        border: `1px solid ${TiffanyBorder}`,
                         borderRadius: "8px",
                         color: "white",
                         padding: "6px 10px",
@@ -707,34 +662,13 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
                         onClick={() => addTask(day as Task["day"])}
-                        style={{
-                          flex: 1,
-                          background: "rgba(59,130,246,0.20)",
-                          border: "1px solid rgba(59,130,246,0.35)",
-                          borderRadius: "8px",
-                          color: "#3b82f6",
-                          padding: "5px",
-                          fontSize: "11px",
-                          cursor: "pointer",
-                          fontFamily: "system-ui",
-                          fontWeight: 600,
-                        }}
+                        style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "8px", color: Tiffany, padding: "5px", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}
                       >
                         Add
                       </button>
                       <button
                         onClick={() => setAddingToDay(null)}
-                        style={{
-                          flex: 1,
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid rgba(255,255,255,0.12)",
-                          borderRadius: "8px",
-                          color: "rgba(255,255,255,0.45)",
-                          padding: "5px",
-                          fontSize: "11px",
-                          cursor: "pointer",
-                          fontFamily: "system-ui",
-                        }}
+                        style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "5px", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui" }}
                       >
                         Cancel
                       </button>
@@ -751,25 +685,18 @@ function DashboardTab({ clients }: { clients: Client[] }) {
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>Business Stats</p>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          {statCard(activeCount, "Clients", "#34d399")}
-          {statCard(`$${revenue}`, "Rev / wk", "#3b82f6")}
-          {statCard(`+${newThisMonth}`, "New this mo", "#a855f7")}
-          {statCard("—", "Conv.", "rgba(255,255,255,0.50)")}
+          <StatCard value={activeCount} label="Clients" color="#34d399" />
+          <StatCard value={`$${revenue}`} label="Rev / wk" color={Tiffany} />
+          <StatCard value={`+${newThisMonth}`} label="New this mo" color="#a855f7" />
+          <StatCard value="—" label="Conv." color="rgba(255,255,255,0.50)" />
         </div>
       </section>
 
       {/* ── Project Focus ── */}
       <section>
         <p style={sectionHeaderStyle}>Project Focus</p>
-        <div
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "18px",
-            padding: "20px",
-          }}
-        >
-          {/* Title row */}
+        <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "18px", padding: "20px" }}>
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px" }}>
             {editingTitle ? (
               <input
@@ -781,7 +708,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                 placeholder="Project title..."
                 style={{
                   background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(59,130,246,0.35)",
+                  border: `1px solid ${TiffanyBorder}`,
                   borderRadius: "8px",
                   color: "white",
                   padding: "6px 12px",
@@ -796,12 +723,9 @@ function DashboardTab({ clients }: { clients: Client[] }) {
               <h3
                 onClick={() => setEditingTitle(true)}
                 style={{
-                  fontFamily: "system-ui",
-                  fontSize: "16px",
-                  fontWeight: 700,
+                  fontFamily: "system-ui", fontSize: "16px", fontWeight: 700,
                   color: project.title ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.30)",
-                  cursor: "pointer",
-                  flex: 1,
+                  cursor: "pointer", flex: 1,
                   borderBottom: project.title ? "1px dashed rgba(255,255,255,0.15)" : "none",
                   paddingBottom: "2px",
                 }}
@@ -811,73 +735,31 @@ function DashboardTab({ clients }: { clients: Client[] }) {
             )}
             <button
               onClick={clearProject}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: "8px",
-                padding: "5px 12px",
-                color: "rgba(255,255,255,0.35)",
-                fontSize: "11px",
-                cursor: "pointer",
-                fontFamily: "system-ui",
-                flexShrink: 0,
-              }}
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", padding: "5px 12px", color: "rgba(255,255,255,0.35)", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", flexShrink: 0 }}
             >
               Clear
             </button>
           </div>
 
-          {/* Progress bar */}
           {totalSteps > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <div
-                style={{
-                  background: "rgba(255,255,255,0.08)",
-                  borderRadius: "999px",
-                  height: "6px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progressPct}%`,
-                    height: "100%",
-                    background: "rgba(59,130,246,0.50)",
-                    borderRadius: "999px",
-                    transition: "width 0.35s ease",
-                  }}
-                />
+              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "6px", overflow: "hidden" }}>
+                <div style={{ width: `${progressPct}%`, height: "100%", background: `${Tiffany}80`, borderRadius: "999px", transition: "width 0.35s ease" }} />
               </div>
-              <p
-                style={{
-                  fontFamily: "system-ui",
-                  fontSize: "10px",
-                  color: "rgba(255,255,255,0.30)",
-                  marginTop: "4px",
-                }}
-              >
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", marginTop: "4px" }}>
                 {checkedSteps} of {totalSteps} steps complete
               </p>
             </div>
           )}
 
-          {/* Steps */}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {project.steps.map((step) => (
-              <div
-                key={step.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  opacity: step.done ? 0.50 : 1,
-                }}
-              >
+              <div key={step.id} style={{ display: "flex", alignItems: "center", gap: "10px", opacity: step.done ? 0.50 : 1 }}>
                 <input
                   type="checkbox"
                   checked={step.done}
                   onChange={() => toggleStep(step.id)}
-                  style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0 }}
+                  style={{ accentColor: Tiffany, cursor: "pointer", flexShrink: 0 }}
                 />
                 <input
                   value={step.text}
@@ -898,15 +780,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                 />
                 <button
                   onClick={() => deleteStep(step.id)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "rgba(255,255,255,0.20)",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    padding: "2px 4px",
-                    flexShrink: 0,
-                  }}
+                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", fontSize: "13px", padding: "2px 4px", flexShrink: 0 }}
                 >
                   ✕
                 </button>
@@ -914,7 +788,6 @@ function DashboardTab({ clients }: { clients: Client[] }) {
             ))}
           </div>
 
-          {/* Add step */}
           <button
             onClick={addStep}
             style={{
@@ -953,9 +826,7 @@ function AgentsTab() {
   const { data, loading, error } = useStatus();
 
   const pushedAt = data?.pushedAt ? new Date(data.pushedAt) : null;
-  const secondsAgo = pushedAt
-    ? Math.round((Date.now() - pushedAt.getTime()) / 1000)
-    : null;
+  const secondsAgo = pushedAt ? Math.round((Date.now() - pushedAt.getTime()) / 1000) : null;
   const isStale = secondsAgo !== null && secondsAgo > 120;
 
   return (
@@ -965,38 +836,23 @@ function AgentsTab() {
         {isStale || error ? (
           <span className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#f87171" }} />
-            <span
-              className="text-[11px] tracking-[0.15em] uppercase font-semibold"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#f87171" }}
-            >
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600, color: "#f87171" }}>
               Stale
             </span>
           </span>
         ) : (
           <span className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span
-                className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
-                style={{ backgroundColor: "#3b82f6", opacity: 0.4 }}
-              />
-              <span
-                className="relative inline-flex rounded-full h-2 w-2"
-                style={{ backgroundColor: "#3b82f6" }}
-              />
+              <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: Tiffany, opacity: 0.4 }} />
+              <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: Tiffany }} />
             </span>
-            <span
-              className="text-[11px] tracking-[0.15em] uppercase font-semibold"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "#3b82f6" }}
-            >
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600, color: Tiffany }}>
               Live
             </span>
           </span>
         )}
         {secondsAgo !== null && (
-          <span
-            className="text-[11px]"
-            style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
-          >
+          <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
             {secondsAgo}s ago
           </span>
         )}
@@ -1011,7 +867,7 @@ function AgentsTab() {
           { card: <SubagentCard agents={data?.subagents ?? []} loading={loading} />, col: "xl:col-span-1" },
         ].map(({ card, col }, i) => (
           <div key={i} className={`group ${col}`}>
-            <div className="liquid-glass p-5 flex flex-col gap-4">
+            <div style={{ ...GlassStyle, padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
               {card}
             </div>
           </div>
@@ -1020,21 +876,16 @@ function AgentsTab() {
 
       {/* Business stats */}
       <section className="mt-4 group">
-        <div className="liquid-glass p-5 flex flex-col gap-4">
+        <div style={{ ...GlassStyle, padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
           <BusinessCard data={data?.business ?? null} loading={loading} />
         </div>
       </section>
 
       {/* Footer */}
       <footer className="py-4 mt-4">
-        <p
-          className="text-[11px]"
-          style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
-        >
+        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
           Last refreshed:{" "}
-          {pushedAt
-            ? pushedAt.toLocaleTimeString("en-AU", { hour12: false })
-            : "—"}{" "}
+          {pushedAt ? pushedAt.toLocaleTimeString("en-AU", { hour12: false }) : "—"}{" "}
           · Auto-refresh every 30s · v2.0.0
         </p>
       </footer>
@@ -1061,12 +912,12 @@ const TEAM_MEMBERS: TeamMember[] = [
     role: "AI Operating System / Chief of Staff",
     description: "Coordinates, delegates, keeps the ship tight. The first point of contact between coach and machine.",
     tags: [
-      { label: "Orchestration", color: "#14b8a6" },
-      { label: "Clarity", color: "#14b8a6" },
-      { label: "Delegation", color: "#14b8a6" },
+      { label: "Orchestration", color: Tiffany },
+      { label: "Clarity", color: Tiffany },
+      { label: "Delegation", color: Tiffany },
     ],
     avatar: "🤖",
-    avatarBg: "#14b8a6",
+    avatarBg: Tiffany,
     lastActive: "Always on",
     isAI: true,
   },
@@ -1075,7 +926,7 @@ const TEAM_MEMBERS: TeamMember[] = [
     role: "Founder, Head Coach",
     description: "Runs the show. Builds the business, trains the team, leads the vision.",
     tags: [
-      { label: "Leadership", color: "#3b82f6" },
+      { label: "Leadership", color: Tiffany },
       { label: "Coaching", color: "#14b8a6" },
       { label: "Growth", color: "#22c55e" },
     ],
@@ -1090,7 +941,7 @@ const TEAM_MEMBERS: TeamMember[] = [
     description: "Handles invoicing, payments, Xero, and keeps the financial house in order.",
     tags: [
       { label: "Finance", color: "#f59e0b" },
-      { label: "Admin", color: "#3b82f6" },
+      { label: "Admin", color: Tiffany },
       { label: "Organisation", color: "#14b8a6" },
     ],
     avatar: "📊",
@@ -1105,10 +956,10 @@ const TEAM_MEMBERS: TeamMember[] = [
     tags: [
       { label: "Programming", color: "#a855f7" },
       { label: "Coaching", color: "#14b8a6" },
-      { label: "Structure", color: "#3b82f6" },
+      { label: "Structure", color: Tiffany },
     ],
     avatar: "🏋️",
-    avatarBg: "#3b82f6",
+    avatarBg: Tiffany,
     lastActive: "Today, 11:00 AM",
     isAI: false,
   },
@@ -1118,7 +969,7 @@ const TEAM_MEMBERS: TeamMember[] = [
     description: "Finds new prospects, tracks referral sources, monitors inbound enquiry signals.",
     tags: [
       { label: "Speed", color: "#22c55e" },
-      { label: "Radar", color: "#3b82f6" },
+      { label: "Radar", color: Tiffany },
       { label: "Intuition", color: "#f59e0b" },
     ],
     avatar: "🔍",
@@ -1131,7 +982,7 @@ const TEAM_MEMBERS: TeamMember[] = [
     role: "Content Writer",
     description: "Writes Instagram captions, client messages, emails, and script drafts.",
     tags: [
-      { label: "Voice", color: "#14b8a6" },
+      { label: "Voice", color: Tiffany },
       { label: "Quality", color: "#f59e0b" },
       { label: "Design", color: "#a855f7" },
     ],
@@ -1146,7 +997,7 @@ const TEAM_MEMBERS: TeamMember[] = [
     description: "Designs thumbnails, social graphics, and brand visual assets.",
     tags: [
       { label: "Visual", color: "#a855f7" },
-      { label: "Attention", color: "#3b82f6" },
+      { label: "Attention", color: Tiffany },
       { label: "Style", color: "#14b8a6" },
     ],
     avatar: "🎨",
@@ -1164,7 +1015,7 @@ const TEAM_MEMBERS: TeamMember[] = [
       { label: "Reach", color: "#f59e0b" },
     ],
     avatar: "📱",
-    avatarBg: "#3b82f6",
+    avatarBg: Tiffany,
     lastActive: "Always on",
     isAI: true,
   },
@@ -1173,12 +1024,12 @@ const TEAM_MEMBERS: TeamMember[] = [
     role: "Lead Engineer",
     description: "Builds Mission Control, integrations, automation. The quiet one who makes everything work.",
     tags: [
-      { label: "Code", color: "#14b8a6" },
-      { label: "Systems", color: "#3b82f6" },
+      { label: "Code", color: Tiffany },
+      { label: "Systems", color: Tiffany },
       { label: "Reliability", color: "#f59e0b" },
     ],
     avatar: "⚙️",
-    avatarBg: "#14b8a6",
+    avatarBg: Tiffany,
     lastActive: "Always on",
     isAI: true,
   },
@@ -1189,30 +1040,32 @@ function TeamTab() {
 
   function TagPill({ label, color }: { label: string; color: string }) {
     return (
-      <span
-        style={{
-          background: `${color}26`,
-          color,
-          borderRadius: "999px",
-          padding: "3px 10px",
-          fontSize: "11px",
-          fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-          fontWeight: 500,
-          display: "inline-block",
-        }}
-      >
+      <span style={{
+        background: `${color}26`,
+        color,
+        borderRadius: "999px",
+        padding: "3px 10px",
+        fontSize: "11px",
+        fontFamily: "system-ui",
+        fontWeight: 500,
+        display: "inline-block",
+      }}>
         {label}
       </span>
     );
   }
 
   function AgentCard({ member }: { member: TeamMember }) {
+    const isJarvis = member.name === "Jarvis";
     return (
       <div
         onClick={() => setSelectedMember(member)}
         style={{
-          background: "#2a2a2e",
-          borderRadius: "12px",
+          background: GlassBg,
+          backdropFilter: GlassBlur,
+          border: `1px solid ${GlassBorder}`,
+          borderLeft: isJarvis ? `3px solid ${Tiffany}` : `1px solid ${GlassBorder}`,
+          borderRadius: "16px",
           padding: "20px",
           cursor: "pointer",
           transition: "background 0.15s",
@@ -1221,140 +1074,56 @@ function TeamTab() {
           gap: "12px",
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = "#303035";
+          (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.08)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = "#2a2a2e";
+          (e.currentTarget as HTMLDivElement).style.background = GlassBg;
         }}
       >
-        {/* Avatar + name row */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              background: member.avatarBg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "20px",
-              flexShrink: 0,
-            }}
-          >
+          <div style={{
+            width: "40px", height: "40px", borderRadius: "50%",
+            background: member.avatarBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "20px", flexShrink: 0,
+          }}>
             {member.avatar}
           </div>
           <div style={{ minWidth: 0 }}>
-            <p
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontSize: "17px",
-                fontWeight: 700,
-                color: "white",
-                margin: 0,
-                lineHeight: 1.2,
-              }}
-            >
+            <p style={{ fontFamily: "system-ui", fontSize: "17px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1.2 }}>
               {member.name}
             </p>
-            <p
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontSize: "13px",
-                color: "#999",
-                margin: "2px 0 0",
-                lineHeight: 1.3,
-              }}
-            >
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: "2px 0 0", lineHeight: 1.3 }}>
               {member.role}
             </p>
           </div>
         </div>
 
-        {/* Description */}
-        <p
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "12px",
-            color: "#888",
-            margin: 0,
-            lineHeight: 1.5,
-          }}
-        >
+        <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.5 }}>
           {member.description}
         </p>
 
-        {/* Tags */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
           {member.tags.map((tag) => (
             <TagPill key={tag.label} label={tag.label} color={tag.color} />
           ))}
         </div>
 
-        {/* Role card button */}
-        <div
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "12px",
-            color: "#60a5fa",
-            fontWeight: 600,
-            letterSpacing: "0.03em",
-          }}
-        >
+        <div style={{ fontFamily: "system-ui", fontSize: "12px", color: Tiffany, fontWeight: 600, letterSpacing: "0.03em" }}>
           ROLE CARD →
         </div>
       </div>
     );
   }
 
-  function SectionDivider({
-    left,
-    right,
-  }: {
-    left: string;
-    right: string;
-  }) {
+  function SectionDivider({ left, right }: { left: string; right: string }) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          margin: "0",
-          width: "100%",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.30)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "0", width: "100%" }}>
+        <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0 }}>
           {left}
         </span>
-        <div
-          style={{
-            flex: 1,
-            borderTop: "1px dashed rgba(255,255,255,0.12)",
-            height: "1px",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.30)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
+        <div style={{ flex: 1, borderTop: "1px dashed rgba(255,255,255,0.06)", height: "1px" }} />
+        <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0 }}>
           {right}
         </span>
       </div>
@@ -1363,41 +1132,12 @@ function TeamTab() {
 
   function MetaDivider() {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          margin: "0",
-          width: "100%",
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            borderTop: "1px dashed rgba(255,255,255,0.12)",
-            height: "1px",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.25)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            whiteSpace: "nowrap",
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "0", width: "100%" }}>
+        <div style={{ flex: 1, borderTop: "1px dashed rgba(255,255,255,0.06)", height: "1px" }} />
+        <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
           ◆ META LAYER ◆
         </span>
-        <div
-          style={{
-            flex: 1,
-            borderTop: "1px dashed rgba(255,255,255,0.12)",
-            height: "1px",
-          }}
-        />
+        <div style={{ flex: 1, borderTop: "1px dashed rgba(255,255,255,0.06)", height: "1px" }} />
       </div>
     );
   }
@@ -1407,83 +1147,34 @@ function TeamTab() {
   const tier3 = TEAM_MEMBERS.slice(4);
 
   return (
-    <div
-      style={{
-        maxWidth: "900px",
-        margin: "0 auto",
-        padding: "8px 4px 40px",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "8px 4px 40px", width: "100%", boxSizing: "border-box" }}>
+
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: "8px" }}>
-        <h1
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "36px",
-            fontWeight: 700,
-            color: "white",
-            margin: "0 0 10px",
-            lineHeight: 1.1,
-          }}
-        >
+        <h1 style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "white", margin: "0 0 10px", lineHeight: 1.1 }}>
           Meet the Team
         </h1>
-        <p
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "16px",
-            color: "#999",
-            margin: "0 0 12px",
-          }}
-        >
+        <p style={{ fontFamily: "system-ui", fontSize: "16px", color: "rgba(255,255,255,0.55)", margin: "0 0 12px" }}>
           The people + agents behind Invictus Physiques
         </p>
-        <p
-          style={{
-            fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-            fontSize: "14px",
-            color: "#888",
-            margin: "0 auto 32px",
-            maxWidth: "600px",
-            lineHeight: 1.6,
-            textAlign: "center",
-          }}
-        >
-          From founder to AI agents — everyone has a role. Tap any card to
-          learn more about how they keep Invictus Physiques running.
+        <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.40)", margin: "0 auto 32px", maxWidth: "600px", lineHeight: 1.6, textAlign: "center" }}>
+          From founder to AI agents — everyone has a role. Tap any card to learn more about how they keep Invictus Physiques running.
         </p>
       </div>
 
       {/* TIER 1: Jarvis */}
       <div style={{ marginBottom: "24px" }}>
         <AgentCard member={tier1} />
-        {/* Connector line down to team */}
-        <div
-          style={{
-            width: "2px",
-            height: "30px",
-            background: "rgba(20,184,166,0.3)",
-            margin: "0 auto",
-          }}
-        />
+        <div style={{ width: "2px", height: "30px", background: `${Tiffany}50`, margin: "0 auto" }} />
       </div>
 
-      {/* Divider: INPUT SIGNAL / OUTPUT ACTION */}
+      {/* Divider */}
       <div style={{ marginBottom: "24px" }}>
         <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
       </div>
 
       {/* TIER 2: Human Team row */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         {tier2.map((member) => (
           <AgentCard key={member.name} member={member} />
         ))}
@@ -1495,13 +1186,7 @@ function TeamTab() {
       </div>
 
       {/* TIER 3: AI Agents */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "16px",
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
         {tier3.map((member) => (
           <AgentCard key={member.name} member={member} />
         ))}
@@ -1509,178 +1194,52 @@ function TeamTab() {
 
       {/* Role Card Modal */}
       {selectedMember && (
-        <div
-          onClick={() => setSelectedMember(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(0,0,0,0.70)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "rgba(15,20,40,0.97)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: "20px",
-              padding: "32px",
-              width: "100%",
-              maxWidth: "380px",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
+        <GlassModal onClose={() => setSelectedMember(null)}>
+          {/* Close */}
+          <button
+            onClick={() => setSelectedMember(null)}
+            style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}
           >
-            {/* Close */}
-            <button
-              onClick={() => setSelectedMember(null)}
-              style={{
-                position: "absolute",
-                top: "16px",
-                right: "16px",
-                background: "transparent",
-                border: "none",
-                color: "rgba(255,255,255,0.30)",
-                cursor: "pointer",
-                fontSize: "18px",
-                padding: "4px",
-                lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
+            ✕
+          </button>
 
-            {/* Large avatar */}
-            <div
-              style={{
-                width: "64px",
-                height: "64px",
-                borderRadius: "50%",
-                background: selectedMember.avatarBg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "32px",
-                margin: "0 auto",
-              }}
-            >
-              {selectedMember.avatar}
-            </div>
-
-            {/* Name + role */}
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: "white",
-                  margin: "0 0 6px",
-                }}
-              >
-                {selectedMember.name}
-              </p>
-              <p
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  fontSize: "13px",
-                  color: "#999",
-                  margin: 0,
-                }}
-              >
-                {selectedMember.role}
-              </p>
-            </div>
-
-            {/* Description */}
-            <p
-              style={{
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontSize: "13px",
-                color: "#888",
-                margin: 0,
-                lineHeight: 1.6,
-                textAlign: "center",
-              }}
-            >
-              {selectedMember.description}
-            </p>
-
-            {/* Tags */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "8px",
-                justifyContent: "center",
-              }}
-            >
-              {selectedMember.tags.map((tag) => (
-                <TagPill key={tag.label} label={tag.label} color={tag.color} />
-              ))}
-            </div>
-
-            {/* Last active */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-              }}
-            >
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: selectedMember.isAI ? "#14b8a6" : "#f59e0b",
-                  display: "inline-block",
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                  fontSize: "12px",
-                  color: "rgba(255,255,255,0.45)",
-                }}
-              >
-                Last active:{" "}
-                <strong style={{ color: "rgba(255,255,255,0.70)" }}>
-                  {selectedMember.lastActive}
-                </strong>
-              </span>
-            </div>
-
-            {/* Send message button */}
-            <button
-              onClick={() => {
-                console.log(`Send message to ${selectedMember.name}`);
-              }}
-              style={{
-                background: "rgba(59,130,246,0.20)",
-                border: "1px solid rgba(59,130,246,0.35)",
-                borderRadius: "12px",
-                padding: "12px 24px",
-                color: "#3b82f6",
-                fontSize: "14px",
-                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
-                fontWeight: 600,
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              Send Message
-            </button>
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: selectedMember.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", margin: "0 auto 16px" }}>
+            {selectedMember.avatar}
           </div>
-        </div>
+
+          <div style={{ textAlign: "center", marginBottom: "12px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>
+              {selectedMember.name}
+            </p>
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>
+              {selectedMember.role}
+            </p>
+          </div>
+
+          <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.50)", margin: "0 0 16px", lineHeight: 1.6, textAlign: "center" }}>
+            {selectedMember.description}
+          </p>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "16px" }}>
+            {selectedMember.tags.map((tag) => (
+              <TagPill key={tag.label} label={tag.label} color={tag.color} />
+            ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: selectedMember.isAI ? Tiffany : "#f59e0b", display: "inline-block" }} />
+            <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
+              Last active: <strong style={{ color: "rgba(255,255,255,0.70)" }}>{selectedMember.lastActive}</strong>
+            </span>
+          </div>
+
+          <button
+            onClick={() => { console.log(`Send message to ${selectedMember.name}`); }}
+            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 24px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", fontWeight: 600, cursor: "pointer", width: "100%" }}
+          >
+            Send Message
+          </button>
+        </GlassModal>
       )}
     </div>
   );
@@ -1692,15 +1251,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ─── Clients tab state (owned by Home) ─────────────────────────────────
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit">("menu");
 
-  // ─── Leads tab state (owned by Home) ──────────────────────────────────
   const [leads, setLeads] = useState<Lead[]>([]);
 
-  // Fetch clients when clients tab or dashboard is active
   useEffect(() => {
     if (activeTab !== "clients" && activeTab !== "dashboard") return;
     fetch("/api/clients")
@@ -1709,7 +1265,6 @@ export default function Home() {
       .catch(console.error);
   }, [activeTab]);
 
-  // Fetch leads when leads tab is active
   useEffect(() => {
     if (activeTab !== "leads") return;
     fetch("/api/leads")
@@ -1718,13 +1273,8 @@ export default function Home() {
       .catch(console.error);
   }, [activeTab]);
 
-  // Stable updateClient function
   const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
-    await fetch(`/api/clients/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
+    await fetch(`/api/clients/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) });
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     setSelectedClient(prev => prev ? { ...prev, ...updates } : null);
   }, []);
@@ -1734,7 +1284,6 @@ export default function Home() {
     setClients(prev => prev.filter(c => c.id !== id));
   }
 
-  // ─── Sidebar nav sections ──────────────────────────────────────────────
   const sidebarSections: { label: string; items: { id: Tab; label: string }[] }[] = [
     {
       label: "Business",
@@ -1754,7 +1303,7 @@ export default function Home() {
     },
   ];
 
-  // ─── ClientsTab (lives here to access Home's state) ─────────────────────
+  // ─── ClientsTab ──────────────────────────────────────────────────────────────
   function ClientsTab() {
     const [form, setForm] = useState({
       name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
@@ -1770,41 +1319,25 @@ export default function Home() {
     const [showCancelled, setShowCancelled] = useState(false);
     const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
 
-    // When search is active, show all matching clients in one list
     const searchResults = searchQuery
-      ? clients.filter(c =>
-          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
-        )
+      ? clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())))
       : [];
 
     const coachFiltered = clients.filter(c => c.coach === selectedCoach);
-    const dayGroups = DAY_ORDER
-      .map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day) }))
-      .filter(g => g.clients.length > 0);
+    const dayGroups = DAY_ORDER.map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day) })).filter(g => g.clients.length > 0);
     const cancelledClients = coachFiltered.filter(c => c.status === "cancelled");
     const pausedClients = coachFiltered.filter(c => c.status === "paused");
     const activeClients = coachFiltered.filter(c => c.status === "active");
     const miggyClients = clients.filter(c => c.coach === "Miggy");
     const milzzyClients = clients.filter(c => c.coach === "Milzzy");
 
-    const inputStyle: React.CSSProperties = {
-      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-      borderRadius: "10px", color: "white", padding: "10px 12px",
-      fontSize: "13px", fontFamily: "system-ui", outline: "none", width: "100%", boxSizing: "border-box" as const,
-    };
-
     const startEdit = (client: Client) => {
       setForm({
         name: client.name, email: client.email ?? "",
-        coach: client.coach,
-        paymentPlatform: client.paymentPlatform ?? "Newie",
-        weeklyCharge: client.weeklyCharge ?? 0,
-        spreadsheetUrl: client.spreadsheetUrl ?? "",
-        status: client.status,
-        pausedUntil: client.pausedUntil ?? "",
-        startDate: client.startDate,
-        notes: client.notes ?? "",
+        coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie",
+        weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "",
+        status: client.status, pausedUntil: client.pausedUntil ?? "",
+        startDate: client.startDate, notes: client.notes ?? "",
         checkInDay: client.checkInDay ?? "",
       });
       setEditingId(client.id);
@@ -1818,22 +1351,15 @@ export default function Home() {
         await updateClient(editingId, { ...form, checkInDay: form.checkInDay || undefined });
         setEditingId(null);
       } else {
-        const res = await fetch("/api/clients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        if (res.ok) {
-          const newClient: Client = await res.json();
-          setClients(prev => [...prev, newClient]);
-        }
+        const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+        if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
       }
       setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" });
       setShowForm(false);
     };
 
     const statusPill = (client: Client) => {
-      if (client.status === "active") return <span style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Active</span>;
+      if (client.status === "active") return <span style={{ background: TiffanySoft, color: Tiffany, border: `1px solid ${TiffanyBorder}`, borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Active</span>;
       if (client.status === "paused") {
         const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
         return <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Paused {wks ? `· ${wks}w` : ""}</span>;
@@ -1841,7 +1367,7 @@ export default function Home() {
       return <span style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Cancelled</span>;
     };
 
-    const platformColors: Record<string, string> = { Newie: "#3b82f6", Upfront: "#a855f7", Mentorship: "#10b981" };
+    const platformColors: Record<string, string> = { Newie: Tiffany, Upfront: "#a855f7", Mentorship: "#10b981" };
 
     const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
       : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
@@ -1849,6 +1375,7 @@ export default function Home() {
 
     return (
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+
         {/* Search bar */}
         <div style={{ position: "relative", marginBottom: "14px" }}>
           <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", fontSize: "14px", pointerEvents: "none" }}>🔍</span>
@@ -1857,7 +1384,7 @@ export default function Home() {
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search clients..."
             style={{
-              width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
+              width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${GlassBorder}`,
               borderRadius: "12px", color: "white", padding: "10px 14px 10px 40px",
               fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box",
             }}
@@ -1872,13 +1399,13 @@ export default function Home() {
           <div style={{ display: "flex", gap: "8px" }}>
             {(["Milzzy","Miggy"] as const).map(c => (
               <button key={c} onClick={() => setSelectedCoach(c)}
-                style={{ background: selectedCoach === c ? "rgba(59,130,246,0.20)" : "rgba(255,255,255,0.05)", border: selectedCoach === c ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.10)", borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? "#3b82f6" : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
+                style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
                 {c} {c === "Milzzy" ? `(${milzzyClients.length})` : `(${miggyClients.length})`}
               </button>
             ))}
           </div>
           <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" }); }}
-            style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.30)", borderRadius: "12px", padding: "8px 18px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Client"}
           </button>
         </div>
@@ -1887,24 +1414,24 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "20px" }}>
           {[
             { label: "Total Active", value: activeClients.length, color: "#34d399" },
-            { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: "#3b82f6" },
+            { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: Tiffany },
             { label: "Miggy", value: miggyClients.filter(c=>c.status==="active").length, color: "#a855f7" },
             { label: "Paused", value: pausedClients.length, color: "#fbbf24" },
           ].map(s => (
-            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+            <div key={s.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
               <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
               <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
             </div>
           ))}
         </div>
 
-        {/* Search Results Section */}
+        {/* Search Results */}
         {searchQuery && (
           <div style={{ marginBottom: "20px" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", marginBottom: "10px" }}>
               {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
             </p>
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "12px" }}>
+            <div style={{ background: "rgba(255,255,255,0.04)", backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "12px" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <tbody>
@@ -1917,30 +1444,16 @@ export default function Home() {
                           onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
                           onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
                           <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            {client.name}
-                            {client.spreadsheetUrl && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                style={{
-                                  background: "transparent",
-                                  border: "1px solid rgba(59,130,246,0.30)",
-                                  borderRadius: "6px",
-                                  color: "#3b82f6",
-                                  cursor: "pointer",
-                                  padding: "2px 10px",
-                                  fontSize: "11px",
-                                  fontFamily: "system-ui",
-                                  fontWeight: 500,
-                                  lineHeight: 1.5,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                Spreadsheet Hub
-                              </button>
-                            )}
-                          </span>
-                        </td>
+                            <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              {client.name}
+                              {client.spreadsheetUrl && (
+                                <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                  style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
+                                  Spreadsheet Hub
+                                </button>
+                              )}
+                            </span>
+                          </td>
                           <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
                           <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)" }}>{client.coach}</td>
                           <td style={{ padding: "10px 12px" }}>{statusPill(client)}</td>
@@ -1960,7 +1473,14 @@ export default function Home() {
         {/* Day Groups Grid */}
         {!searchQuery && <div className={gridClass}>
           {dayGroups.map(({ day, clients: dayClients }) => (
-            <div key={day} style={{ background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)", borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`, borderRadius: "16px", padding: "10px 12px" }}>
+            <div key={day} style={{
+              background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
+              backdropFilter: GlassBlur,
+              border: `1px solid rgba(255,255,255,0.10)`,
+              borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`,
+              borderRadius: "20px",
+              padding: "16px",
+            }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
                 <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
@@ -1980,22 +1500,8 @@ export default function Home() {
                               {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
                               {client.name}
                               {client.spreadsheetUrl && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                  style={{
-                                    background: "transparent",
-                                    border: "1px solid rgba(59,130,246,0.30)",
-                                    borderRadius: "6px",
-                                    color: "#3b82f6",
-                                    cursor: "pointer",
-                                    padding: "2px 10px",
-                                    fontSize: "11px",
-                                    fontFamily: "system-ui",
-                                    fontWeight: 500,
-                                    lineHeight: 1.5,
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
+                                <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
+                                  style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
                                   Spreadsheet Hub
                                 </button>
                               )}
@@ -2024,9 +1530,9 @@ export default function Home() {
           ))}
         </div>}
 
-        {/* Add/Edit Form (rendered after day-groups so it overlays on top) */}
+        {/* Add/Edit Form */}
         {!searchQuery && showForm && (
-          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginTop: "20px" }}>
+          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: `1px solid ${GlassBorder}`, borderRadius: "20px", padding: "24px", marginTop: "20px" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>{editingId ? "Edit Client" : "Add New Client"}</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
               <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
@@ -2057,7 +1563,7 @@ export default function Home() {
             </div>
             {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={handleSave} style={{ background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "10px", padding: "10px 24px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+              <button onClick={handleSave} style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "10px", padding: "10px 24px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
                 {editingId ? "Save Changes" : "Add Client"}
               </button>
               {editingId && <button onClick={() => { setEditingId(null); setShowForm(false); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
@@ -2074,18 +1580,16 @@ export default function Home() {
             </button>
             {showCancelled && (
               <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", overflow: "hidden" }}>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%" }}>
-                    <tbody>
-                      {cancelledClients.map(client => (
-                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                          <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
-                          <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)" }}>{statusPill(client)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <table style={{ width: "100%" }}>
+                  <tbody>
+                    {cancelledClients.map(client => (
+                      <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
+                        <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)" }}>{statusPill(client)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -2093,218 +1597,132 @@ export default function Home() {
 
         {/* Action Modal */}
         {selectedClient && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.70)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={() => setSelectedClient(null)}>
-            <div style={{ background: "rgba(15,20,40,0.97)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "20px", padding: "28px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }} onClick={e => e.stopPropagation()}>
-              <div style={{ marginBottom: "20px" }}>
-                <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
-                <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
-              </div>
-              {actionPanel === "menu" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <button onClick={() => {
-                    setForm({
-                      name: selectedClient.name, email: selectedClient.email ?? "",
-                      coach: selectedClient.coach,
-                      paymentPlatform: selectedClient.paymentPlatform ?? "Newie",
-                      weeklyCharge: selectedClient.weeklyCharge ?? 0,
-                      spreadsheetUrl: selectedClient.spreadsheetUrl ?? "",
-                      status: selectedClient.status,
-                      pausedUntil: selectedClient.pausedUntil ?? "",
-                      startDate: selectedClient.startDate,
-                      notes: selectedClient.notes ?? "",
-                      checkInDay: selectedClient.checkInDay ?? "",
-                    });
-                    setEditingId(selectedClient.id);
-                    setActionPanel("edit");
-                  }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    ✏️ Edit Client
-                  </button>
-                  <button onClick={() => setActionPanel("pause")}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    ⏸️ Pause Client
-                  </button>
-                  {selectedClient.spreadsheetUrl && (
-                    <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
-                      style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#60a5fa", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                      📊 Open Sheet
-                    </button>
-                  )}
-                  <button onClick={() => setActionPanel("cancel")}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    ✕ Cancel Client
-                  </button>
-                </div>
-              )}
-              {actionPanel === "pause" && (
-                <div>
-                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:</p>
-                  <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
-                    style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date }); setSelectedClient(null); }}
-                      style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
-                    <button onClick={() => setActionPanel("menu")}
-                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
-                  </div>
-                </div>
-              )}
-              {actionPanel === "cancel" && (
-                <div>
-                  <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "18px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button onClick={async () => { await updateClient(selectedClient.id, { status: "cancelled" }); setSelectedClient(null); }}
-                      style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Yes, Cancel</button>
-                    <button onClick={() => setActionPanel("menu")}
-                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Edit panel ── */}
-              {actionPanel === "edit" && (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                    <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
-                    <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
-                      style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}>✕</button>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label>
-                      <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label>
-                      <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" />
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
-                      <select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}>
-                        <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label>
-                      <select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}>
-                        <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
-                      <input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label>
-                      <select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}>
-                        <option value="">— Select —</option>
-                        {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label>
-                      <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label>
-                      <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}>
-                        <option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label>
-                    <input value={form.spreadsheetUrl} onChange={e => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/..." />
-                  </div>
-                  <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label>
-                    <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} />
-                  </div>
-                  {formError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>{formError}</p>}
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      onClick={async () => {
-                        if (!form.name.trim()) { setFormError("Name is required"); return; }
-                        setFormError(null);
-                        await updateClient(editingId!, { ...form, checkInDay: form.checkInDay || undefined });
-                        setEditingId(null);
-                        setActionPanel("menu");
-                        setSelectedClient(null);
-                      }}
-                      style={{ flex: 1, background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "12px", padding: "11px", color: "#3b82f6", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>
-                      Save Changes
-                    </button>
-                    <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
-                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "11px", color: "rgba(255,255,255,0.50)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
+          <GlassModal onClose={() => setSelectedClient(null)}>
+            <div style={{ marginBottom: "20px" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
             </div>
-          </div>
+            {actionPanel === "menu" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <button onClick={() => {
+                  setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
+                  setEditingId(selectedClient.id);
+                  setActionPanel("edit");
+                }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  ✏️ Edit Client
+                </button>
+                <button onClick={() => setActionPanel("pause")}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  ⏸️ Pause Client
+                </button>
+                {selectedClient.spreadsheetUrl && (
+                  <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 16px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    📊 Open Sheet
+                  </button>
+                )}
+                <button onClick={() => setActionPanel("cancel")}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  ✕ Cancel Client
+                </button>
+              </div>
+            )}
+            {actionPanel === "pause" && (
+              <div>
+                <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:</p>
+                <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
+                  style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date }); setSelectedClient(null); }}
+                    style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
+                  <button onClick={() => setActionPanel("menu")}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
+                </div>
+              </div>
+            )}
+            {actionPanel === "cancel" && (
+              <div>
+                <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "18px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button onClick={async () => { await updateClient(selectedClient.id, { status: "cancelled" }); setSelectedClient(null); }}
+                    style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Yes, Cancel</button>
+                  <button onClick={() => setActionPanel("menu")}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
+                </div>
+              </div>
+            )}
+            {actionPanel === "edit" && (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
+                  <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                    style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}>✕</button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} /></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" /></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label><select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label><select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}><option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label><input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} /></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label><select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}><option value="">— Select —</option>{DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label><input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} /></div>
+                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label><select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}><option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option></select></div>
+                </div>
+                <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label><input value={form.spreadsheetUrl} onChange={e => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/..." /></div>
+                <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} /></div>
+                {formError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>{formError}</p>}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={async () => { if (!form.name.trim()) { setFormError("Name is required"); return; } setFormError(null); await updateClient(editingId!, { ...form, checkInDay: form.checkInDay || undefined }); setEditingId(null); setActionPanel("menu"); setSelectedClient(null); }}
+                    style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "11px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>
+                    Save Changes
+                  </button>
+                  <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "11px", color: "rgba(255,255,255,0.50)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </GlassModal>
         )}
       </div>
     );
   }
 
-  // ─── LeadsTab ────────────────────────────────────────────────────────────
+  // ─── LeadsTab ─────────────────────────────────────────────────────────────
   function LeadsTab() {
     const [showForm, setShowForm] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
-    const [form, setForm] = useState({
-      name: "", email: "", phone: "", source: "Other" as Lead["source"], notes: "", assignedTo: "Milzzy" as Lead["assignedTo"],
-    });
+    const [form, setForm] = useState({ name: "", email: "", phone: "", source: "Other" as Lead["source"], notes: "", assignedTo: "Milzzy" as Lead["assignedTo"] });
     const [formError, setFormError] = useState<string | null>(null);
     const [menuLead, setMenuLead] = useState<Lead | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [moveStage, setMoveStage] = useState<Lead["stage"] | null>(null);
 
-    const inputStyle: React.CSSProperties = {
-      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-      borderRadius: "10px", color: "white", padding: "9px 12px",
-      fontSize: "13px", fontFamily: "system-ui", outline: "none", width: "100%", boxSizing: "border-box" as const,
-    };
-
     const STAGES: Lead["stage"][] = ["enquiry", "consult_booked", "consult_done", "payment", "onboarding", "active"];
     const STAGE_LABELS: Record<Lead["stage"], string> = {
-      enquiry: "Enquiry",
-      consult_booked: "Consult Booked",
-      consult_done: "Consult Done",
-      payment: "Payment",
-      onboarding: "Onboarding",
-      active: "Active Client",
+      enquiry: "Enquiry", consult_booked: "Consult Booked", consult_done: "Consult Done",
+      payment: "Payment", onboarding: "Onboarding", active: "Active Client",
     };
     const STAGE_COLORS: Record<Lead["stage"], string> = {
-      enquiry: "rgba(245,158,11,0.5)",
-      consult_booked: "rgba(139,92,246,0.5)",
-      consult_done: "rgba(59,130,246,0.5)",
-      payment: "rgba(236,72,153,0.5)",
-      onboarding: "rgba(16,185,129,0.5)",
-      active: "rgba(52,211,153,0.5)",
+      enquiry: Tiffany, consult_booked: "rgba(139,92,246,0.5)", consult_done: Tiffany,
+      payment: "rgba(236,72,153,0.5)", onboarding: "rgba(16,185,129,0.5)", active: "rgba(52,211,153,0.5)",
     };
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
-      Instagram: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa" },
+      Instagram: { bg: `${Tiffany}26`, color: Tiffany },
       Referral: { bg: "rgba(52,211,153,0.15)", color: "#34d399" },
       Other: { bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)" },
     };
 
-    // Stats
     const now = new Date();
     const totalLeads = leads.length;
-    const thisMonth = leads.filter(l => {
-      const d = new Date(l.createdAt);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    }).length;
+    const thisMonth = leads.filter(l => { const d = new Date(l.createdAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
     const activeCount = leads.filter(l => l.stage === "active").length;
     const closingCount = leads.filter(l => l.stage === "payment" || l.stage === "onboarding").length;
     const conversionRate = totalLeads > 0 ? Math.round((activeCount / totalLeads) * 100) : 0;
 
-    function daysAgo(iso: string): number {
-      return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
-    }
-
+    function daysAgo(iso: string): number { return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24)); }
     function needsFollowUp(lead: Lead): "follow" | "urgent" | null {
       if (lead.stage !== "enquiry" && lead.stage !== "consult_booked") return null;
       const days = daysAgo(lead.createdAt);
@@ -2317,25 +1735,11 @@ export default function Home() {
       if (!form.name.trim()) { setFormError("Name is required"); return; }
       setFormError(null);
       if (editingLead) {
-        const res = await fetch(`/api/leads/${editingLead.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        if (res.ok) {
-          const updated: Lead = await res.json();
-          setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
-        }
+        const res = await fetch(`/api/leads/${editingLead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+        if (res.ok) { const updated: Lead = await res.json(); setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)); }
       } else {
-        const res = await fetch("/api/leads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        if (res.ok) {
-          const created: Lead = await res.json();
-          setLeads(prev => [...prev, created]);
-        }
+        const res = await fetch("/api/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+        if (res.ok) { const created: Lead = await res.json(); setLeads(prev => [...prev, created]); }
       }
       setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" });
       setEditingLead(null);
@@ -2350,15 +1754,8 @@ export default function Home() {
     }
 
     async function moveLeadStage(lead: Lead, newStage: Lead["stage"]) {
-      const res = await fetch(`/api/leads/${lead.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: newStage }),
-      });
-      if (res.ok) {
-        const updated: Lead = await res.json();
-        setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
-      }
+      const res = await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: newStage }) });
+      if (res.ok) { const updated: Lead = await res.json(); setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)); }
       setMoveStage(null);
       setMenuOpen(false);
       setMenuLead(null);
@@ -2373,7 +1770,7 @@ export default function Home() {
     }
 
     const card = (label: string, value: number | string, color: string, sub?: string) => (
-      <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+      <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
         <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color, margin: 0 }}>{value}</p>
         <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
         {sub && <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{sub}</p>}
@@ -2382,59 +1779,47 @@ export default function Home() {
 
     return (
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+
         {/* Header row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
           <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lead Pipeline</p>
-          <button
-            onClick={() => { setShowForm(!showForm); setEditingLead(null); setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" }); setFormError(null); }}
-            style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.30)", borderRadius: "12px", padding: "8px 18px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+          <button onClick={() => { setShowForm(!showForm); setEditingLead(null); setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" }); setFormError(null); }}
+            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Lead"}
           </button>
         </div>
 
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
-          {card("Total Leads", totalLeads, "#ffffff")}
-          {card("This Month", thisMonth, "#60a5fa")}
+          {card("Total Leads", totalLeads, "rgba(255,255,255,0.70)")}
+          {card("This Month", thisMonth, Tiffany)}
           {card("Conversions", activeCount + closingCount, "#34d399", `${activeCount} active`)}
-          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+          <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: "#a855f7", margin: 0 }}>{conversionRate}%</p>
             <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Conversion Rate</p>
             <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "4px", overflow: "hidden" }}>
-              <div style={{ width: `${conversionRate}%`, height: "100%", background: "linear-gradient(90deg, #a855f7, #ec4899)", borderRadius: "999px", transition: "width 0.4s" }} />
+              <div style={{ width: `${conversionRate}%`, height: "100%", background: `linear-gradient(90deg, ${Tiffany}, #ec4899)`, borderRadius: "999px", transition: "width 0.4s" }} />
             </div>
           </div>
         </div>
 
         {/* Add/Edit Form */}
         {showForm && (
-          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
+          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: `1px solid ${GlassBorder}`, borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>
               {editingLead ? `Edit Lead: ${editingLead.name}` : "Add New Lead"}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name *</label>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ ...inputStyle }} placeholder="Full name" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label>
-                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{ ...inputStyle }} placeholder="client@email.com" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Phone</label>
-                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ ...inputStyle }} placeholder="+61 ..." /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Source</label>
-                <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value as Lead["source"] })} style={{ ...inputStyle }}>
-                  <option value="Instagram">Instagram</option><option value="Referral">Referral</option><option value="Other">Other</option>
-                </select></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Assigned To</label>
-                <select value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value as Lead["assignedTo"] })} style={{ ...inputStyle }}>
-                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
-                </select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name *</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ ...inputStyle }} placeholder="Full name" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{ ...inputStyle }} placeholder="client@email.com" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Phone</label><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ ...inputStyle }} placeholder="+61 ..." /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Source</label><select value={form.source} onChange={e => setForm({ ...form, source: e.target.value as Lead["source"] })} style={{ ...inputStyle }}><option value="Instagram">Instagram</option><option value="Referral">Referral</option><option value="Other">Other</option></select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Assigned To</label><select value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value as Lead["assignedTo"] })} style={{ ...inputStyle }}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
             </div>
-            <div style={{ marginBottom: "12px" }}>
-              <label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label>
-              <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." />
-            </div>
+            <div style={{ marginBottom: "12px" }}><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." /></div>
             {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={saveLead} style={{ background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "10px", padding: "10px 24px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+              <button onClick={saveLead} style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "10px", padding: "10px 24px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
                 {editingLead ? "Save Changes" : "Add Lead"}
               </button>
               {editingLead && <button onClick={() => { setEditingLead(null); setShowForm(false); setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" }); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
@@ -2446,6 +1831,7 @@ export default function Home() {
         <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px" }}>
           {STAGES.map(stage => {
             const stageLeads = leads.filter(l => l.stage === stage);
+            const isEnquiry = stage === "enquiry";
             return (
               <div key={stage} style={{ minWidth: "180px", maxWidth: "220px", flex: "0 0 auto", width: "100%" }}>
                 {/* Column header */}
@@ -2457,19 +1843,25 @@ export default function Home() {
                   <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", background: "rgba(255,255,255,0.06)", borderRadius: "999px", padding: "1px 7px" }}>{stageLeads.length}</span>
                 </div>
                 {/* Column body */}
-                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: "16px", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
+                <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${isEnquiry ? TiffanyBorder : GlassBorder}`, borderLeft: isEnquiry ? `3px solid ${Tiffany}` : `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
                   {stageLeads.map(lead => {
                     const fu = needsFollowUp(lead);
                     const src = SOURCE_COLORS[lead.source] || SOURCE_COLORS.Other;
                     const days = daysAgo(lead.createdAt);
+                    const isOverdue = fu === "urgent";
                     return (
-                      <div key={lead.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "12px", borderLeft: `3px solid ${STAGE_COLORS[stage]}` }}>
+                      <div key={lead.id} style={{
+                        background: "rgba(255,255,255,0.04)",
+                        backdropFilter: GlassBlur,
+                        border: `1px solid ${isOverdue ? TiffanyBorder : "rgba(255,255,255,0.08)"}`,
+                        borderLeft: `3px solid ${STAGE_COLORS[stage]}`,
+                        borderRadius: "12px",
+                        padding: "12px",
+                      }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                           <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)", margin: 0, lineHeight: 1.3 }}>{lead.name}</p>
-                          {/* Menu button */}
                           <div style={{ position: "relative" }}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setMenuLead(menuLead?.id === lead.id ? null : lead); setMenuOpen(menuLead?.id === lead.id ? !menuOpen : true); setMoveStage(null); }}
+                            <button onClick={(e) => { e.stopPropagation(); setMenuLead(menuLead?.id === lead.id ? null : lead); setMenuOpen(menuLead?.id === lead.id ? !menuOpen : true); setMoveStage(null); }}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "2px 4px", borderRadius: "4px", fontSize: "16px", lineHeight: 1, flexShrink: 0 }}>
                               &#x22EE;
                             </button>
@@ -2510,13 +1902,10 @@ export default function Home() {
                             )}
                           </div>
                         </div>
-                        {/* Source tag */}
                         <div style={{ marginBottom: "6px" }}>
                           <span style={{ background: src.bg, color: src.color, border: `1px solid ${src.color}40`, borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{lead.source}</span>
                         </div>
-                        {/* Days ago */}
                         <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>{days === 0 ? "Today" : `${days}d ago`}</p>
-                        {/* Follow-up badge */}
                         {fu === "follow" && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>⚠️ Follow up</span>}
                         {fu === "urgent" && <span style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>🔴 Urgent</span>}
                       </div>
@@ -2541,61 +1930,33 @@ export default function Home() {
       <Header activeTab={activeTab} />
 
       <div className="flex flex-1 overflow-visible">
-        {/* Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          mobileOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          sections={sidebarSections}
+        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sections={sidebarSections} />
 
-        />
-
-        {/* Main content — always ml-[200px] to account for sidebar */}
-        <main
-          className="overflow-y-auto p-4 lg:py-6"
-          style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}
-        >
-          {/* Content wrapper — centered with max-width per tab */}
-          <div
-            style={{
-              maxWidth: activeTab === "dashboard" ? "960px"
-                       : activeTab === "team" ? "900px"
-                       : "100%",
-              margin: "0 auto",
-              width: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-          {/* Mobile hamburger */}
-          <button
-            className="lg:hidden mb-4 p-2 rounded-[10px] transition-colors"
-            style={{ background: "rgba(255,255,255,0.04)" }}
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="rgba(255,255,255,0.92)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}>
+          <div style={{
+            maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : "100%",
+            margin: "0 auto", width: "100%", boxSizing: "border-box",
+          }}>
+            {/* Mobile hamburger */}
+            <button
+              className="lg:hidden mb-4 p-2 rounded-[10px] transition-colors"
+              style={{ background: "rgba(255,255,255,0.04)" }}
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
             >
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.92)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
 
-          {activeTab === "dashboard" ? <DashboardTab clients={clients} /> :
-           activeTab === "agents" ? <AgentsTab /> :
-           activeTab === "team" ? <TeamTab /> :
-           activeTab === "clients" ? <ClientsTab /> :
-           activeTab === "finance" ? <FinanceTab /> :
-           <LeadsTab />}
+            {activeTab === "dashboard" ? <DashboardTab clients={clients} /> :
+             activeTab === "agents" ? <AgentsTab /> :
+             activeTab === "team" ? <TeamTab /> :
+             activeTab === "clients" ? <ClientsTab /> :
+             activeTab === "finance" ? <FinanceTab /> :
+             <LeadsTab />}
           </div>
         </main>
       </div>
