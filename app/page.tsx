@@ -727,7 +727,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                 )}
 
                 <button
-                  onClick={() => { setAddingToDay(day); setNewTaskText(" "); }}
+                  onClick={() => { setAddingToDay(day); setNewTaskText(""); }}
                   style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "11px", fontFamily: "system-ui", textAlign: "left", padding: "4px 2px", display: "flex", alignItems: "center", gap: "4px", width: "100%", marginTop: "4px" }}
                   onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.60)"}
                   onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)"}
