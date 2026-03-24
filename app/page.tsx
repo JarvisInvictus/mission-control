@@ -52,7 +52,22 @@ interface Client {
   checkInDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
 
-type Tab = "agents" | "clients" | "finance";
+interface Lead {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  source: "Instagram" | "Referral" | "Other";
+  stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active";
+  stageHistory: { stage: string; date: string }[];
+  notes: string;
+  assignedTo: "Milzzy" | "Miggy";
+  createdAt: string;
+  lastUpdated: string;
+  followUpDue?: string;
+}
+
+type Tab = "agents" | "clients" | "finance" | "leads";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -160,7 +175,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
           className="text-[11px] tracking-[0.15em] uppercase"
           style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.35)" }}
         >
-          {activeTab === "agents" ? "Agents" : activeTab === "clients" ? "Clients" : "Finance"}
+          {activeTab === "agents" ? "Agents" : activeTab === "clients" ? "Clients" : activeTab === "finance" ? "Finance" : "Leads"}
         </span>
       </div>
     </header>
@@ -184,6 +199,7 @@ function Sidebar({
     { id: "agents", label: "Agents" },
     { id: "clients", label: "Clients" },
     { id: "finance", label: "Finance" },
+    { id: "leads", label: "Leads" },
   ];
 
   return (
@@ -348,12 +364,24 @@ export default function Home() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit">("menu");
 
+  // ─── Leads tab state (owned by Home) ──────────────────────────────────
+  const [leads, setLeads] = useState<Lead[]>([]);
+
   // Fetch clients when clients tab is active
   useEffect(() => {
     if (activeTab !== "clients") return;
     fetch("/api/clients")
       .then(r => r.json())
       .then((data: Client[]) => setClients(data))
+      .catch(console.error);
+  }, [activeTab]);
+
+  // Fetch leads when leads tab is active
+  useEffect(() => {
+    if (activeTab !== "leads") return;
+    fetch("/api/leads")
+      .then(r => r.json())
+      .then((data: Lead[]) => setLeads(data))
       .catch(console.error);
   }, [activeTab]);
 
@@ -867,6 +895,293 @@ export default function Home() {
     );
   }
 
+  // ─── LeadsTab ────────────────────────────────────────────────────────────
+  function LeadsTab() {
+    const [showForm, setShowForm] = useState(false);
+    const [editingLead, setEditingLead] = useState<Lead | null>(null);
+    const [form, setForm] = useState({
+      name: "", email: "", phone: "", source: "Other" as Lead["source"], notes: "", assignedTo: "Milzzy" as Lead["assignedTo"],
+    });
+    const [formError, setFormError] = useState<string | null>(null);
+    const [menuLead, setMenuLead] = useState<Lead | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [moveStage, setMoveStage] = useState<Lead["stage"] | null>(null);
+
+    const inputStyle: React.CSSProperties = {
+      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: "10px", color: "white", padding: "9px 12px",
+      fontSize: "13px", fontFamily: "system-ui", outline: "none", width: "100%", boxSizing: "border-box" as const,
+    };
+
+    const STAGES: Lead["stage"][] = ["enquiry", "consult_booked", "consult_done", "payment", "onboarding", "active"];
+    const STAGE_LABELS: Record<Lead["stage"], string> = {
+      enquiry: "Enquiry",
+      consult_booked: "Consult Booked",
+      consult_done: "Consult Done",
+      payment: "Payment",
+      onboarding: "Onboarding",
+      active: "Active Client",
+    };
+    const STAGE_COLORS: Record<Lead["stage"], string> = {
+      enquiry: "rgba(245,158,11,0.5)",
+      consult_booked: "rgba(139,92,246,0.5)",
+      consult_done: "rgba(59,130,246,0.5)",
+      payment: "rgba(236,72,153,0.5)",
+      onboarding: "rgba(16,185,129,0.5)",
+      active: "rgba(52,211,153,0.5)",
+    };
+    const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
+      Instagram: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa" },
+      Referral: { bg: "rgba(52,211,153,0.15)", color: "#34d399" },
+      Other: { bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)" },
+    };
+
+    // Stats
+    const now = new Date();
+    const totalLeads = leads.length;
+    const thisMonth = leads.filter(l => {
+      const d = new Date(l.createdAt);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+    const activeCount = leads.filter(l => l.stage === "active").length;
+    const closingCount = leads.filter(l => l.stage === "payment" || l.stage === "onboarding").length;
+    const conversionRate = totalLeads > 0 ? Math.round((activeCount / totalLeads) * 100) : 0;
+
+    function daysAgo(iso: string): number {
+      return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    function needsFollowUp(lead: Lead): "follow" | "urgent" | null {
+      if (lead.stage !== "enquiry" && lead.stage !== "consult_booked") return null;
+      const days = daysAgo(lead.createdAt);
+      if (days > 2) return "urgent";
+      if (days > 1) return "follow";
+      return null;
+    }
+
+    async function saveLead() {
+      if (!form.name.trim()) { setFormError("Name is required"); return; }
+      setFormError(null);
+      if (editingLead) {
+        const res = await fetch(`/api/leads/${editingLead.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        if (res.ok) {
+          const updated: Lead = await res.json();
+          setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+        }
+      } else {
+        const res = await fetch("/api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        if (res.ok) {
+          const created: Lead = await res.json();
+          setLeads(prev => [...prev, created]);
+        }
+      }
+      setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" });
+      setEditingLead(null);
+      setShowForm(false);
+    }
+
+    async function deleteLead(id: string) {
+      await fetch(`/api/leads/${id}`, { method: "DELETE" });
+      setLeads(prev => prev.filter(l => l.id !== id));
+      setMenuOpen(false);
+      setMenuLead(null);
+    }
+
+    async function moveLeadStage(lead: Lead, newStage: Lead["stage"]) {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      });
+      if (res.ok) {
+        const updated: Lead = await res.json();
+        setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+      }
+      setMoveStage(null);
+      setMenuOpen(false);
+      setMenuLead(null);
+    }
+
+    function startEdit(lead: Lead) {
+      setForm({ name: lead.name, email: lead.email, phone: lead.phone, source: lead.source, notes: lead.notes, assignedTo: lead.assignedTo });
+      setEditingLead(lead);
+      setShowForm(true);
+      setMenuOpen(false);
+      setMenuLead(null);
+    }
+
+    const card = (label: string, value: number | string, color: string, sub?: string) => (
+      <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+        <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color, margin: 0 }}>{value}</p>
+        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+        {sub && <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{sub}</p>}
+      </div>
+    );
+
+    return (
+      <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+        {/* Header row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lead Pipeline</p>
+          <button
+            onClick={() => { setShowForm(!showForm); setEditingLead(null); setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" }); setFormError(null); }}
+            style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.30)", borderRadius: "12px", padding: "8px 18px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+            {showForm ? "Cancel" : "+ Add Lead"}
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
+          {card("Total Leads", totalLeads, "#ffffff")}
+          {card("This Month", thisMonth, "#60a5fa")}
+          {card("Conversions", activeCount + closingCount, "#34d399", `${activeCount} active`)}
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px", textAlign: "center" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: "#a855f7", margin: 0 }}>{conversionRate}%</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Conversion Rate</p>
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "4px", overflow: "hidden" }}>
+              <div style={{ width: `${conversionRate}%`, height: "100%", background: "linear-gradient(90deg, #a855f7, #ec4899)", borderRadius: "999px", transition: "width 0.4s" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Add/Edit Form */}
+        {showForm && (
+          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>
+              {editingLead ? `Edit Lead: ${editingLead.name}` : "Add New Lead"}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name *</label>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ ...inputStyle }} placeholder="Full name" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label>
+                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{ ...inputStyle }} placeholder="client@email.com" /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Phone</label>
+                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ ...inputStyle }} placeholder="+61 ..." /></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Source</label>
+                <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value as Lead["source"] })} style={{ ...inputStyle }}>
+                  <option value="Instagram">Instagram</option><option value="Referral">Referral</option><option value="Other">Other</option>
+                </select></div>
+              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Assigned To</label>
+                <select value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value as Lead["assignedTo"] })} style={{ ...inputStyle }}>
+                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
+                </select></div>
+            </div>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label>
+              <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." />
+            </div>
+            {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={saveLead} style={{ background: "rgba(59,130,246,0.20)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: "10px", padding: "10px 24px", color: "#3b82f6", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+                {editingLead ? "Save Changes" : "Add Lead"}
+              </button>
+              {editingLead && <button onClick={() => { setEditingLead(null); setShowForm(false); setForm({ name: "", email: "", phone: "", source: "Other", notes: "", assignedTo: "Milzzy" }); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
+            </div>
+          </div>
+        )}
+
+        {/* Kanban Board */}
+        <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px" }}>
+          {STAGES.map(stage => {
+            const stageLeads = leads.filter(l => l.stage === stage);
+            return (
+              <div key={stage} style={{ minWidth: "180px", maxWidth: "220px", flex: "0 0 auto", width: "100%" }}>
+                {/* Column header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: STAGE_COLORS[stage] }} />
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{STAGE_LABELS[stage]}</span>
+                  </div>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", background: "rgba(255,255,255,0.06)", borderRadius: "999px", padding: "1px 7px" }}>{stageLeads.length}</span>
+                </div>
+                {/* Column body */}
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: "16px", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
+                  {stageLeads.map(lead => {
+                    const fu = needsFollowUp(lead);
+                    const src = SOURCE_COLORS[lead.source] || SOURCE_COLORS.Other;
+                    const days = daysAgo(lead.createdAt);
+                    return (
+                      <div key={lead.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "12px", borderLeft: `3px solid ${STAGE_COLORS[stage]}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                          <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)", margin: 0, lineHeight: 1.3 }}>{lead.name}</p>
+                          {/* Menu button */}
+                          <div style={{ position: "relative" }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setMenuLead(menuLead?.id === lead.id ? null : lead); setMenuOpen(menuLead?.id === lead.id ? !menuOpen : true); setMoveStage(null); }}
+                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "2px 4px", borderRadius: "4px", fontSize: "16px", lineHeight: 1, flexShrink: 0 }}>
+                              &#x22EE;
+                            </button>
+                            {menuLead?.id === lead.id && menuOpen && (
+                              <div style={{ position: "absolute", right: 0, top: "100%", zIndex: 100, background: "rgba(15,20,40,0.98)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "12px", padding: "6px", minWidth: "140px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                                {moveStage === lead.stage ? (
+                                  <div>
+                                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", padding: "4px 8px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Move to stage</p>
+                                    {STAGES.filter(s => s !== lead.stage).map(s => (
+                                      <button key={s} onClick={() => moveLeadStage(lead, s)} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.70)", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
+                                        onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
+                                        onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                                        {STAGE_LABELS[s]}
+                                      </button>
+                                    ))}
+                                    <button onClick={() => setMoveStage(null)} style={{ display: "block", width: "100%", textAlign: "center", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontSize: "11px", fontFamily: "system-ui", marginTop: "2px" }}>Cancel</button>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <button onClick={() => startEdit(lead)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.75)", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
+                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                                      ✏️ Edit
+                                    </button>
+                                    <button onClick={() => { setMoveStage(lead.stage); }} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.75)", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
+                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                                      ↗️ Move Stage
+                                    </button>
+                                    <button onClick={() => deleteLead(lead.id)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#f87171", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
+                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(248,113,113,0.10)"}
+                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
+                                      🗑 Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Source tag */}
+                        <div style={{ marginBottom: "6px" }}>
+                          <span style={{ background: src.bg, color: src.color, border: `1px solid ${src.color}40`, borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{lead.source}</span>
+                        </div>
+                        {/* Days ago */}
+                        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>{days === 0 ? "Today" : `${days}d ago`}</p>
+                        {/* Follow-up badge */}
+                        {fu === "follow" && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>⚠️ Follow up</span>}
+                        {fu === "urgent" && <span style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>🔴 Urgent</span>}
+                      </div>
+                    );
+                  })}
+                  {stageLeads.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "20px 8px" }}>
+                      <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.20)" }}>No leads</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen text-[var(--text-primary)] flex flex-col">
       <Header activeTab={activeTab} />
@@ -905,7 +1220,7 @@ export default function Home() {
             </svg>
           </button>
 
-          {activeTab === "agents" ? <AgentsTab /> : activeTab === "clients" ? <ClientsTab /> : <FinanceTab />}
+          {activeTab === "agents" ? <AgentsTab /> : activeTab === "clients" ? <ClientsTab /> : activeTab === "finance" ? <FinanceTab /> : <LeadsTab />}
         </main>
       </div>
     </div>
