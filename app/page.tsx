@@ -225,12 +225,16 @@ function Sidebar({
   mobileOpen,
   onClose,
   sections,
+  isHovered,
+  onHoverChange,
 }: {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   mobileOpen: boolean;
   onClose: () => void;
   sections: NavSection[];
+  isHovered: boolean;
+  onHoverChange: (hovered: boolean) => void;
 }) {
   return (
     <>
@@ -243,19 +247,32 @@ function Sidebar({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Desktop Sidebar — hover-expand icon strip */}
       <aside
-        className={`
-          fixed top-0 left-0 h-screen z-30 flex flex-col
-          transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto
-          w-[220px] liquid-glass-sidebar
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
+        style={{
+          position: "fixed",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: isHovered ? "180px" : "60px",
+          zIndex: 40,
+          transition: "width 0.2s ease",
+          overflow: "hidden",
+          background: "rgba(10,10,20,0.97)",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onMouseEnter={() => onHoverChange(true)}
+        onMouseLeave={() => onHoverChange(false)}
       >
-        <div className="flex flex-col h-full pt-20 px-4 gap-0.5">
+        <div
+          className="flex flex-col h-full pt-20 px-3 gap-0.5"
+          style={{ opacity: isHovered ? 1 : 0.85, transition: "opacity 0.2s" }}
+        >
           {sections.map((section) => (
             <div key={section.label}>
-              {/* Section header */}
+              {/* Section header — only visible when expanded */}
               <div
                 style={{
                   fontFamily: "system-ui",
@@ -264,6 +281,11 @@ function Sidebar({
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   padding: "12px 0 4px 12px",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  opacity: isHovered ? 1 : 0,
+                  transition: "opacity 0.15s",
+                  height: isHovered ? "auto" : "0",
                 }}
               >
                 {section.label}
@@ -277,25 +299,70 @@ function Sidebar({
                     onClose();
                   }}
                   className={`
-                    w-full text-left px-3 py-2.5 rounded-[10px] text-sm transition-all duration-200
+                    w-full text-left py-2.5 rounded-[10px] text-sm transition-all duration-200
                     ${activeTab === item.id
                       ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(255,255,255,0.04)]"
                     }
                   `}
-                  style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}
+                  style={{
+                    fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: isHovered ? "8px 12px" : "8px 0",
+                    justifyContent: isHovered ? "flex-start" : "center",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                  }}
                 >
-                  {item.label}
+                  {/* Icon placeholder — these use emoji, centered when collapsed */}
+                  <span
+                    style={{
+                      fontSize: "16px",
+                      flexShrink: 0,
+                      display: "inline-block",
+                      width: isHovered ? "auto" : "20px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.id === "dashboard" ? "◈" :
+                     item.id === "clients" ? "◉" :
+                     item.id === "leads" ? "◎" :
+                     item.id === "finance" ? "◑" :
+                     item.id === "agents" ? "◧" : "◨"}
+                  </span>
+                  {/* Label — only visible when expanded */}
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      overflow: "hidden",
+                      opacity: isHovered ? 1 : 0,
+                      transition: "opacity 0.15s",
+                      flex: isHovered ? 1 : 0,
+                    }}
+                  >
+                    {item.label}
+                  </span>
                 </button>
               ))}
             </div>
           ))}
 
-          {/* Brand label */}
+          {/* Brand label — only when expanded */}
           <div className="mt-auto pt-4">
             <p
-              className="text-[9px] uppercase tracking-[0.2em]"
-              style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif", color: "rgba(255,255,255,0.20)" }}
+              style={{
+                fontFamily: "system-ui, -apple-system, Inter, sans-serif",
+                fontSize: "9px",
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: "rgba(255,255,255,0.20)",
+                opacity: isHovered ? 1 : 0,
+                transition: "opacity 0.15s",
+                textAlign: isHovered ? "left" : "center",
+                paddingLeft: isHovered ? "12px" : "0",
+              }}
             >
               Invictus Physiques
             </p>
@@ -315,6 +382,10 @@ function DashboardTab({ clients }: { clients: Client[] }) {
   const [newTaskDay, setNewTaskDay] = useState<"Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday">("Monday");
   const [project, setProject] = useState<Project>({ title: "", steps: [] });
   const [editingTitle, setEditingTitle] = useState(false);
+
+  // Drag-and-drop state for Trello-style todo board
+  const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
 
   // Load tasks from localStorage
   useEffect(() => {
@@ -377,6 +448,13 @@ function DashboardTab({ clients }: { clients: Client[] }) {
   function toggleTask(id: string) {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+    );
+  }
+
+  function moveTask(taskId: string, fromDay: string, toDay: string) {
+    if (fromDay === toDay) return;
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, day: toDay as Task["day"] } : t))
     );
   }
 
@@ -580,23 +658,45 @@ function DashboardTab({ clients }: { clients: Client[] }) {
           </div>
         )}
 
-        {/* 7-day grid */}
+        {/* 7-day grid — centered */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(7, 1fr)",
+            display: "flex",
             gap: "8px",
+            justifyContent: "center",
+            flexWrap: "nowrap",
+            overflowX: "auto",
+            paddingBottom: "4px",
           }}
         >
           {DAY_ORDER.map((day, dayIdx) => {
             const isToday = dayIdx === currentDayIndex;
             const dayTasks = weekTasks.filter((t) => t.day === day);
+            const isDragOver = dragOverDay === day;
+            const isDraggingFrom = draggingTask?.fromDay === day;
             return (
               <div
                 key={day}
+                draggable={false}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverDay(day);
+                }}
+                onDragLeave={() => setDragOverDay(null)}
+                onDrop={() => {
+                  if (draggingTask) {
+                    moveTask(draggingTask.id, draggingTask.fromDay, day);
+                  }
+                  setDragOverDay(null);
+                  setDraggingTask(null);
+                }}
                 style={{
-                  background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
-                  border: isToday
+                  background: isDragOver
+                    ? "rgba(59,130,246,0.08)"
+                    : DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
+                  border: isDragOver
+                    ? "1px solid rgba(59,130,246,0.50)"
+                    : isToday
                     ? `1px solid ${DAY_BORDER_COLORS[day]}`
                     : "1px solid rgba(255,255,255,0.06)",
                   borderRadius: "14px",
@@ -605,6 +705,11 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                   flexDirection: "column",
                   gap: "6px",
                   position: "relative",
+                  minWidth: "110px",
+                  maxWidth: "140px",
+                  flex: "1",
+                  boxShadow: isDragOver ? "0 0 0 2px rgba(59,130,246,0.30)" : "none",
+                  transition: "background 0.15s, box-shadow 0.15s",
                 }}
               >
                 {/* Day label */}
@@ -625,58 +730,77 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                   </p>
                 </div>
                 {/* Tasks for this day */}
-                {dayTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      borderRadius: "8px",
-                      padding: "6px 8px",
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "6px",
-                      opacity: task.done ? 0.45 : 1,
-                      textDecoration: task.done ? "line-through" : "none",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={task.done}
-                      onChange={() => toggleTask(task.id)}
-                      style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0, marginTop: "1px" }}
-                    />
-                    <span
+                {dayTasks.map((task) => {
+                  const isDraggingThis = draggingTask?.id === task.id;
+                  return (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={() => setDraggingTask({ id: task.id, fromDay: task.day })}
+                      onDragEnd={() => {
+                        setDraggingTask(null);
+                        setDragOverDay(null);
+                      }}
                       style={{
-                        fontFamily: "system-ui",
-                        fontSize: "11px",
-                        color: "rgba(255,255,255,0.80)",
-                        lineHeight: 1.4,
-                        flex: 1,
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        borderRadius: "8px",
+                        padding: "6px 8px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "6px",
+                        opacity: isDraggingThis ? 0.5 : task.done ? 0.45 : 1,
                         textDecoration: task.done ? "line-through" : "none",
+                        cursor: isDraggingThis ? "grabbing" : "grab",
+                        transform: isDraggingThis ? "rotate(2deg)" : "none",
+                        transition: "opacity 0.15s, transform 0.15s",
                       }}
                     >
-                      {task.text}
-                    </span>
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "rgba(255,255,255,0.25)",
-                        cursor: "pointer",
-                        padding: "0",
-                        fontSize: "11px",
-                        lineHeight: 1,
-                        flexShrink: 0,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                      <input
+                        type="checkbox"
+                        checked={task.done}
+                        onChange={() => toggleTask(task.id)}
+                        style={{ accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0, marginTop: "1px" }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "system-ui",
+                          fontSize: "11px",
+                          color: "rgba(255,255,255,0.80)",
+                          lineHeight: 1.4,
+                          flex: 1,
+                          textDecoration: task.done ? "line-through" : "none",
+                        }}
+                      >
+                        {task.text}
+                      </span>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "rgba(255,255,255,0.25)",
+                          cursor: "pointer",
+                          padding: "0",
+                          fontSize: "11px",
+                          lineHeight: 1,
+                          flexShrink: 0,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
                 {dayTasks.length === 0 && (
-                  <div style={{ minHeight: "32px" }} />
+                  <div
+                    style={{
+                      minHeight: "32px",
+                      border: isDragOver ? "1px dashed rgba(59,130,246,0.40)" : "1px dashed rgba(255,255,255,0.08)",
+                      borderRadius: "8px",
+                      transition: "border-color 0.15s",
+                    }}
+                  />
                 )}
               </div>
             );
@@ -1628,6 +1752,7 @@ function TeamTab() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
 
   // ─── Clients tab state (owned by Home) ─────────────────────────────────
   const [clients, setClients] = useState<Client[]>([]);
@@ -2485,10 +2610,26 @@ export default function Home() {
           mobileOpen={mobileOpen}
           onClose={() => setMobileOpen(false)}
           sections={sidebarSections}
+          isHovered={sidebarHovered}
+          onHoverChange={setSidebarHovered}
         />
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:py-6 lg:ml-[220px]">
+        {/* Main content — always ml-[60px] to account for collapsed sidebar */}
+        <main
+          className="overflow-y-auto p-4 lg:py-6"
+          style={{ marginLeft: "60px", width: "calc(100% - 60px)" }}
+        >
+          {/* Content wrapper — centered with max-width per tab */}
+          <div
+            style={{
+              maxWidth: activeTab === "dashboard" ? "960px"
+                       : activeTab === "team" ? "900px"
+                       : "100%",
+              margin: "0 auto",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
           {/* Mobile hamburger */}
           <button
             className="lg:hidden mb-4 p-2 rounded-[10px] transition-colors"
@@ -2518,6 +2659,7 @@ export default function Home() {
            activeTab === "clients" ? <ClientsTab /> :
            activeTab === "finance" ? <FinanceTab /> :
            <LeadsTab />}
+          </div>
         </main>
       </div>
     </div>
