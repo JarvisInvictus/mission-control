@@ -16,6 +16,19 @@ const GlassBg = "rgba(255,255,255,0.05)";
 const GlassBorder = "rgba(255,255,255,0.10)";
 const GlassBlur = "blur(20px)";
 
+
+// ─── useWindowSize hook ──────────────────────────────────────────────────────
+function useWindowSize() {
+  const [width, setWidth] = useState(1200);
+  useEffect(() => {
+    function update() { setWidth(window.innerWidth); }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return width;
+}
+
 const GlassStyle: React.CSSProperties = {
   background: GlassBg,
   backdropFilter: GlassBlur,
@@ -242,6 +255,8 @@ function GlassModal({ children, onClose }: { children: React.ReactNode; onClose:
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 function Header({ activeTab }: { activeTab: Tab }) {
+  const windowWidth = useWindowSize();
+  const isDesktopHeader = windowWidth >= 768;
   const labels: Record<Tab, string> = {
     dashboard: "Dashboard",
     agents: "Agents",
@@ -267,7 +282,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
       background: "rgba(10,10,20,0.90)",
       backdropFilter: "blur(20px)",
       borderBottom: "1px solid rgba(255,255,255,0.06)",
-      paddingLeft: "200px",
+      paddingLeft: isDesktopHeader ? "200px" : "0px",
     }}>
       <div className="flex items-center justify-between px-4 sm:px-6 py-4" style={{ paddingLeft: "200px" }}>
         {/* Live indicator */}
@@ -325,12 +340,19 @@ function Sidebar({
   onClose: () => void;
   sections: NavSection[];
 }) {
+  const windowWidth = useWindowSize();
+  const isMobile = windowWidth < 768;
+
   return (
     <>
-      {/* Mobile overlay */}
-      {mobileOpen && (
+      {/* Mobile overlay — only on mobile */}
+      {isMobile && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 20, background: "rgba(0,0,0,0.5)" }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 30,
+            background: "rgba(0,0,0,0.6)",
+            display: mobileOpen ? "block" : "none",
+          }}
           onClick={onClose}
         />
       )}
@@ -345,14 +367,22 @@ function Sidebar({
           overflow: "hidden",
           background: "rgba(10,10,20,0.97)",
           borderRight: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
+          display: isMobile ? (mobileOpen ? "flex" : "none") : "flex",
           flexDirection: "column",
         }}
       >
         <div className="flex flex-col h-full pt-16 px-3 gap-0.5">
 
           {/* Sidebar header */}
-          <div style={{ padding: "20px 12px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+          <div style={{ padding: "20px 12px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px", position: "relative" }}>
+            {isMobile && (
+              <button
+                onClick={onClose}
+                style={{ position: "absolute", top: "16px", right: "8px", background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "8px", color: "rgba(255,255,255,0.60)", cursor: "pointer", padding: "4px 8px", fontSize: "12px", fontFamily: "system-ui" }}
+              >
+                ✕
+              </button>
+            )}
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "18px" }}>🤖</span>
             </div>
@@ -586,7 +616,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>This Week</p>
 
-        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "nowrap", overflowX: "auto", paddingBottom: "4px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px", width: "100%" }}>
           {DAY_ORDER.map((day, dayIdx) => {
             const isToday = dayIdx === currentDayIndex;
             const dayTasks = weekTasks.filter((t) => t.day === day);
@@ -619,9 +649,7 @@ function DashboardTab({ clients, onTabChange }: { clients: Client[]; onTabChange
                   flexDirection: "column",
                   gap: "6px",
                   position: "relative",
-                  minWidth: "110px",
-                  maxWidth: "140px",
-                  flex: "1",
+                  minWidth: 0,
                   boxShadow: isDragOver ? `0 0 0 2px ${TiffanyBorder}` : "none",
                   transition: "background 0.15s, box-shadow 0.15s",
                 }}
@@ -1750,6 +1778,8 @@ function CheckInsTab({ clients }: { clients: Client[] }) {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const windowWidth = useWindowSize();
+  const isDesktop = windowWidth >= 768;
 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -2464,7 +2494,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-visible">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sections={sidebarSections} />
 
-        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}>
+        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: isDesktop ? "200px" : 0, width: isDesktop ? "calc(100% - 200px)" : "100%" }}>
           <div style={{
             maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : "100%",
             margin: "0 auto", width: "100%", boxSizing: "border-box",
