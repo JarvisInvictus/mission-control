@@ -8,6 +8,7 @@ import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
 import { FinanceTab } from "@/components/FinanceTab";
 import { ClientProfilePanel } from "@/components/ClientProfilePanel";
+import { MemoryTab } from "@/components/MemoryTab";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { RevenueTrend } from "@/components/RevenueTrend";
 
@@ -98,7 +99,7 @@ export interface Lead {
   followUpDue?: string;
 }
 
-type Tab = "dashboard" | "agents" | "team" | "clients" | "checkins" | "finance" | "leads";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "leads";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -263,6 +264,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
   const labels: Record<Tab, string> = {
     dashboard: "Dashboard",
     agents: "Agents",
+    memory: "Memory",
     team: "Team",
     clients: "Clients",
     checkins: "Check-Ins",
@@ -1946,6 +1948,7 @@ export default function Home() {
       label: "AI",
       items: [
         { id: "agents", label: "Agents" },
+        { id: "memory", label: "Memory" },
         { id: "team", label: "Team" },
       ],
     },
@@ -2623,7 +2626,7 @@ export default function Home() {
 
         <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: isDesktop ? "200px" : 0, width: isDesktop ? "calc(100% - 200px)" : "100%" }}>
           <div style={{
-            maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : "100%",
+            maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : activeTab === "memory" ? "1200px" : "100%",
             margin: "0 auto", width: "100%", boxSizing: "border-box",
           }}>
             {/* Mobile hamburger */}
@@ -2642,6 +2645,7 @@ export default function Home() {
 
             {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} onClientClick={setSelectedClient} /> :
              activeTab === "agents" ? <AgentsTab /> :
+             activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
              activeTab === "clients" ? <ClientsTab onClientClick={setSelectedClient} /> :
              activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
