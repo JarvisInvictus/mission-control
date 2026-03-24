@@ -109,6 +109,11 @@ export function CronCard({ jobs, loading = false }: CronCardProps) {
                 </div>
               </div>
             ))
+          : jobs.length === 0 ? (
+              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.30)", textAlign: "center", padding: "20px 0" }}>
+                No cron jobs configured. Add scheduled tasks to automate Jarvis.
+              </p>
+            )
           : jobs.map((job) => (
               <div
                 key={job.id}

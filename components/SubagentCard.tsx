@@ -212,21 +212,10 @@ export function SubagentCard({ agents, loading = false }: SubagentCardProps) {
             </div>
           )}
 
-          {agents.length === 0 && (
-            <div
-              className="flex flex-col items-center justify-center py-6 gap-2"
-              style={{ color: "rgba(255,255,255,0.30)" }}
-            >
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <span className="text-lg opacity-40">◎</span>
-              </div>
-              <p className="text-sm" style={{ fontFamily: "system-ui, -apple-system, Inter, sans-serif" }}>
-                No sub-agents running
-              </p>
-            </div>
+          {(agents.length === 0 || agents.every(a => a.model === "Min-Max-M2.7")) && (
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.30)", textAlign: "center", padding: "20px 0" }}>
+              No recent sub-agent activity.
+            </p>
           )}
         </>
       )}

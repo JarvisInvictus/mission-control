@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -359,7 +359,20 @@ function DirectDebitTable({ items, total }: { items: DirectDebit[]; total: numbe
 export function FinanceTab() {
   const [reviewOpen, setReviewOpen] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
-  const [checkedActions, setCheckedActions] = useState<Set<number>>(new Set());
+  const [checkedActions, setCheckedActions] = useState<Set<number>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const stored = localStorage.getItem("finance_actions");
+      if (stored) return new Set(JSON.parse(stored) as number[]);
+    } catch { /* ignore */ }
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("finance_actions", JSON.stringify([...checkedActions]));
+    } catch { /* ignore */ }
+  }, [checkedActions]);
 
   const cancelledSubs = subscriptions.filter((s) => s.status === "CANCELLED");
   const activeSubs = subscriptions.filter((s) => s.status !== "CANCELLED");
@@ -384,6 +397,37 @@ export function FinanceTab() {
 
   return (
     <div>
+      {/* Net Position Card */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          backdropFilter: "blur(20px)",
+          border: `1px solid ${"rgba(255,255,255,0.12)"}`,
+          borderRadius: "20px",
+          padding: "20px 24px",
+          marginBottom: "20px",
+          display: "flex",
+          alignItems: "center",
+          gap: "32px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "1", minWidth: "120px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>Revenue</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "#34d399", margin: 0 }}>$22,548</p>
+        </div>
+        <div style={{ width: "1px", height: "40px", background: "rgba(255,255,255,0.08)" }} />
+        <div style={{ flex: "1", minWidth: "120px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>Outgoings</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "#f87171", margin: 0 }}>$19,840</p>
+        </div>
+        <div style={{ width: "1px", height: "40px", background: "rgba(255,255,255,0.08)" }} />
+        <div style={{ flex: "1", minWidth: "120px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>Net Position</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "#34d399", margin: 0 }}>$2,708</p>
+        </div>
+      </div>
+
       {/* Actions Required — FIRST section */}
       <div className="liquid-glass p-5 mb-6">
         {/* Header */}
@@ -521,9 +565,9 @@ export function FinanceTab() {
       {/* Section A: Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { value: "$22,548", label: "Avg Monthly Revenue", color: "var(--status-green)" },
-          { value: "$19,840", label: "Total Monthly Outgoings", color: "var(--status-red)" },
-          { value: "$337", label: "Saved This Month (Cancelled)", color: "var(--status-green)" },
+          { value: "$22,548", label: "Revenue / mo", color: "var(--status-green)" },
+          { value: "$19,840", label: "Outgoings / mo", color: "var(--status-red)" },
+          { value: "$337", label: "Saved (Cancelled)", color: "var(--status-green)" },
           { value: "$2,000", label: "Weekly Savings Goal", color: "var(--accent)" },
         ].map(({ value, label, color }) => (
           <div key={label} className="liquid-glass p-4">
@@ -552,6 +596,27 @@ export function FinanceTab() {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Net Position Card */}
+      <div className="liquid-glass p-5 mb-6" style={{ borderColor: "rgba(52,211,153,0.30)" }}>
+        <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "10px", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.50)", marginBottom: "12px" }}>
+          Net Position
+        </p>
+        <div style={{ display: "flex", gap: "32px", flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>Revenue</p>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "22px", fontWeight: 700, color: "#34d399", lineHeight: 1 }}>$22,548/mo</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>Outgoings</p>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "22px", fontWeight: 700, color: "rgba(255,255,255,0.60)", lineHeight: 1 }}>$19,840/mo</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>Net</p>
+            <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "28px", fontWeight: 700, color: "#34d399", lineHeight: 1 }}>$2,708/mo</p>
+          </div>
+        </div>
       </div>
 
       {/* Section B: Direct Debits */}

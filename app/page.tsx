@@ -251,27 +251,24 @@ function Header({ activeTab }: { activeTab: Tab }) {
     leads: "Leads",
   };
 
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const dateStr = time.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  const timeStr = time.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+
   return (
     <header style={{
-      position: "sticky", top: 0, zIndex: 20,
+      position: "sticky", top: 0, zIndex: 50,
       background: "rgba(10,10,20,0.90)",
       backdropFilter: "blur(20px)",
       borderBottom: "1px solid rgba(255,255,255,0.06)",
+      paddingLeft: "200px",
     }}>
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4">
-        <div>
-          <h1
-            style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.10em" }}
-          >
-            <span style={{ color: "rgba(255,255,255,0.92)" }}>JARVIS</span>
-            <span style={{ color: "rgba(255,255,255,0.40)", margin: "0 0.6rem" }}>//</span>
-            <span style={{ color: "rgba(255,255,255,0.40)" }}>MISSION CONTROL</span>
-          </h1>
-          <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px", marginTop: "4px", letterSpacing: "0.05em", color: "rgba(255,255,255,0.35)" }}>
-            Invictus Physiques · Operations
-          </p>
-        </div>
-
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4" style={{ paddingLeft: "200px" }}>
         {/* Live indicator */}
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
@@ -286,6 +283,16 @@ function Header({ activeTab }: { activeTab: Tab }) {
           </span>
           <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: Tiffany }}>
             Live
+          </span>
+        </div>
+
+        {/* Current date/time */}
+        <div className="flex items-center gap-4">
+          <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.10em", color: "rgba(255,255,255,0.30)" }}>
+            {dateStr}
+          </span>
+          <span style={{ fontFamily: "system-ui", fontSize: "13px", letterSpacing: "0.05em", color: "rgba(255,255,255,0.60)", fontVariantNumeric: "tabular-nums" }}>
+            {timeStr}
           </span>
         </div>
 
@@ -353,7 +360,7 @@ function Sidebar({
           </div>
 
           {sections.map((section) => (
-            <div key={section.label}>
+            <div key={section.label} style={{ marginTop: "8px" }}>
               <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "12px 12px 4px" }}>
                 {section.label}
               </div>
@@ -428,9 +435,16 @@ function DashboardTab({ clients }: { clients: Client[] }) {
   const [newTaskText, setNewTaskText] = useState("");
   const [project, setProject] = useState<Project>({ title: "", steps: [] });
   const [editingTitle, setEditingTitle] = useState(false);
-
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    fetch("/api/leads")
+      .then(r => r.json())
+      .then((data: Lead[]) => setLeads(data))
+      .catch(() => { /* ignore */ });
+  }, []);
 
   // Load tasks from localStorage
   useEffect(() => {
@@ -494,12 +508,14 @@ function DashboardTab({ clients }: { clients: Client[] }) {
 
   const activeClients = clients.filter((c) => c.status === "active");
   const activeCount = activeClients.length;
-  const now = new Date();
-  const newThisMonth = clients.filter((c) => {
-    const d = new Date(c.startDate);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }).length;
-  const revenue = 600;
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const newThisMonth = clients.filter(c => c.startDate && c.startDate.startsWith(thisMonth)).length;
+  const totalRevenuePerWeek = clients
+    .filter(c => c.status === "active")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const totalLeads = leads.length;
+  const conversions = leads.filter(l => l.stage === "active").length;
+  const convRate = totalLeads > 0 ? Math.round((conversions / totalLeads) * 100) : null;
 
   function addStep() {
     setProject((prev) => ({
@@ -626,7 +642,9 @@ function DashboardTab({ clients }: { clients: Client[] }) {
                 })}
 
                 {dayTasks.length === 0 && (
-                  <div style={{ minHeight: "32px", border: isDragOver ? `1px dashed ${TiffanyBorder}` : "1px dashed rgba(255,255,255,0.08)", borderRadius: "8px", transition: "border-color 0.15s" }} />
+                  <div style={{ minHeight: "32px", border: isDragOver ? `1px dashed ${TiffanyBorder}` : "1px dashed rgba(255,255,255,0.08)", borderRadius: "8px", transition: "border-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ color: "rgba(255,255,255,0.20)", fontSize: "11px", fontFamily: "system-ui", textAlign: "center", padding: "4px 0" }}>No tasks</span>
+                  </div>
                 )}
 
                 <button
@@ -686,9 +704,9 @@ function DashboardTab({ clients }: { clients: Client[] }) {
         <p style={sectionHeaderStyle}>Business Stats</p>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <StatCard value={activeCount} label="Clients" color="#34d399" />
-          <StatCard value={`$${revenue}`} label="Rev / wk" color={Tiffany} />
+          <StatCard value={`$${totalRevenuePerWeek.toLocaleString()}`} label="Rev / wk" color={Tiffany} />
           <StatCard value={`+${newThisMonth}`} label="New this mo" color="#a855f7" />
-          <StatCard value="—" label="Conv." color="rgba(255,255,255,0.50)" />
+          <StatCard value={convRate !== null ? `${convRate}%` : "—"} label="Conv." color={convRate !== null ? "#34d399" : "rgba(255,255,255,0.50)"} />
         </div>
       </section>
 
@@ -1395,6 +1413,9 @@ export default function Home() {
         </div>
 
         {/* Header + Add */}
+        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+          COACH FILTER
+        </p>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", gap: "8px" }}>
             {(["Milzzy","Miggy"] as const).map(c => (
@@ -1411,12 +1432,13 @@ export default function Home() {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginBottom: "20px" }}>
           {[
             { label: "Total Active", value: activeClients.length, color: "#34d399" },
             { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: Tiffany },
             { label: "Miggy", value: miggyClients.filter(c=>c.status==="active").length, color: "#a855f7" },
             { label: "Paused", value: pausedClients.length, color: "#fbbf24" },
+            { label: "Rev / Wk", value: `$${clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.weeklyCharge||0),0).toLocaleString()}`, color: "#0abab5" },
           ].map(s => (
             <div key={s.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
               <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
@@ -1932,7 +1954,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-visible">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sections={sidebarSections} />
 
-        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "180px", width: "calc(100% - 180px)" }}>
+        <main className="overflow-y-auto p-4 lg:py-6" style={{ marginLeft: "200px", width: "calc(100% - 200px)" }}>
           <div style={{
             maxWidth: activeTab === "dashboard" ? "960px" : activeTab === "team" ? "900px" : "100%",
             margin: "0 auto", width: "100%", boxSizing: "border-box",
