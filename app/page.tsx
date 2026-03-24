@@ -509,24 +509,7 @@ function DashboardTab({ clients }: { clients: Client[] }) {
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
       {/* ── Weekly To-Do List ── */}
       <section style={{ marginBottom: "32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-          <p style={sectionHeaderStyle}>This Week</p>
-          <button
-            onClick={() => setAddingTask(!addingTask)}
-            style={{
-              background: "rgba(59,130,246,0.12)",
-              border: "1px solid rgba(59,130,246,0.25)",
-              borderRadius: "8px",
-              padding: "4px 12px",
-              color: "#60a5fa",
-              fontSize: "12px",
-              cursor: "pointer",
-              fontFamily: "system-ui",
-            }}
-          >
-            {addingTask ? "Cancel" : "+ Add task"}
-          </button>
-        </div>
+        <p style={sectionHeaderStyle}>This Week</p>
 
 
 
