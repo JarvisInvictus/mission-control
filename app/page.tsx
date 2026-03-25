@@ -2267,7 +2267,7 @@ export default function Home() {
             </div>
             {actionPanel === "menu" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <button onClick={() => { setActionPanel(null); onClientClick(client); }}
+                <button onClick={() => { setActionPanel(null); onClientClick(selectedClient); }}
                   style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
                   👤 View Profile
                 </button>
