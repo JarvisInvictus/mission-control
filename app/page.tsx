@@ -89,6 +89,7 @@ export interface Client {
   lastUpdated?: string;
   notes?: string;
   checkInDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  _forceCancelled?: boolean;
 }
 
 export interface Lead {
@@ -2096,6 +2097,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 ) : (
                   dayClients.map((client) => {
                     const status = getStatus(client.id);
+                    const displayStatus = client._forceCancelled ? "cancelled" : (status ?? null);
                     const isSelected = selectedClientId === client.id;
                     return (
                       <div key={client.id} style={{
@@ -2128,7 +2130,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                           >
                             {client.name}
                           </span>
-                          <StatusBadge clientId={client.id} status={status} />
+                          <StatusBadge clientId={client.id} status={displayStatus} />
                         </div>
                         {/* Coach */}
                         <span style={{
@@ -3382,26 +3384,90 @@ export default function Home() {
           </div>
         )}
 
-        {/* Cancelled Section */}
+        {/* ── Cancelled Clients ────────────────────────────────────── */}
         {cancelledClients.length > 0 && (
-          <div style={{ marginTop: "20px" }}>
-            <button onClick={() => setShowCancelled(!showCancelled)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", padding: "8px 0" }}>
-              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cancelled ({cancelledClients.length})</span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: "12px", transition: "transform 0.2s", transform: showCancelled ? "rotate(180deg)" : "none" }}>⌄</span>
-            </button>
-            {showCancelled && (
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", overflow: "hidden" }}>
-                <table style={{ width: "100%" }}>
-                  <tbody>
-                    {cancelledClients.map(client => (
-                      <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>{client.name}</td>
-                        <td style={{ padding: "10px 16px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)" }}>{statusPill(client)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            marginTop: '12px',
+          }}>
+            <div
+              onClick={() => setShowCancelled(s => !s)}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                borderBottom: showCancelled ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                padding: '14px 20px',
+                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: 'system-ui', fontSize: '11px', color: 'rgba(248,113,113,0.60)', textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '2px' }}>
+                  Retention
+                </div>
+                <div style={{ fontFamily: 'system-ui', fontSize: '15px', fontWeight: 700, color: 'rgba(248,113,113,0.85)' }}>
+                  Cancelled Clients — {cancelledClients.length}
+                </div>
               </div>
+              <div style={{ fontFamily: 'system-ui', fontSize: '20px', color: 'rgba(255,255,255,0.35)' }}>
+                {showCancelled ? '▼' : '▶'}
+              </div>
+            </div>
+
+            {showCancelled && (
+              <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
+                  gap: '0',
+                  padding: '10px 20px',
+                  background: 'rgba(255,255,255,0.02)',
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  {['Name', 'Coach', 'Cancelled Date', 'Stage'].map(h => (
+                    <div key={h} style={{ fontFamily: 'system-ui', fontSize: '10px', color: 'rgba(255,255,255,0.30)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                      {h}
+                    </div>
+                  ))}
+                </div>
+
+                {cancelledClients.map(client => (
+                  <div
+                    key={client.id}
+                    onClick={() => { setSelectedClient(client); setActionPanel('menu'); }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
+                      gap: '0',
+                      padding: '11px 20px',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
+                    <div style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.70)', fontWeight: 500 }}>
+                      {client.name}
+                    </div>
+                    <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>
+                      {client.coach}
+                    </div>
+                    <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(248,113,113,0.55)' }}>
+                      {client.lastUpdated ? new Date(client.lastUpdated).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </div>
+                    <div>
+                      <span style={{ background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '999px', padding: '1px 8px', fontSize: '10px', fontFamily: 'system-ui', fontWeight: 500 }}>
+                        Cancelled
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         )}
