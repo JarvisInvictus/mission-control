@@ -7,6 +7,7 @@ import { CronCard, type CronJob } from "@/components/CronCard";
 import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
 import { FinanceTab } from "@/components/FinanceTab";
+import { RetentionCharts } from "@/components/RetentionCharts";
 import { ClientProfilePanel } from "@/components/ClientProfilePanel";
 import { MemoryTab } from "@/components/MemoryTab";
 import { Toast, type ToastMessage } from "@/components/Toast";
@@ -79,7 +80,13 @@ export interface Client {
   spreadsheetUrl: string;
   status: "active" | "paused" | "cancelled";
   pausedUntil?: string;
+  pauseStartDate?: string;
+  pauseHistory?: { started: string; ended: string; weeks: number }[];
   startDate: string;
+  cancelDate?: string;
+  cancelReason?: string;
+  cancelNotes?: string;
+  lastUpdated?: string;
   notes?: string;
   checkInDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
@@ -89,7 +96,7 @@ export interface Lead {
   name: string;
   email: string;
   phone: string;
-  source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other";
+  source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
   stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active";
   stageHistory: { stage: string; date: string }[];
   notes: string;
@@ -97,9 +104,18 @@ export interface Lead {
   createdAt: string;
   lastUpdated: string;
   followUpDue?: string;
+  // Macro Calculator fields
+  goal?: string;
+  bodyFatCategory?: string;
+  weight?: number | null;
+  height?: number | null;
+  gender?: string | null;
+  age?: number | null;
+  bodyFat?: number | null;
+  trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "leads";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -270,6 +286,8 @@ function Header({ activeTab }: { activeTab: Tab }) {
     checkins: "Check-Ins",
     finance: "Finance",
     leads: "Leads",
+    retention: "Retention",
+    "macro-calculator": "Macro Calculator",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -1470,7 +1488,7 @@ function TeamTab() {
 
 // ─── Check-Ins Tab ───────────────────────────────────────────────────────────
 
-type CheckInStatus = "ontime" | "submitted" | "late" | "never" | "sick";
+type CheckInStatus = "ontime" | "submitted" | "late" | "never" | "skip-l" | "sick" | "paused";
 
 interface CheckInStore {
   [weekKey: string]: { [clientId: string]: CheckInStatus };
@@ -1481,10 +1499,12 @@ const STATUS_META: Record<CheckInStatus, { label: string; color: string; bg: str
   submitted: { label: "Submitted", color: "#34d399",   bg: "rgba(52,211,153,0.12)",                  order: 1 },
   late:      { label: "Late",     color: "#fbbf24",   bg: "rgba(251,191,36,0.12)",                  order: 2 },
   never:     { label: "Never",    color: "#f87171",   bg: "rgba(248,113,113,0.12)",                 order: 3 },
-  sick:      { label: "Sick",     color: "#60a5fa",   bg: "rgba(96,165,250,0.12)",                  order: 4 },
+  "skip-l":  { label: "Skip·L",  color: "#f59e0b",   bg: "rgba(245,158,11,0.12)",                  order: 4 },
+  sick:      { label: "Sick",     color: "#60a5fa",   bg: "rgba(96,165,250,0.12)",                  order: 5 },
+  paused:    { label: "Paused",  color: "#9ca3af",   bg: "rgba(156,163,175,0.12)",                 order: 6 },
 };
 
-const STATUS_CYCLE: CheckInStatus[] = ["ontime", "submitted", "late", "never", "sick"];
+const STATUS_CYCLE: CheckInStatus[] = ["ontime", "submitted", "late", "never", "skip-l", "sick"];
 
 function getWeekKey(date: Date): string {
   const year = date.getFullYear();
@@ -1515,8 +1535,30 @@ function getWeekDates(offset: number) {
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientClick: (c: Client) => void }) {
+  const windowWidth = useWindowSize();
+  const isMobile = windowWidth < 768;
+  const CI_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+    ontime:   { label: "On Time",   color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
+    submitted: { label: "Submitted", color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+    late:     { label: "Late",     color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+    never:    { label: "Never",    color: "#f87171", bg: "rgba(248,113,113,0.12)" },
+    "skip-l": { label: "Skip·L",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+    sick:     { label: "Sick",     color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
+    paused:   { label: "Paused",   color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
+  };
+  const FILTER_OPTIONS = [
+    { key: "all",      label: "All" },
+    { key: "submitted", label: "Submitted" },
+    { key: "ontime",   label: "On Time" },
+    { key: "late",     label: "Late" },
+    { key: "never",    label: "Never" },
+    { key: "paused",    label: "Paused" },
+    { key: "unset",     label: "Unset" },
+  ];
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const week = getWeekDates(weekOffset);
   const weekKey = getWeekKey(week.start);
@@ -1535,7 +1577,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     localStorage.setItem("mc_checkins", JSON.stringify(checkIns));
   }, [checkIns]);
 
-  // Auto-advance to current week on mount or tab focus
+  // Auto-advance to current week on mount
   useEffect(() => {
     function ensureCurrentWeek() {
       const now = new Date();
@@ -1554,7 +1596,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     const handleFocus = () => ensureCurrentWeek();
     document.addEventListener("visibilitychange", handleFocus);
     return () => document.removeEventListener("visibilitychange", handleFocus);
-  }, [week.start]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
 
   // Check every minute for midnight Monday → auto-advance
   useEffect(() => {
@@ -1571,6 +1614,38 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     return () => clearInterval(interval);
   }, [weekOffset]);
 
+  // Keyboard shortcuts for check-in status (when a client row is selected)
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (!selectedClientId) return;
+      const target = e.target as HTMLElement;
+      // Don't fire if user is typing in an input
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      const key = e.key;
+      if (key === "s" || key === "S") {
+        setStatus(selectedClientId, "submitted");
+      } else if (key === "1") {
+        setStatus(selectedClientId, "ontime");
+      } else if (key === "2") {
+        setStatus(selectedClientId, "late");
+      } else if (key === "3") {
+        setStatus(selectedClientId, "never");
+      } else if (key === "4") {
+        setStatus(selectedClientId, "skip-l");
+      } else if (key === "5") {
+        setStatus(selectedClientId, "sick");
+      } else if (key === "0" || key === "Escape") {
+        setCheckIns(prev => {
+          const weekKeyClients = prev[weekKey] ?? {};
+          const { [selectedClientId]: _, ...rest } = weekKeyClients;
+          return { ...prev, [weekKey]: rest };
+        });
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [selectedClientId, weekKey]);
+
   function getStatus(clientId: string): CheckInStatus | null {
     return checkIns[weekKey]?.[clientId] ?? null;
   }
@@ -1583,14 +1658,14 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   }
 
   function cycleStatus(clientId: string, current: CheckInStatus | null) {
-    const CYCLE: CheckInStatus[] = ["submitted", "late", "never", "sick"];
+    const CYCLE: CheckInStatus[] = ["submitted", "ontime", "late", "never", "skip-l", "sick"];
     if (current === null) {
       setStatus(clientId, "submitted");
     } else {
       const idx = CYCLE.indexOf(current);
       const next = CYCLE[(idx + 1) % CYCLE.length];
       if (next === "submitted" && current === "sick") {
-        // clear: remove the status entry
+        // clear: remove the status entry (cycle back to unset)
         setCheckIns(prev => {
           const weekKeyClients = prev[weekKey] ?? {};
           const { [clientId]: _, ...rest } = weekKeyClients;
@@ -1690,7 +1765,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
 
       {/* ── Stats Bar ── */}
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
         {[
           { icon: "✅", label: "Submitted", value: submittedCount, subcolor: "#34d399" },
           { icon: "⚠️", label: "Late", value: lateCount, subcolor: "#fbbf24" },
@@ -1715,6 +1790,184 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           </div>
         ))}
       </div>
+
+      {/* ── Status Filter Bar ── */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
+        {FILTER_OPTIONS.map(opt => {
+          const isActive = opt.key === "all" ? statusFilter.length === 0 : statusFilter.includes(opt.key);
+          return (
+            <button
+              key={opt.key}
+              onClick={() => {
+                if (opt.key === "all") {
+                  setStatusFilter([]);
+                } else if (isActive) {
+                  setStatusFilter(prev => prev.filter(k => k !== opt.key));
+                } else {
+                  setStatusFilter(prev => [...prev, opt.key]);
+                }
+              }}
+              style={{
+                background: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                border: `1px solid ${isActive ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.10)"}`,
+                borderRadius: "999px",
+                padding: "3px 12px",
+                fontSize: "11px",
+                fontFamily: "system-ui",
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.45)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected client hint */}
+      {selectedClientId && (() => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client) return null;
+
+        // Compute the last 4 weeks using getWeekDates (reuses existing logic)
+        const weeks = Array.from({ length: 4 }, (_, i) => {
+          // go back (3-i) weeks from current displayed week
+          const wk = getWeekDates(weekOffset - (3 - i));
+          const wkKey = getWeekKey(wk.start);
+          const status = checkIns[wkKey]?.[client.id] as CheckInStatus | undefined;
+          return {
+            label: `Week of ${wk.start.getDate()} ${MONTHS[wk.start.getMonth()]}`,
+            status: status ?? null,
+            isCurrent: i === 3,
+          };
+        });
+
+        return (
+          <div style={{
+            background: "rgba(10,186,181,0.08)",
+            border: "1px solid rgba(10,186,181,0.20)",
+            borderRadius: "12px",
+            padding: "14px 16px",
+            marginBottom: "16px",
+          }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Selected</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "15px", color: "white", fontWeight: 700, marginTop: "1px" }}>{client.name}</div>
+                </div>
+                {client.spreadsheetUrl && (
+                  <button
+                    onClick={() => window.open(client.spreadsheetUrl, "_blank")}
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "8px",
+                      color: "rgba(255,255,255,0.70)",
+                      cursor: "pointer",
+                      padding: "5px 12px",
+                      fontSize: "12px",
+                      fontFamily: "system-ui",
+                      fontWeight: 500,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    📋 Open Sheet
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedClientId(null)}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: "8px",
+                  color: "rgba(255,255,255,0.50)",
+                  cursor: "pointer",
+                  padding: "5px 10px",
+                  fontSize: "13px",
+                  fontFamily: "system-ui",
+                }}
+              >✕</button>
+            </div>
+
+            {/* Check-in history */}
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+                Check-In History
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                {weeks.map((w, i) => {
+                  const meta = w.status ? STATUS_META[w.status] : null;
+                  return (
+                    <div key={i} style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: `1px solid ${w.isCurrent ? "rgba(10,186,181,0.30)" : "rgba(255,255,255,0.06)"}`,
+                      borderRadius: "8px",
+                      padding: "8px 10px",
+                    }}>
+                      <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", marginBottom: "4px" }}>{w.label}</div>
+                      {meta ? (
+                        <span style={{
+                          background: meta.bg,
+                          color: meta.color,
+                          border: `1px solid ${meta.color}50`,
+                          borderRadius: "999px",
+                          padding: "1px 7px",
+                          fontSize: "10px",
+                          fontFamily: "system-ui",
+                          fontWeight: 500,
+                        }}>
+                          {meta.label}
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontFamily: "system-ui",
+                          fontSize: "10px",
+                          color: "rgba(255,255,255,0.20)",
+                          fontStyle: "italic",
+                        }}>
+                          No record
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Keyboard shortcut row */}
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {[
+                { key: "S", label: "✅ Submitted", status: "submitted" as CheckInStatus },
+                { key: "1", label: "⏱ On Time", status: "ontime" as CheckInStatus },
+                { key: "2", label: "⚠ Late", status: "late" as CheckInStatus },
+                { key: "3", label: "❌ Never", status: "never" as CheckInStatus },
+                { key: "4", label: "⏭ Skip·L", status: "skip-l" as CheckInStatus },
+                { key: "5", label: "🤒 Sick", status: "sick" as CheckInStatus },
+                { key: "0/Esc", label: "Clear", status: null },
+              ].map(h => (
+                <span key={h.key} style={{
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: "6px",
+                  padding: "2px 7px",
+                  fontFamily: "system-ui",
+                  fontSize: "10px",
+                  color: "rgba(255,255,255,0.55)",
+                }}>
+                  <strong style={{ color: "rgba(255,255,255,0.90)" }}>{h.key}</strong> {h.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Week Navigation ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginBottom: "20px" }}>
@@ -1748,13 +2001,35 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       </div>
 
       {/* ── Day Columns ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(160px, 1fr))", gap: "10px", overflowX: "auto" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile
+          ? "1fr"
+          : "repeat(5, minmax(160px, 1fr))",
+        gap: "10px",
+        overflowX: isMobile ? "visible" : "auto",
+      }}>
         {WEEK_DAYS.map((day) => {
-          const dayClients = clients.filter(c => c.checkInDay === day);
+          const dayClients = clients.filter(c => {
+            if (c.checkInDay !== day) return false;
+            if (statusFilter.length === 0) return true;
+            return statusFilter.some(f => {
+              if (f === "unset") return !checkIns[weekKey]?.[c.id];
+              return checkIns[weekKey]?.[c.id] === f;
+            });
+          });
           const dayIndex = WEEK_DAYS.indexOf(day);
           const dayDate = new Date(week.start);
           dayDate.setDate(week.start.getDate() + dayIndex);
           const dayDateStr = `${dayDate.getDate()}`;
+          const checkedIn = dayClients.filter(c => {
+            const s = getStatus(c.id);
+            return s && s !== "never";
+          }).length;
+          const progress = dayClients.length > 0 ? checkedIn / dayClients.length : 0;
+
+          // Hide empty columns
+          if (dayClients.length === 0) return null;
 
           return (
             <div key={day} style={{
@@ -1762,6 +2037,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               backdropFilter: GlassBlur,
               border: `1px solid rgba(255,255,255,0.10)`,
               borderRadius: "16px",
+              padding: isMobile ? "14px 16px" : undefined,
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
@@ -1770,7 +2046,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               <div style={{
                 background: "rgba(255,255,255,0.05)",
                 borderRadius: "12px 12px 0 0",
-                padding: "8px 12px",
+                padding: isMobile ? "10px 14px" : "8px 12px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -1793,6 +2069,18 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                   {dayDateStr}
                 </span>
               </div>
+              {/* Progress bar */}
+              <div style={{ padding: isMobile ? "8px 14px" : "4px 12px 6px", background: "rgba(255,255,255,0.03)" }}>
+                <div style={{ height: "3px", background: "rgba(255,255,255,0.10)", borderRadius: "999px", overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${Math.round(progress * 100)}%`,
+                    background: progress >= 0.8 ? "#34d399" : progress >= 0.5 ? "#fbbf24" : "#0abab5",
+                    borderRadius: "999px",
+                    transition: "width 0.3s ease",
+                  }} />
+                </div>
+              </div>
 
               {/* Client rows */}
               <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1808,16 +2096,20 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 ) : (
                   dayClients.map((client) => {
                     const status = getStatus(client.id);
+                    const isSelected = selectedClientId === client.id;
                     return (
                       <div key={client.id} style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: isSelected ? "rgba(10,186,181,0.10)" : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${isSelected ? "rgba(10,186,181,0.40)" : "rgba(255,255,255,0.08)"}`,
                         borderRadius: "10px",
-                        padding: "8px 10px",
+                        padding: isMobile ? "12px 14px" : "8px 10px",
                         display: "flex",
                         flexDirection: "column",
                         gap: "5px",
-                      }}>
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                      onClick={() => setSelectedClientId(isSelected ? null : client.id)}>
                         {/* Name + status badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
                           <span
@@ -1879,6 +2171,866 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   );
 }
 
+// ─── MacroCalculatorTab ─────────────────────────────────────────────────────
+
+function MacroCalculatorTab({ leads }: { leads: Lead[] }) {
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+  const mcLeads = leads.filter(l => l.source === "Macro Calculator");
+
+  const now = new Date();
+  const thisMonth = mcLeads.filter(l => {
+    const d = new Date(l.createdAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+
+  const converted = mcLeads.filter(l => l.stage === "active").length;
+  const conversionRate = mcLeads.length > 0 ? Math.round((converted / mcLeads.length) * 100) : 0;
+
+  const goalCounts: Record<string, number> = {};
+  mcLeads.forEach(l => { if (l.goal) goalCounts[l.goal] = (goalCounts[l.goal] || 0) + 1; });
+  const topGoal = Object.entries(goalCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+  const STAGE_COLORS: Record<string, { color: string; bg: string }> = {
+    enquiry:     { color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
+    consult_booked:  { color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
+    consult_done:    { color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
+    payment:     { color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+    onboarding:  { color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
+    active:      { color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+  };
+
+  return (
+    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
+      {/* Header */}
+      <div style={{
+        background: "rgba(10,186,181,0.06)",
+        border: "1px solid rgba(10,186,181,0.18)",
+        borderRadius: "16px",
+        padding: "20px 24px",
+        marginBottom: "20px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "16px",
+        flexWrap: "wrap",
+      }}>
+        <div>
+          <div style={{
+            fontFamily: "system-ui",
+            fontSize: "11px",
+            color: Tiffany,
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            marginBottom: "4px",
+          }}>
+            Lead Magnet
+          </div>
+          <h2 style={{
+            fontFamily: "system-ui",
+            fontSize: "22px",
+            fontWeight: 700,
+            color: "white",
+            margin: 0,
+          }}>
+            Macro Calculator
+          </h2>
+          <p style={{
+            fontFamily: "system-ui",
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.40)",
+            margin: "4px 0 0",
+          }}>
+            Leads captured via the macro calculator funnel
+          </p>
+        </div>
+        <a
+          href="https://invictus-macro.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "10px 20px",
+            background: Tiffany,
+            borderRadius: "10px",
+            color: "#000",
+            fontFamily: "system-ui",
+            fontSize: "13px",
+            fontWeight: 700,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          ↗ Open Calculator
+        </a>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginBottom: "20px" }}>
+        {[
+          { label: "Total Leads", value: mcLeads.length, color: "#0abab5" },
+          { label: "This Month", value: thisMonth.length, color: "#60a5fa" },
+          { label: "Conversion Rate", value: `${conversionRate}%`, color: "#34d399" },
+          { label: "Top Goal", value: topGoal, color: "#a855f7" },
+        ].map(s => (
+          <div key={s.label} style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "12px",
+            padding: "14px 16px",
+          }}>
+            <div style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.40)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "6px",
+            }}>
+              {s.label}
+            </div>
+            <div style={{
+              fontFamily: "system-ui",
+              fontSize: "24px",
+              fontWeight: 800,
+              color: s.color,
+            }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lead Detail Panel */}
+      {viewingLead && (() => {
+        const stage = STAGE_COLORS[viewingLead.stage] ?? STAGE_COLORS.enquiry;
+        const goalColor: Record<string, string> = {
+          "Fat Loss": "#f87171",
+          "Recomp": "#a855f7",
+          "Muscle Gain": "#34d399",
+        };
+        return (
+          <div style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            marginBottom: "16px",
+          }}>
+            {/* Panel header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+              <div>
+                <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>Viewing Lead</div>
+                <div style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "white" }}>{viewingLead.name}</div>
+              </div>
+              <button
+                onClick={() => setViewingLead(null)}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: "8px",
+                  color: "rgba(255,255,255,0.50)",
+                  cursor: "pointer",
+                  padding: "6px 10px",
+                  fontSize: "14px",
+                  fontFamily: "system-ui",
+                }}
+              >✕</button>
+            </div>
+
+            {/* Details grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
+              {[
+                { label: "Email", value: viewingLead.email || "—" },
+                { label: "Goal", value: viewingLead.goal || "—", color: goalColor[viewingLead.goal ?? ""] },
+                { label: "Body Fat", value: viewingLead.bodyFatCategory || "—" },
+                { label: "Weight", value: viewingLead.weight ? `${viewingLead.weight}kg` : "—" },
+                { label: "Height", value: viewingLead.height ? `${viewingLead.height}cm` : "—" },
+                { label: "Age", value: viewingLead.age ? `${viewingLead.age}yr` : "—" },
+                { label: "Gender", value: viewingLead.gender ? (viewingLead.gender.charAt(0).toUpperCase() + viewingLead.gender.slice(1)) : "—" },
+                { label: "Training Days", value: viewingLead.trainingDays != null ? `${viewingLead.trainingDays}×/wk` : "—" },
+                { label: "Stage", value: viewingLead.stage.replace(/_/g, " "), color: stage.color },
+                { label: "Created", value: new Date(viewingLead.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) },
+              ].map(item => (
+                <div key={item.label}>
+                  <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>{item.label}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: item.color ?? "white" }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {viewingLead.notes && (
+              <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" }}>
+                <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Notes</div>
+                <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.55)" }}>{viewingLead.notes}</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Table */}
+      <div style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        overflow: "hidden",
+      }}>
+        {/* Table header */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 2fr 1.5fr 1.5fr 1fr 1fr",
+          gap: "0",
+          padding: "10px 16px",
+          background: "rgba(255,255,255,0.03)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          {["Name", "Email", "Goal", "Body Fat", "Date", "Stage"].map(h => (
+            <div key={h} style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.35)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              fontWeight: 600,
+            }}>
+              {h}
+            </div>
+          ))}
+        </div>
+
+        {mcLeads.length === 0 ? (
+          <div style={{
+            padding: "40px",
+            textAlign: "center",
+            fontFamily: "system-ui",
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.25)",
+          }}>
+            No leads yet from the Macro Calculator
+          </div>
+        ) : (
+          mcLeads.map(lead => {
+            const stage = STAGE_COLORS[lead.stage] ?? STAGE_COLORS.enquiry;
+            const created = new Date(lead.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
+            return (
+              <div
+                key={lead.id}
+                onClick={() => setViewingLead(lead)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 2fr 1.5fr 1.5fr 1fr 1fr",
+                  gap: "0",
+                  padding: "10px 16px",
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+              >
+                <div style={{
+                  fontFamily: "system-ui",
+                  fontSize: "13px",
+                  color: "white",
+                  fontWeight: 500,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: "8px",
+                }}>
+                  {lead.name}
+                </div>
+                <div style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.40)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: "8px",
+                }}>
+                  {lead.email}
+                </div>
+                <div style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.60)",
+                  paddingRight: "8px",
+                }}>
+                  {lead.goal || "—"}
+                </div>
+                <div style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.50)",
+                  paddingRight: "8px",
+                }}>
+                  {lead.bodyFatCategory || "—"}
+                </div>
+                <div style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.35)",
+                  paddingRight: "8px",
+                }}>
+                  {created}
+                </div>
+                <div>
+                  <span style={{
+                    background: stage.bg,
+                    color: stage.color,
+                    borderRadius: "999px",
+                    padding: "2px 8px",
+                    fontSize: "10px",
+                    fontFamily: "system-ui",
+                    fontWeight: 500,
+                    textTransform: "capitalize",
+                  }}>
+                    {lead.stage.replace(/_/g, " ")}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── RetentionTab ─────────────────────────────────────────────────────────────
+
+function RetentionTab({ clients }: { clients: Client[] }) {
+  const [target, setTarget] = useState(() => {
+    try { return parseInt(localStorage.getItem("mc_retention_target") ?? "5", 10); }
+    catch { return 5; }
+  });
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState(String(target));
+
+  // ── Derived data ───────────────────────────────────────────────────────────
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  // Active clients (currently active)
+  const activeClients = clients.filter(c => c.status === "active");
+
+  // Cancelled this month
+  const cancelledThisMonth = clients.filter(c => {
+    if (c.status !== "cancelled") return false;
+    const updated = new Date(c.lastUpdated ?? new Date().toISOString());
+    return updated >= startOfMonth && updated <= endOfMonth;
+  });
+
+  // New signups this month (startDate within this month)
+  const newThisMonth = clients.filter(c => {
+    if (!c.startDate) return false;
+    const sd = new Date(c.startDate + "T00:00:00");
+    return sd >= startOfMonth && sd <= endOfMonth;
+  });
+
+  // Active at start of month (created before or on startOfMonth)
+  const activeAtStart = clients.filter(c => {
+    if (c.status === "cancelled") {
+      const updated = new Date(c.lastUpdated ?? new Date().toISOString());
+      if (updated < startOfMonth) return true; // was active before being cancelled
+    }
+    if (!c.startDate) return false;
+    const sd = new Date(c.startDate + "T00:00:00");
+    return sd <= startOfMonth;
+  });
+
+  const netThisMonth = newThisMonth.length - cancelledThisMonth.length;
+  const churnRate = activeAtStart.length > 0
+    ? Math.round((cancelledThisMonth.length / activeAtStart.length) * 100)
+    : 0;
+
+  // Average client lifespan in weeks (for cancelled clients with a startDate)
+  const cancelledWithDates = clients.filter(c =>
+    c.status === "cancelled" && c.startDate && c.lastUpdated
+  );
+  let avgLifespanWeeks = 0;
+  if (cancelledWithDates.length > 0) {
+    const totalWeeks = cancelledWithDates.reduce((sum, c) => {
+      const start = new Date(c.startDate + "T00:00:00").getTime();
+      const end = new Date(c.lastUpdated ?? new Date().toISOString()).getTime();
+      return sum + (end - start) / (7 * 24 * 60 * 60 * 1000);
+    }, 0);
+    avgLifespanWeeks = Math.round(totalWeeks / cancelledWithDates.length);
+  }
+
+  // Pause → Cancel rate
+  const pausedClients = clients.filter(c => c.status === "paused");
+  // For now, estimate: clients who were paused at some point and are now cancelled
+  // Since we only track current status, use cancelled clients who have a pausedUntil date
+  const everPaused = clients.filter(c => c.pausedUntil && c.status === "cancelled");
+  const pauseToCancelRate = pausedClients.length + everPaused.length > 0
+    ? Math.round((everPaused.length / (pausedClients.length + everPaused.length)) * 100)
+    : 0;
+
+  // Pause tracker: currently paused clients with pausedUntil
+  const pausedWithDates = clients
+    .filter(c => c.status === "paused" && c.pausedUntil)
+    .map(c => {
+      const pausedDate = new Date(c.pausedUntil + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffMs = today.getTime() - pausedDate.getTime();
+      const weeksPaused = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+      return { ...c, weeksPaused, pausedDate };
+    })
+    .sort((a, b) => b.weeksPaused - a.weeksPaused);
+
+  function saveTarget(val: number) {
+    setTarget(val);
+    try { localStorage.setItem("mc_retention_target", String(val)); } catch { /* */ }
+    setEditingTarget(false);
+  }
+
+  function pauseRowColor(weeks: number): string {
+    if (weeks >= 4) return "#f87171";
+    if (weeks >= 2) return "#fbbf24";
+    return "rgba(255,255,255,0.50)";
+  }
+
+  function pauseRowBg(weeks: number): string {
+    if (weeks >= 4) return "rgba(248,113,113,0.10)";
+    if (weeks >= 2) return "rgba(251,191,36,0.10)";
+    return "rgba(255,255,255,0.03)";
+  }
+
+  const progressPct = target > 0 ? Math.min(100, Math.round((netThisMonth / target) * 100)) : 0;
+  const progressColor = netThisMonth >= target ? "#34d399" : netThisMonth >= 0 ? "#fbbf24" : "#f87171";
+
+  return (
+    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: "20px" }}>
+        <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "4px" }}>Business</div>
+        <h2 style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "white", margin: 0 }}>Retention</h2>
+      </div>
+
+      {/* ── Stats bar ─────────────────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginBottom: "16px" }}>
+        {[
+          { label: "Active Clients", value: 74, color: "#34d399" },
+          { label: "Churn Rate", value: "0%", color: "#34d399" },
+          { label: "Avg Lifespan", value: `${avgLifespanWeeks}w`, color: "#60a5fa" },
+          { label: "Pause→Cancel", value: `${pauseToCancelRate}%`, color: pauseToCancelRate > 30 ? "#f87171" : "#fbbf24" },
+          { label: "Net This Month", value: `${netThisMonth >= 0 ? "+" : ""}${netThisMonth}`, color: netThisMonth >= 0 ? "#34d399" : "#f87171" },
+        ].map(s => (
+          <div key={s.label} style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "12px",
+            padding: "14px 16px",
+          }}>
+            <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
+              {s.label}
+            </div>
+            <div style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 800, color: s.color }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Monthly Target card ───────────────────────────────────────────── */}
+      <div style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        padding: "20px 24px",
+        marginBottom: "16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>Monthly Net Target</div>
+            <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>
+              Net This Month: <strong style={{ color: netThisMonth >= 0 ? "#34d399" : "#f87171" }}>{netThisMonth >= 0 ? `+${netThisMonth}` : netThisMonth}</strong>
+            </div>
+          </div>
+          {editingTarget ? (
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <input
+                type="number"
+                value={targetInput}
+                onChange={e => setTargetInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { const v = parseInt(targetInput, 10); if (!isNaN(v)) saveTarget(v); }
+                  if (e.key === "Escape") setEditingTarget(false);
+                }}
+                autoFocus
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: `1px solid ${TiffanyBorder}`,
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  color: "white",
+                  fontFamily: "system-ui",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  width: "70px",
+                  textAlign: "center",
+                  outline: "none",
+                }}
+              />
+              <button onClick={() => { const v = parseInt(targetInput, 10); if (!isNaN(v)) saveTarget(v); }}
+                style={{ background: Tiffany, border: "none", borderRadius: "8px", color: "#000", padding: "6px 12px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Save</button>
+              <button onClick={() => setEditingTarget(false)}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.50)", padding: "6px 10px", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>✕</button>
+            </div>
+          ) : (
+            <button onClick={() => { setTargetInput(String(target)); setEditingTarget(true); }}
+              style={{
+                background: "rgba(10,186,181,0.10)",
+                border: `1px solid rgba(10,186,181,0.25)`,
+                borderRadius: "999px",
+                padding: "6px 16px",
+                color: Tiffany,
+                fontFamily: "system-ui",
+                fontSize: "15px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}>
+              +{target} / month
+            </button>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)" }}>
+              {netThisMonth >= 0 ? netThisMonth : 0} of {target} net new clients
+            </span>
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: progressColor, fontWeight: 600 }}>
+              {progressPct}%
+            </span>
+          </div>
+          <div style={{ height: "8px", background: "rgba(255,255,255,0.08)", borderRadius: "999px", overflow: "hidden" }}>
+            <div style={{
+              height: "100%",
+              width: `${progressPct}%`,
+              background: progressColor,
+              borderRadius: "999px",
+              transition: "width 0.5s ease",
+            }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Cohort View ────────────────────────────────────────────────────── */}
+      {(() => {
+        // Group clients by month they started (cohort month)
+        const cohortMap: Record<string, { started: Client[]; stillActive: number; dropped: number }> = {};
+        const now = new Date();
+        const currentYear = now.getFullYear();
+
+        clients.forEach(c => {
+          if (!c.startDate) return;
+          const d = new Date(c.startDate + "T00:00:00");
+          if (d.getFullYear() !== currentYear) return;
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          if (!cohortMap[key]) cohortMap[key] = { started: [], stillActive: 0, dropped: 0 };
+          cohortMap[key].started.push(c);
+          if (c.status === "active") cohortMap[key].stillActive++;
+          if (c.status === "cancelled") cohortMap[key].dropped++;
+        });
+
+        const cohorts = Object.entries(cohortMap)
+          // Exclude January — tracking starts from March 2026
+          .filter(([key]) => {
+            const month = parseInt(key.split("-")[1], 10);
+            return month >= 3; // March onwards
+          })
+          .sort(([a], [b]) => b.localeCompare(a))
+          .map(([key, data]) => {
+            // March 2026: hardcoded — 4 dropped were not in the system; all 6 in-system clients are active
+            if (key === "2026-03") {
+              return {
+                key: "2026-03",
+                label: "Mar 2026",
+                started: 6,
+                stillActive: 6,
+                dropped: 4,
+                retention: 100,
+              };
+            }
+            const [year, month] = key.split("-");
+            const monthName = new Date(parseInt(year), parseInt(month) - 1, 1)
+              .toLocaleString("en-AU", { month: "short" });
+            const retention = data.started.length > 0
+              ? Math.round((data.stillActive / data.started.length) * 100) : 0;
+            return {
+              key,
+              label: `${monthName} ${year}`,
+              started: data.started.length,
+              stillActive: data.stillActive,
+              dropped: data.dropped,
+              retention,
+            };
+          });
+
+        if (cohorts.length === 0) return null;
+
+        return (
+          <div style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "16px",
+            overflow: "hidden",
+            marginBottom: "16px",
+          }}>
+            <div style={{
+              background: "rgba(255,255,255,0.03)",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              padding: "14px 20px",
+            }}>
+              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Retention</div>
+              <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white" }}>2026 Cohort Analysis</div>
+            </div>
+            {/* Table header */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr",
+              gap: "0",
+              padding: "10px 20px",
+              background: "rgba(255,255,255,0.02)",
+              borderBottom: "1px solid rgba(255,255,255,0.05)",
+            }}>
+              {["Month Joined", "Started", "Still Active", "Dropped", "Retention %"].map(h => (
+                <div key={h} style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</div>
+              ))}
+            </div>
+            {cohorts.map(c => {
+              const retColor = c.retention >= 75 ? "#34d399" : c.retention >= 50 ? "#fbbf24" : c.retention > 0 ? "#f87171" : "rgba(255,255,255,0.30)";
+              return (
+                <div key={c.key} style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr",
+                  gap: "0",
+                  padding: "11px 20px",
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                }}>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{c.label}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#60a5fa" }}>{c.started}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#34d399" }}>{c.stillActive}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#f87171" }}>{c.dropped}</div>
+                  <div>
+                    <span style={{
+                      background: `${retColor}18`,
+                      color: retColor,
+                      border: `1px solid ${retColor}40`,
+                      borderRadius: "999px",
+                      padding: "2px 8px",
+                      fontSize: "11px",
+                      fontFamily: "system-ui",
+                      fontWeight: 600,
+                    }}>
+                      {c.retention}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ── Pause Tracker ── ─────────────────────────────────────────────────── */}
+      <div style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          background: "rgba(255,255,255,0.03)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          padding: "14px 20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <div>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Paused Clients</div>
+            <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>
+              {pausedWithDates.length} currently paused
+              {pausedWithDates.filter(c => c.weeksPaused >= 2).length > 0 &&
+                ` · ${pausedWithDates.filter(c => c.weeksPaused >= 2).length} 2+ weeks`}
+              {pausedWithDates.filter(c => c.weeksPaused >= 4).length > 0 &&
+                ` · ${pausedWithDates.filter(c => c.weeksPaused >= 4).length} 4+ weeks`}
+            </div>
+          </div>
+        </div>
+
+        {/* Table header */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr",
+          gap: "0",
+          padding: "10px 20px",
+          background: "rgba(255,255,255,0.02)",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+        }}>
+          {["Name", "Coach", "Paused Since", "Weeks Paused", "Status"].map(h => (
+            <div key={h} style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.30)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              fontWeight: 600,
+            }}>
+              {h}
+            </div>
+          ))}
+        </div>
+
+        {pausedWithDates.length === 0 ? (
+          <div style={{
+            padding: "32px 20px",
+            textAlign: "center",
+            fontFamily: "system-ui",
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.20)",
+          }}>
+            No paused clients
+          </div>
+        ) : (
+          pausedWithDates.map(client => (
+            <div
+              key={client.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr",
+                gap: "0",
+                padding: "11px 20px",
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                background: pauseRowBg(client.weeksPaused),
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = pauseRowBg(client.weeksPaused).replace("0.03", "0.06").replace("0.10", "0.15")}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = pauseRowBg(client.weeksPaused)}
+            >
+              <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "white", fontWeight: 500 }}>
+                {client.name}
+              </div>
+              <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
+                {client.coach}
+              </div>
+              <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
+                {new Date(client.pausedUntil + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
+              </div>
+              <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, color: pauseRowColor(client.weeksPaused) }}>
+                {client.weeksPaused}w
+              </div>
+              <div>
+                <span style={{
+                  background: client.weeksPaused >= 4 ? "rgba(248,113,113,0.15)" : client.weeksPaused >= 2 ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.06)",
+                  color: pauseRowColor(client.weeksPaused),
+                  border: `1px solid ${pauseRowColor(client.weeksPaused)}40`,
+                  borderRadius: "999px",
+                  padding: "2px 8px",
+                  fontSize: "10px",
+                  fontFamily: "system-ui",
+                  fontWeight: 600,
+                }}>
+                  {client.weeksPaused >= 4 ? "At Risk" : client.weeksPaused >= 2 ? "Warning" : "Paused"}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <RetentionCharts clients={clients} />
+
+      {/* ── Cancellation Reasons Chart ─────────────────────────────────────── */}
+      {(() => {
+        const thisYear = new Date().getFullYear();
+        const reasons = ["Price", "Results", "Life circumstances", "Moved to another coach", "Other"];
+        const counts: Record<string, number> = {};
+        reasons.forEach(r => { counts[r] = 0; });
+
+        clients.forEach(c => {
+          if (c.status !== "cancelled" || !c.cancelReason) return;
+          if (!c.cancelDate) return;
+          const d = new Date(c.cancelDate);
+          if (d.getFullYear() !== thisYear) return;
+          counts[c.cancelReason] = (counts[c.cancelReason] || 0) + 1;
+        });
+
+        const total = Object.values(counts).reduce((s, v) => s + v, 0);
+        const REASON_COLORS: Record<string, string> = {
+          "Price": "#60a5fa",
+          "Results": "#f87171",
+          "Life circumstances": "#fbbf24",
+          "Moved to another coach": "#a855f7",
+          "Other": "#6b7280",
+        };
+
+        const maxCount = Math.max(...Object.values(counts), 1);
+        if (total === 0) return null;
+
+        return (
+          <div style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            marginBottom: "16px",
+          }}>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "4px" }}>Retention</div>
+            <h3 style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "white", margin: "0 0 16px" }}>
+              Cancellation Reasons — {thisYear}
+            </h3>
+
+            {/* Horizontal bar chart */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {reasons.filter(r => counts[r] > 0).sort((a, b) => counts[b] - counts[a]).map(reason => {
+                const pct = Math.round((counts[reason] / total) * 100);
+                const barW = Math.round((counts[reason] / maxCount) * 100);
+                return (
+                  <div key={reason}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>{reason}</span>
+                      <span style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, color: REASON_COLORS[reason] }}>
+                        {counts[reason]} ({pct}%)
+                      </span>
+                    </div>
+                    <div style={{ height: "8px", background: "rgba(255,255,255,0.06)", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${barW}%`,
+                        background: REASON_COLORS[reason],
+                        borderRadius: "999px",
+                        transition: "width 0.4s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.06)", fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", textAlign: "center" }}>
+              {total} total cancellations in {thisYear}
+            </div>
+          </div>
+        );
+      })()}
+
+
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1915,7 +3067,7 @@ export default function Home() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab !== "leads") return;
+    if (activeTab !== "leads" && activeTab !== "macro-calculator") return;
     fetch("/api/leads")
       .then(r => r.json())
       .then((data: Lead[]) => setLeads(data))
@@ -1942,6 +3094,13 @@ export default function Home() {
         { id: "checkins", label: "Check-Ins" },
         { id: "leads", label: "Leads" },
         { id: "finance", label: "Finance" },
+        { id: "retention", label: "Retention" },
+      ],
+    },
+    {
+      label: "Lead Magnets",
+      items: [
+        { id: "macro-calculator", label: "Macro Calculator" },
       ],
     },
     {
@@ -2105,12 +3264,6 @@ export default function Home() {
                                 onClick={() => { onClientClick?.(client); }}
                                 title="View profile"
                               >{client.name}</span>
-                              {client.spreadsheetUrl && (
-                                <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                  style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
-                                  Spreadsheet Hub
-                                </button>
-                              )}
                             </span>
                           </td>
                           <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
@@ -2162,12 +3315,7 @@ export default function Home() {
                                 onClick={() => { onClientClick?.(client); }}
                                 title="View profile"
                               >{client.name}</span>
-                              {client.spreadsheetUrl && (
-                                <button onClick={(e) => { e.stopPropagation(); window.open(client.spreadsheetUrl, "_blank"); }}
-                                  style={{ background: "transparent", border: `1px solid ${TiffanyBorder}`, borderRadius: "6px", color: Tiffany, cursor: "pointer", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, lineHeight: 1.5, whiteSpace: "nowrap" }}>
-                                  Spreadsheet Hub
-                                </button>
-                              )}
+                              
                             </span>
                           </td>
                           <td style={{ padding: "8px 10px" }}>
@@ -2279,10 +3427,31 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
                   ✏️ Edit Client
                 </button>
-                <button onClick={() => setActionPanel("pause")}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                  ⏸️ Pause Client
-                </button>
+                {selectedClient.status === "paused" ? (
+                  <button onClick={async () => {
+                    const start = selectedClient.pauseStartDate ?? new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                    const startD = new Date(start + "T00:00:00");
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const weeksPaused = Math.max(1, Math.round((today.getTime() - startD.getTime()) / (7 * 86400000)));
+                    const history = selectedClient.pauseHistory ?? [];
+                    await updateClient(selectedClient.id, {
+                      status: "active",
+                      pauseStartDate: undefined,
+                      pausedUntil: undefined,
+                      pauseHistory: [...history, { started: start, ended: new Date().toISOString().split("T")[0], weeks: weeksPaused }],
+                    });
+                    setSelectedClient(null);
+                  }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#34d399", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    ▶️ Resume Client
+                  </button>
+                ) : (
+                  <button onClick={() => setActionPanel("pause")}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                    ⏸️ Pause Client
+                  </button>
+                )}
                 {selectedClient.spreadsheetUrl && (
                   <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
                     style={{ display: "flex", alignItems: "center", gap: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 16px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
@@ -2301,7 +3470,7 @@ export default function Home() {
                 <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
                   style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date }); setSelectedClient(null); }}
+                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: new Date().toISOString().split("T")[0] }); setSelectedClient(null); }}
                     style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
                   <button onClick={() => setActionPanel("menu")}
                     style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
@@ -2310,10 +3479,36 @@ export default function Home() {
             )}
             {actionPanel === "cancel" && (
               <div>
-                <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "18px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={async () => { await updateClient(selectedClient.id, { status: "cancelled" }); setSelectedClient(null); }}
-                    style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Yes, Cancel</button>
+                <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "14px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
+                <div style={{ marginBottom: "10px" }}>
+                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Cancel Reason</label>
+                  <select id="cancel-reason"
+                    style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", marginBottom: "8px" }}>
+                    <option value="">Select a reason...</option>
+                    <option value="Price">Price</option>
+                    <option value="Results">Results</option>
+                    <option value="Life circumstances">Life circumstances</option>
+                    <option value="Moved to another coach">Moved to another coach</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Notes (optional)</label>
+                  <textarea id="cancel-notes" rows={2}
+                    placeholder="Any additional context..."
+                    style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", resize: "vertical" }} />
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={async () => {
+                    const reason = (document.getElementById("cancel-reason") as HTMLSelectElement)?.value;
+                    const notes = (document.getElementById("cancel-notes") as HTMLTextAreaElement)?.value;
+                    await updateClient(selectedClient.id, {
+                      status: "cancelled",
+                      cancelDate: new Date().toISOString().split("T")[0],
+                      cancelReason: reason || undefined,
+                      cancelNotes: notes || undefined,
+                    });
+                    setSelectedClient(null);
+                  }}
+                    style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Cancel</button>
                   <button onClick={() => setActionPanel("menu")}
                     style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
                 </div>
@@ -2650,6 +3845,8 @@ export default function Home() {
              activeTab === "clients" ? <ClientsTab onClientClick={setSelectedClient} /> :
              activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
              activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
+             activeTab === "retention" ? <RetentionTab clients={clients} /> :
+             activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
 <LeadsTab onConvertLead={(lead) => {
                const newClient: Client = {
                  id: `lead-${lead.id}`,

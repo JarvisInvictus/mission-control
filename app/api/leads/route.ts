@@ -21,14 +21,14 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, email, phone, source, notes, assignedTo } = body;
+  const { name, email, phone, source, notes, assignedTo, goal, bodyFatCategory, weight, height, gender, age, bodyFat, trainingDays } = body;
 
   if (!name) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
-  if (source && !["Instagram", "Referral", "Other"].includes(source)) {
-    return NextResponse.json({ error: "source must be Instagram, Referral, or Other" }, { status: 400 });
+  if (source && !["referral", "instagram", "facebook", "content", "cold", "other", "Macro Calculator"].includes(source)) {
+    return NextResponse.json({ error: "Invalid source" }, { status: 400 });
   }
 
   if (assignedTo && !["Milzzy", "Miggy"].includes(assignedTo)) {
@@ -41,13 +41,22 @@ export async function POST(req: NextRequest) {
     name: name.trim(),
     email: email?.trim() || "",
     phone: phone?.trim() || "",
-    source: source || "Other",
+    source: source || "other",
     stage: "enquiry",
     stageHistory: [{ stage: "enquiry", date: now }],
     notes: notes?.trim() || "",
     assignedTo: assignedTo || "Milzzy",
     createdAt: now,
     lastUpdated: now,
+    // Macro Calculator fields
+    goal: goal || "",
+    bodyFatCategory: bodyFatCategory || "",
+    weight: weight || null,
+    height: height || null,
+    gender: gender || null,
+    age: age || null,
+    bodyFat: bodyFat || null,
+    trainingDays: trainingDays || null,
   };
 
   const raw = await redis.get("jarvis:leads");
