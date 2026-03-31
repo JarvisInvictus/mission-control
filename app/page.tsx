@@ -1849,11 +1849,13 @@ interface IdeaForPool {
 function AIStudio({
   poolIdeas,
   setPoolIdeas,
+  initialTranscript,
 }: {
   poolIdeas: PoolIdea[];
   setPoolIdeas: React.Dispatch<React.SetStateAction<PoolIdea[]>>;
+  initialTranscript?: string;
 }) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialTranscript ?? "");
   const [generating, setGenerating] = useState(false);
   const [ideas, setIdeas] = useState<IdeaForPool[]>([]);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
@@ -2280,8 +2282,84 @@ function TeamTab() {
 
 // ─── Content Tab ─────────────────────────────────────────────────────────────
 
+// ─── TranscriptsPanel Sub-Tab ─────────────────────────────────────────────────
+
+function TranscriptsPanel({
+  addToStudio,
+  onShowAI,
+}: {
+  addToStudio: (text: string) => void;
+  onShowAI: () => void;
+}) {
+  const [transcripts, setTranscripts] = useState<Record<string, unknown>[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/loom/transcripts")
+      .then(r => r.json())
+      .then(d => setTranscripts(d.transcripts ?? []));
+  }, []);
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" }}>
+        {transcripts.map(t => (
+          <div key={t.id as string} style={{
+            background: GlassBg,
+            border: `1px solid ${expandedId === t.id ? TiffanyBorder : GlassBorder}`,
+            borderRadius: "14px",
+            padding: "14px",
+            cursor: "pointer",
+          }}
+            onClick={() => setExpandedId(expandedId === t.id ? null : (t.id as string))}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.85)", margin: 0, flex: 1 }}>{t.title as string}</p>
+              <span style={{ background: t.type === "checkin" ? `${Tiffany}26` : "rgba(255,255,255,0.08)", color: t.type === "checkin" ? Tiffany : "rgba(255,255,255,0.45)", border: `1px solid ${t.type === "checkin" ? TiffanyBorder : "rgba(255,255,255,0.12)"}`, borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", marginLeft: "8px", flexShrink: 0 }}>
+                {t.type === "checkin" ? "Check-in" : "Other"}
+              </span>
+            </div>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", margin: "0 0 8px" }}>
+              {new Date(t.createdAt as string).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
+            </p>
+            {expandedId !== t.id ? (
+              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {(t.transcript as string)?.slice(0, 120)}...
+              </p>
+            ) : (
+              <>
+                <p style={{ fontFamily: "monospace", fontSize: "11px", color: "rgba(255,255,255,0.55)", margin: "0 0 10px", whiteSpace: "pre-wrap", lineHeight: 1.5, maxHeight: "200px", overflowY: "auto" }}>
+                  {(t.transcript as string) || "No transcript available."}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addToStudio(t.transcript as string);
+                    onShowAI();
+                  }}
+                  style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "8px", padding: "7px 14px", color: Tiffany, fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}
+                >
+                  ✨ Generate Content Ideas
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+        {transcripts.length === 0 && (
+          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.25)", gridColumn: "1/-1", textAlign: "center", padding: "40px" }}>
+            No transcripts yet. Add a Loom webhook in Make to get started.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Content Tab ─────────────────────────────────────────────────────────────
+
 function ContentTab() {
-  const [teamSubTab, setTeamSubTab] = useState<"calendar" | "ai-studio">("calendar");
+  const [contentSubTab, setContentSubTab] = useState<"calendar" | "ai-studio" | "transcripts">("calendar");
+  const [aiTranscript, setAiTranscript] = useState<string>("");
   const [calendarCards, setCalendarCards] = useState<CalendarCard[]>([]);
   const [poolIdeas, setPoolIdeas] = useState<PoolIdea[]>([]);
 
@@ -2306,9 +2384,10 @@ function ContentTab() {
     localStorage.setItem("ip_content_pool", JSON.stringify(poolIdeas));
   }, [poolIdeas]);
 
-  const SUB_TABS: { key: "calendar" | "ai-studio"; label: string; emoji: string }[] = [
-    { key: "calendar",  label: "Calendar",  emoji: "📅" },
-    { key: "ai-studio", label: "AI Studio", emoji: "✨" },
+  const SUB_TABS: { key: "calendar" | "ai-studio" | "transcripts"; label: string; emoji: string }[] = [
+    { key: "calendar",   label: "Calendar",   emoji: "📅" },
+    { key: "ai-studio",  label: "AI Studio",  emoji: "✨" },
+    { key: "transcripts", label: "Transcripts", emoji: "📋" },
   ];
 
   return (
@@ -2325,11 +2404,11 @@ function ContentTab() {
         border: "1px solid rgba(255,255,255,0.06)",
       }}>
         {SUB_TABS.map(tab => {
-          const isActive = teamSubTab === tab.key;
+          const isActive = contentSubTab === tab.key;
           return (
             <button
               key={tab.key}
-              onClick={() => setTeamSubTab(tab.key)}
+              onClick={() => setContentSubTab(tab.key)}
               style={{
                 background: isActive ? Tiffany : "transparent",
                 border: isActive ? "none" : "1px solid rgba(255,255,255,0.12)",
@@ -2367,7 +2446,7 @@ function ContentTab() {
       </div>
 
       {/* Sub-Tab Content */}
-      {teamSubTab === "calendar" && (
+      {contentSubTab === "calendar" && (
         <ContentCalendar
           calendarCards={calendarCards}
           setCalendarCards={setCalendarCards}
@@ -2375,8 +2454,18 @@ function ContentTab() {
           setPoolIdeas={setPoolIdeas}
         />
       )}
-      {teamSubTab === "ai-studio" && (
-        <AIStudio poolIdeas={poolIdeas} setPoolIdeas={setPoolIdeas} />
+      {contentSubTab === "ai-studio" && (
+        <AIStudio
+          poolIdeas={poolIdeas}
+          setPoolIdeas={setPoolIdeas}
+          initialTranscript={aiTranscript || undefined}
+        />
+      )}
+      {contentSubTab === "transcripts" && (
+        <TranscriptsPanel
+          addToStudio={(text) => { setAiTranscript(text); }}
+          onShowAI={() => setContentSubTab("ai-studio")}
+        />
       )}
     </div>
   );
