@@ -21,8 +21,8 @@ export async function POST(request: Request) {
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      system: "You are a content strategist for Invictus Physiques, an online physique coaching brand. Analyse the provided transcript or coaching notes and generate 6–8 content ideas. For each idea return JSON with fields: hook, contentType (Reel/Carousel/Story), platform (Instagram/YouTube), caption. Return only a JSON array, no markdown or preamble.",
+      max_tokens: 2000,
+      system: "You are a content strategist for Invictus Physiques, an online physique coaching brand. Analyse the provided transcript or coaching notes and generate 6–8 content ideas. For each idea return a JSON object with exactly these fields: hook (string), contentType (one of: Reel, Carousel, Story), platform (one of: Instagram, YouTube), caption (string). Return ONLY a valid JSON array of objects — no markdown, no explanation, no preamble, just the raw JSON array.",
       messages: [
         { role: "user", content: transcript }
       ],
@@ -30,29 +30,33 @@ export async function POST(request: Request) {
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
 
-    let ideas = null;
+    let ideas: unknown = null;
+    let raw = text.trim();
 
-    // Strategy 1: try parsing the whole response as-is
-    try { ideas = JSON.parse(text.trim()); } catch {}
+    // Step 1: strip markdown code fences
+    raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
 
-    // Strategy 2: try extracting from markdown code block
+    // Step 2: try direct parse
+    try { ideas = JSON.parse(raw); } catch {}
+
+    // Step 3: try extracting a JSON array (non-greedy, dotall flag)
     if (!ideas || !Array.isArray(ideas)) {
-      const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (match) {
-        try { ideas = JSON.parse(match[1].trim()); } catch {}
+      const m = raw.match(/\[([\s\S]*?)\]/);
+      if (m) {
+        try { ideas = JSON.parse("[" + m[1] + "]"); } catch {}
       }
     }
 
-    // Strategy 3: try finding a JSON array in the text
+    // Step 4: find the first { or [ and parse from there
     if (!ideas || !Array.isArray(ideas)) {
-      const arrMatch = text.match(/\[[\s\S]*\]/);
-      if (arrMatch) {
-        try { ideas = JSON.parse(arrMatch[0]); } catch {}
+      const start = raw.search(/[[{]/);
+      if (start >= 0) {
+        try { ideas = JSON.parse(raw.slice(start)); } catch {}
       }
     }
 
-    if (!ideas || !Array.isArray(ideas)) {
-      return NextResponse.json({ error: "AI returned an unexpected format. Try again with shorter notes." }, { status: 422 });
+    if (!Array.isArray(ideas)) {
+      return NextResponse.json({ error: "AI returned an unexpected format. Try again with shorter or clearer notes." }, { status: 422 });
     }
 
     return NextResponse.json({ ideas });
