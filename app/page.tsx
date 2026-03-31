@@ -1278,8 +1278,851 @@ const TEAM_MEMBERS: TeamMember[] = [
   },
 ];
 
+// ─── Content Calendar Sub-Tab ─────────────────────────────────────────────────
+
+interface CalendarCard {
+  id: string;
+  day: string;
+  assignee: "milzzy" | "miggy";
+  hook: string;
+  contentType: "Reel" | "Carousel" | "Story";
+  platform: "Instagram" | "YouTube";
+  status: "draft" | "filmed" | "posted";
+  fromPool?: boolean;
+}
+
+interface PoolIdea {
+  id: string;
+  hook: string;
+  contentType: "Reel" | "Carousel" | "Story";
+  platform: "Instagram" | "YouTube";
+  scheduled: boolean;
+}
+
+function ContentCalendar({
+  calendarCards,
+  setCalendarCards,
+  poolIdeas,
+  setPoolIdeas,
+}: {
+  calendarCards: CalendarCard[];
+  setCalendarCards: React.Dispatch<React.SetStateAction<CalendarCard[]>>;
+  poolIdeas: PoolIdea[];
+  setPoolIdeas: React.Dispatch<React.SetStateAction<PoolIdea[]>>;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  const [draggingCard, setDraggingCard] = useState<{ type: "pool" | "calendar"; id: string } | null>(null);
+  const [newIdeaText, setNewIdeaText] = useState("");
+  const [newIdeaType, setNewIdeaType] = useState<"Reel" | "Carousel" | "Story">("Reel");
+  const [newIdeaPlatform, setNewIdeaPlatform] = useState<"Instagram" | "YouTube">("Instagram");
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const monthName = currentDate.toLocaleString("en-AU", { month: "long", year: "numeric" });
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Monday = 0 ... Sunday = 6
+  const startDow = (firstDayOfMonth.getDay() + 6) % 7;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const CT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+    Reel:     { bg: "rgba(168,85,247,0.15)", color: "#c084fc", label: "🟣 Reel" },
+    Carousel: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa", label: "🔵 Carousel" },
+    Story:    { bg: "rgba(249,115,22,0.15)", color: "#fb923c", label: "🟠 Story" },
+  };
+
+  function addCalendarCard(day: string, assignee: "milzzy" | "miggy", hook: string, contentType: "Reel" | "Carousel" | "Story", platform: "Instagram" | "YouTube", fromPool = false) {
+    const newCard: CalendarCard = {
+      id: `cc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      day,
+      assignee,
+      hook,
+      contentType,
+      platform,
+      status: "draft",
+      fromPool,
+    };
+    setCalendarCards(prev => [...prev, newCard]);
+  }
+
+  function cycleCardStatus(cardId: string) {
+    const STATUS_CYCLE: CalendarCard["status"][] = ["draft", "filmed", "posted"];
+    setCalendarCards(prev => prev.map(c => {
+      if (c.id !== cardId) return c;
+      const idx = STATUS_CYCLE.indexOf(c.status);
+      return { ...c, status: STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length] };
+    }));
+  }
+
+  function deleteCard(cardId: string) {
+    setCalendarCards(prev => prev.filter(c => c.id !== cardId));
+  }
+
+  function addIdeaToPool() {
+    const hook = newIdeaText.trim();
+    if (!hook) return;
+    const newIdea: PoolIdea = {
+      id: `pool-${Date.now()}`,
+      hook,
+      contentType: newIdeaType,
+      platform: newIdeaPlatform,
+      scheduled: false,
+    };
+    setPoolIdeas(prev => [...prev, newIdea]);
+    setNewIdeaText("");
+  }
+
+  function deletePoolIdea(id: string) {
+    setPoolIdeas(prev => prev.filter(p => p.id !== id));
+    // Also un-schedule any calendar cards that came from this pool idea
+    setCalendarCards(prev => prev.map(c => c.id.startsWith("cc-") ? c : c));
+  }
+
+  function handleDrop(day: string, assignee: "milzzy" | "miggy") {
+    if (!draggingCard) return;
+    const { type, id } = draggingCard;
+    if (type === "pool") {
+      const idea = poolIdeas.find(p => p.id === id);
+      if (idea) {
+        addCalendarCard(day, assignee, idea.hook, idea.contentType, idea.platform, true);
+        setPoolIdeas(prev => prev.map(p => p.id === id ? { ...p, scheduled: true } : p));
+      }
+    } else if (type === "calendar") {
+      // Move card between days/assignees
+      setCalendarCards(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        return { ...c, day, assignee };
+      }));
+    }
+    setDragOverDay(null);
+    setDraggingCard(null);
+  }
+
+  function renderContentCard(card: CalendarCard) {
+    const badge = CT_BADGE[card.contentType];
+    const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
+      draft:  { bg: "rgba(156,163,175,0.15)", color: "#9ca3af" },
+      filmed: { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
+      posted: { bg: "rgba(52,211,153,0.15)",  color: "#34d399" },
+    };
+    const statusStyle = STATUS_STYLE[card.status];
+    return (
+      <div
+        key={card.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", JSON.stringify({ type: "calendar", id: card.id }));
+          setDraggingCard({ type: "calendar", id: card.id });
+        }}
+        onDragEnd={() => { setDraggingCard(null); setDragOverDay(null); }}
+        style={{
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: "8px",
+          padding: "5px 7px",
+          cursor: "grab",
+          display: "flex",
+          flexDirection: "column",
+          gap: "3px",
+          opacity: draggingCard?.id === card.id ? 0.5 : 1,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "4px" }}>
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            <span style={{ background: badge.bg, color: badge.color, borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600 }}>
+              {badge.label}
+            </span>
+            <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui" }}>
+              {card.platform === "Instagram" ? "📷" : "▶️"} {card.platform}
+            </span>
+          </div>
+          <button
+            onClick={() => deleteCard(card.id)}
+            style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", padding: "0", fontSize: "10px", lineHeight: 1, flexShrink: 0 }}
+          >
+            ✕
+          </button>
+        </div>
+        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.80)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {card.hook}
+        </p>
+        <button
+          onClick={() => cycleCardStatus(card.id)}
+          style={{
+            background: statusStyle.bg,
+            color: statusStyle.color,
+            border: `1px solid ${statusStyle.color}50`,
+            borderRadius: "999px",
+            padding: "1px 6px",
+            fontSize: "9px",
+            fontFamily: "system-ui",
+            fontWeight: 600,
+            cursor: "pointer",
+            textAlign: "left",
+            textTransform: "capitalize",
+          }}
+        >
+          {card.status}
+        </button>
+      </div>
+    );
+  }
+
+  // Build weeks: array of arrays of day numbers (0 = empty)
+  const weeks: number[][] = [];
+  let week: number[] = Array(startDow).fill(0);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(0);
+    weeks.push(week);
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "16px", width: "100%" }}>
+      {/* ── Calendar Grid ── */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Month navigation */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <button
+            onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.60)", cursor: "pointer", padding: "6px 12px", fontSize: "14px", fontFamily: "system-ui" }}
+          >
+            ←
+          </button>
+          <h2 style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "white", margin: 0 }}>{monthName}</h2>
+          <button
+            onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.60)", cursor: "pointer", padding: "6px 12px", fontSize: "14px", fontFamily: "system-ui" }}
+          >
+            →
+          </button>
+        </div>
+
+        {/* Day headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "4px" }}>
+          {DAYS_OF_WEEK.map(d => (
+            <div key={d} style={{ textAlign: "center", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, padding: "4px 0" }}>
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {weeks.map((week, wi) => (
+            <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+              {week.map((dayNum, di) => {
+                const dayStr = dayNum > 0
+                  ? `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`
+                  : "";
+                const isToday = dayStr === todayStr;
+                const isDragOver = dragOverDay === dayStr && dayNum > 0;
+                const milzzyCards = calendarCards.filter(c => c.day === dayStr && c.assignee === "milzzy");
+                const miggyCards = calendarCards.filter(c => c.day === dayStr && c.assignee === "miggy");
+
+                return (
+                  <div
+                    key={di}
+                    onDragOver={(e) => {
+                      if (dayNum === 0) return;
+                      e.preventDefault();
+                      setDragOverDay(dayStr);
+                    }}
+                    onDragLeave={() => setDragOverDay(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dayNum === 0) return;
+                      // Read drag data from dataTransfer
+                      try {
+                        const raw = e.dataTransfer.getData("text/plain");
+                        const data = JSON.parse(raw);
+                        setDraggingCard(data);
+                        handleDrop(dayStr, "milzzy");
+                      } catch { /* ignore */ }
+                    }}
+                    style={{
+                      background: isDragOver
+                        ? "rgba(10,186,181,0.10)"
+                        : dayNum === 0
+                        ? "transparent"
+                        : "rgba(255,255,255,0.03)",
+                      border: isDragOver
+                        ? `1px solid ${Tiffany}`
+                        : dayNum === 0
+                        ? "none"
+                        : "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "10px",
+                      minHeight: "100px",
+                      padding: "6px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "3px",
+                      boxShadow: isDragOver ? `0 0 0 1px ${TiffanyBorder}` : "none",
+                      transition: "background 0.15s, box-shadow 0.15s",
+                      position: "relative",
+                    }}
+                  >
+                    {dayNum > 0 && (
+                      <span style={{
+                        fontFamily: "system-ui",
+                        fontSize: "10px",
+                        fontWeight: isToday ? 700 : 400,
+                        color: isToday ? Tiffany : "rgba(255,255,255,0.40)",
+                        position: "absolute",
+                        top: "5px",
+                        left: "7px",
+                      }}>
+                        {dayNum}
+                      </span>
+                    )}
+
+                    {/* Milzzy slot */}
+                    {dayNum > 0 && (
+                      <div
+                        style={{
+                          flex: 1,
+                          background: "rgba(59,130,246,0.05)",
+                          borderRadius: "6px",
+                          padding: "3px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "3px",
+                          minHeight: "28px",
+                        }}
+                        onDragOver={(e) => {
+                          e.stopPropagation();
+                          if (dayNum === 0) return;
+                          e.preventDefault();
+                          setDragOverDay(dayStr);
+                        }}
+                        onDrop={(e) => {
+                          e.stopPropagation();
+                          if (dayNum === 0) return;
+                          e.preventDefault();
+                          try {
+                            const raw = e.dataTransfer.getData("text/plain");
+                            const data = JSON.parse(raw);
+                            setDraggingCard(data);
+                            handleDrop(dayStr, "milzzy");
+                          } catch { /* ignore */ }
+                        }}
+                      >
+                        <span style={{ fontFamily: "system-ui", fontSize: "8px", color: "rgba(59,130,246,0.70)", fontWeight: 700, letterSpacing: "0.04em", paddingLeft: "2px" }}>MILZZY</span>
+                        {milzzyCards.map(card => renderContentCard(card))}
+                      </div>
+                    )}
+
+                    {/* Miggy slot */}
+                    {dayNum > 0 && (
+                      <div
+                        style={{
+                          flex: 1,
+                          background: "rgba(168,85,247,0.05)",
+                          borderRadius: "6px",
+                          padding: "3px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "3px",
+                          minHeight: "28px",
+                        }}
+                        onDragOver={(e) => {
+                          e.stopPropagation();
+                          if (dayNum === 0) return;
+                          e.preventDefault();
+                          setDragOverDay(dayStr);
+                        }}
+                        onDrop={(e) => {
+                          e.stopPropagation();
+                          if (dayNum === 0) return;
+                          e.preventDefault();
+                          try {
+                            const raw = e.dataTransfer.getData("text/plain");
+                            const data = JSON.parse(raw);
+                            setDraggingCard(data);
+                            handleDrop(dayStr, "miggy");
+                          } catch { /* ignore */ }
+                        }}
+                      >
+                        <span style={{ fontFamily: "system-ui", fontSize: "8px", color: "rgba(168,85,247,0.70)", fontWeight: 700, letterSpacing: "0.04em", paddingLeft: "2px" }}>MIGGY</span>
+                        {miggyCards.map(card => renderContentCard(card))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Idea Pool Sidebar ── */}
+      <div style={{ width: "250px", flexShrink: 0 }}>
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "16px",
+          padding: "16px",
+          position: "sticky",
+          top: "80px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, color: "white", margin: 0 }}>Idea Pool</h3>
+            <span style={{
+              background: TiffanySoft,
+              color: Tiffany,
+              border: `1px solid ${TiffanyBorder}`,
+              borderRadius: "999px",
+              padding: "1px 8px",
+              fontSize: "10px",
+              fontFamily: "system-ui",
+              fontWeight: 600,
+            }}>
+              {poolIdeas.length}
+            </span>
+          </div>
+
+          {/* Add idea form */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
+            <input
+              value={newIdeaText}
+              onChange={e => setNewIdeaText(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addIdeaToPool()}
+              placeholder="Content hook or topic..."
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "10px",
+                color: "white",
+                padding: "8px 12px",
+                fontSize: "12px",
+                fontFamily: "system-ui",
+                outline: "none",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            />
+            <div style={{ display: "flex", gap: "4px" }}>
+              <select
+                value={newIdeaType}
+                onChange={e => setNewIdeaType(e.target.value as "Reel" | "Carousel" | "Story")}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: "8px",
+                  color: "rgba(255,255,255,0.70)",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  fontFamily: "system-ui",
+                  outline: "none",
+                  flex: 1,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="Reel">Reel</option>
+                <option value="Carousel">Carousel</option>
+                <option value="Story">Story</option>
+              </select>
+              <select
+                value={newIdeaPlatform}
+                onChange={e => setNewIdeaPlatform(e.target.value as "Instagram" | "YouTube")}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: "8px",
+                  color: "rgba(255,255,255,0.70)",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  fontFamily: "system-ui",
+                  outline: "none",
+                  flex: 1,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="Instagram">Instagram</option>
+                <option value="YouTube">YouTube</option>
+              </select>
+            </div>
+            <button
+              onClick={addIdeaToPool}
+              style={{
+                background: TiffanySoft,
+                border: `1px solid ${TiffanyBorder}`,
+                borderRadius: "10px",
+                color: Tiffany,
+                padding: "7px 12px",
+                fontSize: "12px",
+                fontFamily: "system-ui",
+                fontWeight: 600,
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              + Add Idea
+            </button>
+          </div>
+
+          {/* Pool ideas list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "400px", overflowY: "auto" }}>
+            {poolIdeas.length === 0 && (
+              <div style={{ textAlign: "center", padding: "20px 8px", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: "10px" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>No ideas yet. Add one above or use AI Studio to generate ideas.</p>
+              </div>
+            )}
+            {poolIdeas.map(idea => {
+              const badge = CT_BADGE[idea.contentType];
+              return (
+                <div
+                  key={idea.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", JSON.stringify({ type: "pool", id: idea.id }));
+                    setDraggingCard({ type: "pool", id: idea.id });
+                  }}
+                  onDragEnd={() => { setDraggingCard(null); setDragOverDay(null); }}
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    borderRadius: "10px",
+                    padding: "8px 10px",
+                    cursor: "grab",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "5px",
+                    opacity: idea.scheduled ? 0.55 : 1,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "4px" }}>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <span style={{ background: badge.bg, color: badge.color, borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600 }}>{badge.label}</span>
+                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui" }}>
+                        {idea.platform === "Instagram" ? "📷" : "▶️"} {idea.platform}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => deletePoolIdea(idea.id)}
+                      style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", padding: "0", fontSize: "10px", lineHeight: 1, flexShrink: 0 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.80)", margin: 0, lineHeight: 1.4 }}>
+                    {idea.hook}
+                  </p>
+                  {idea.scheduled && (
+                    <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)", borderRadius: "999px", padding: "1px 7px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600, alignSelf: "flex-start" }}>
+                      ✓ Scheduled
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Studio Sub-Tab ───────────────────────────────────────────────────────
+
+interface IdeaForPool {
+  hook: string;
+  contentType: "Reel" | "Carousel" | "Story";
+  platform: "Instagram" | "YouTube";
+  caption: string;
+}
+
+function AIStudio({
+  poolIdeas,
+  setPoolIdeas,
+}: {
+  poolIdeas: PoolIdea[];
+  setPoolIdeas: React.Dispatch<React.SetStateAction<PoolIdea[]>>;
+}) {
+  const [input, setInput] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [ideas, setIdeas] = useState<IdeaForPool[]>([]);
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  const CT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+    Reel:     { bg: "rgba(168,85,247,0.15)", color: "#c084fc", label: "🟣 Reel" },
+    Carousel: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa", label: "🔵 Carousel" },
+    Story:    { bg: "rgba(249,115,22,0.15)", color: "#fb923c", label: "🟠 Story" },
+  };
+
+  async function generateIdeas() {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setGenerating(true);
+    setError(null);
+    setIdeas([]);
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
+      if (!apiKey || apiKey === "sk-ant-placeholder") {
+        setError("⚠️ No API key set. Add NEXT_PUBLIC_ANTHROPIC_API_KEY to .env.local with your key.");
+        setGenerating(false);
+        return;
+      }
+      const systemPrompt = `You are a content strategist for Invictus Physiques, an online physique coaching brand. Analyse the provided transcript or coaching notes and generate 6–8 content ideas. For each idea return JSON with fields: hook, contentType (Reel/Carousel/Story), platform (Instagram/YouTube), caption. Return only a JSON array, no markdown or preamble.`;
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages: [{ role: "user", content: trimmed }],
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API error ${res.status}: ${errText}`);
+      }
+      const json = await res.json();
+      const rawText = json.content?.[0]?.text;
+      if (!rawText) throw new Error("No content in response");
+      // Try to extract JSON array
+      let text = rawText.trim();
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) text = jsonMatch[0];
+      const parsed = JSON.parse(text) as IdeaForPool[];
+      setIdeas(parsed);
+    } catch (err) {
+      setError(`Failed to generate ideas: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function addToPool(idea: IdeaForPool, idx: number) {
+    const newIdea: PoolIdea = {
+      id: `pool-ai-${Date.now()}-${idx}`,
+      hook: idea.hook,
+      contentType: idea.contentType,
+      platform: idea.platform,
+      scheduled: false,
+    };
+    setPoolIdeas(prev => [...prev, newIdea]);
+    setAddedIds(prev => new Set([...prev, idx]));
+    setTimeout(() => {
+      setAddedIds(prev => { const next = new Set(prev); next.delete(idx); return next; });
+    }, 2000);
+  }
+
+  return (
+    <div style={{ width: "100%" }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <h2 style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>AI Content Studio</h2>
+        <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", margin: 0 }}>
+          Paste a Loom transcript or coaching notes, then let AI generate content ideas for Invictus Physiques.
+        </p>
+      </div>
+
+      {/* Input area */}
+      <div style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        padding: "20px",
+        marginBottom: "20px",
+      }}>
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder={"Paste your Loom transcript or coaching notes here...\n\nE.g. 'In today's coaching call with James, we discussed his deadlift plateau. He's been stuck at 140kg for 8 weeks. Key topics: progressive overload, deload strategies, mind-muscle connection during the concentric phase...'"}
+          style={{
+            width: "100%",
+            minHeight: "180px",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "12px",
+            color: "white",
+            padding: "14px 16px",
+            fontSize: "13px",
+            fontFamily: "system-ui",
+            outline: "none",
+            resize: "vertical",
+            boxSizing: "border-box",
+            lineHeight: 1.6,
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", gap: "12px", flexWrap: "wrap" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", margin: 0 }}>
+            💡 Tip: More context = better ideas. Include client goals, pain points, and coaching insights.
+          </p>
+          <button
+            onClick={generateIdeas}
+            disabled={generating || !input.trim()}
+            style={{
+              background: generating ? "rgba(10,186,181,0.30)" : Tiffany,
+              border: "none",
+              borderRadius: "12px",
+              color: generating ? "rgba(255,255,255,0.50)" : "#000",
+              padding: "10px 24px",
+              fontSize: "14px",
+              fontFamily: "system-ui",
+              fontWeight: 700,
+              cursor: generating ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexShrink: 0,
+              transition: "background 0.15s",
+            }}
+          >
+            {generating ? (
+              <>
+                <span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "rgba(255,255,255,0.80)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                Generating...
+              </>
+            ) : (
+              <>✨ Generate Ideas</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          background: "rgba(248,113,113,0.10)",
+          border: "1px solid rgba(248,113,113,0.25)",
+          borderRadius: "12px",
+          padding: "12px 16px",
+          marginBottom: "16px",
+          fontFamily: "system-ui",
+          fontSize: "13px",
+          color: "#f87171",
+        }}>
+          {error}
+          {!process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY && (
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "rgba(255,255,255,0.50)" }}>
+              Add your key to <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>.env.local</code>: <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>NEXT_PUBLIC_ANTHROPIC_API_KEY=sk-ant-...</code>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ideas grid */}
+      {ideas.length > 0 && (
+        <div>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+            {ideas.length} Ideas Generated
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
+            {ideas.map((idea, idx) => {
+              const badge = CT_BADGE[idea.contentType];
+              const isAdded = addedIds.has(idx);
+              return (
+                <div key={idx} style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: "16px",
+                  padding: "18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}>
+                  <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1.3 }}>
+                    {idea.hook}
+                  </p>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    <span style={{ background: badge.bg, color: badge.color, borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 600 }}>{badge.label}</span>
+                    <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.60)", borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontFamily: "system-ui" }}>
+                      {idea.platform === "Instagram" ? "📷" : "▶️"} {idea.platform}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", margin: 0, lineHeight: 1.5 }}>
+                    {idea.caption}
+                  </p>
+                  <button
+                    onClick={() => addToPool(idea, idx)}
+                    style={{
+                      background: isAdded ? "rgba(52,211,153,0.15)" : TiffanySoft,
+                      border: `1px solid ${isAdded ? "rgba(52,211,153,0.40)" : TiffanyBorder}`,
+                      borderRadius: "10px",
+                      color: isAdded ? "#34d399" : Tiffany,
+                      padding: "8px 14px",
+                      fontSize: "12px",
+                      fontFamily: "system-ui",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      alignSelf: "flex-start",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {isAdded ? "✓ Added to Pool" : "+ Add to Pool"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!generating && ideas.length === 0 && !error && (
+        <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: "16px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.25)" }}>
+            Paste a transcript above and click "✨ Generate Ideas" to get AI-powered content ideas.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Team Tab ─────────────────────────────────────────────────────────────────
+
 function TeamTab() {
+  const [teamSubTab, setTeamSubTab] = useState<"team" | "calendar" | "ai-studio">("team");
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+
+  // Shared state for Calendar and AI Studio
+  const [calendarCards, setCalendarCards] = useState<CalendarCard[]>([]);
+  const [poolIdeas, setPoolIdeas] = useState<PoolIdea[]>([]);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedCalendar = localStorage.getItem("ip_content_calendar");
+      if (storedCalendar) setCalendarCards(JSON.parse(storedCalendar));
+    } catch { /* ignore */ }
+    try {
+      const storedPool = localStorage.getItem("ip_content_pool");
+      if (storedPool) setPoolIdeas(JSON.parse(storedPool));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist to localStorage on change
+  useEffect(() => {
+    localStorage.setItem("ip_content_calendar", JSON.stringify(calendarCards));
+  }, [calendarCards]);
+
+  useEffect(() => {
+    localStorage.setItem("ip_content_pool", JSON.stringify(poolIdeas));
+  }, [poolIdeas]);
 
   function TagPill({ label, color }: { label: string; color: string }) {
     return (
@@ -1389,100 +2232,180 @@ function TeamTab() {
   const tier2 = TEAM_MEMBERS.slice(1, 4);
   const tier3 = TEAM_MEMBERS.slice(4);
 
-  return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "8px 4px 40px", width: "100%", boxSizing: "border-box" }}>
+  // ── Sub-Tab Switcher ──────────────────────────────────────────────────────
+  const SUB_TABS: { key: "team" | "calendar" | "ai-studio"; label: string; emoji: string }[] = [
+    { key: "team",       label: "Team",       emoji: "👥" },
+    { key: "calendar",   label: "Calendar",   emoji: "📅" },
+    { key: "ai-studio",  label: "AI Studio", emoji: "✨" },
+  ];
 
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "8px" }}>
-        <h1 style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "white", margin: "0 0 10px", lineHeight: 1.1 }}>
-          Meet the Team
-        </h1>
-        <p style={{ fontFamily: "system-ui", fontSize: "16px", color: "rgba(255,255,255,0.55)", margin: "0 0 12px" }}>
-          The people + agents behind Invictus Physiques
-        </p>
-        <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.40)", margin: "0 auto 32px", maxWidth: "600px", lineHeight: 1.6, textAlign: "center" }}>
-          From founder to AI agents — everyone has a role. Tap any card to learn more about how they keep Invictus Physiques running.
-        </p>
-      </div>
-
-      {/* TIER 1: Jarvis */}
-      <div style={{ marginBottom: "24px" }}>
-        <AgentCard member={tier1} />
-        <div style={{ width: "2px", height: "30px", background: `${Tiffany}50`, margin: "0 auto" }} />
-      </div>
-
-      {/* Divider */}
-      <div style={{ marginBottom: "24px" }}>
-        <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
-      </div>
-
-      {/* TIER 2: Human Team row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        {tier2.map((member) => (
-          <AgentCard key={member.name} member={member} />
-        ))}
-      </div>
-
-      {/* Divider: META LAYER */}
-      <div style={{ marginBottom: "24px" }}>
-        <MetaDivider />
-      </div>
-
-      {/* TIER 3: AI Agents */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-        {tier3.map((member) => (
-          <AgentCard key={member.name} member={member} />
-        ))}
-      </div>
-
-      {/* Role Card Modal */}
-      {selectedMember && (
-        <GlassModal onClose={() => setSelectedMember(null)}>
-          {/* Close */}
-          <button
-            onClick={() => setSelectedMember(null)}
-            style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}
-          >
-            ✕
-          </button>
-
-          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: selectedMember.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", margin: "0 auto 16px" }}>
-            {selectedMember.avatar}
-          </div>
-
-          <div style={{ textAlign: "center", marginBottom: "12px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>
-              {selectedMember.name}
-            </p>
-            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>
-              {selectedMember.role}
-            </p>
-          </div>
-
-          <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.50)", margin: "0 0 16px", lineHeight: 1.6, textAlign: "center" }}>
-            {selectedMember.description}
+  // ── Team Profiles Content ─────────────────────────────────────────────────
+  function renderTeamProfiles() {
+    return (
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 0 40px", width: "100%", boxSizing: "border-box" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: "8px" }}>
+          <h1 style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "white", margin: "0 0 10px", lineHeight: 1.1 }}>
+            Meet the Team
+          </h1>
+          <p style={{ fontFamily: "system-ui", fontSize: "16px", color: "rgba(255,255,255,0.55)", margin: "0 0 12px" }}>
+            The people + agents behind Invictus Physiques
           </p>
+          <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.40)", margin: "0 auto 32px", maxWidth: "600px", lineHeight: 1.6, textAlign: "center" }}>
+            From founder to AI agents — everyone has a role. Tap any card to learn more about how they keep Invictus Physiques running.
+          </p>
+        </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "16px" }}>
-            {selectedMember.tags.map((tag) => (
-              <TagPill key={tag.label} label={tag.label} color={tag.color} />
-            ))}
-          </div>
+        {/* TIER 1: Jarvis */}
+        <div style={{ marginBottom: "24px" }}>
+          <AgentCard member={tier1} />
+          <div style={{ width: "2px", height: "30px", background: `${Tiffany}50`, margin: "0 auto" }} />
+        </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
-            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: selectedMember.isAI ? Tiffany : "#f59e0b", display: "inline-block" }} />
-            <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
-              Last active: <strong style={{ color: "rgba(255,255,255,0.70)" }}>{selectedMember.lastActive}</strong>
-            </span>
-          </div>
+        {/* Divider */}
+        <div style={{ marginBottom: "24px" }}>
+          <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
+        </div>
 
-          <button
-            onClick={() => { console.log(`Send message to ${selectedMember.name}`); }}
-            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 24px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", fontWeight: 600, cursor: "pointer", width: "100%" }}
-          >
-            Send Message
-          </button>
-        </GlassModal>
+        {/* TIER 2: Human Team row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          {tier2.map((member) => (
+            <AgentCard key={member.name} member={member} />
+          ))}
+        </div>
+
+        {/* Divider: META LAYER */}
+        <div style={{ marginBottom: "24px" }}>
+          <MetaDivider />
+        </div>
+
+        {/* TIER 3: AI Agents */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+          {tier3.map((member) => (
+            <AgentCard key={member.name} member={member} />
+          ))}
+        </div>
+
+        {/* Role Card Modal */}
+        {selectedMember && (
+          <GlassModal onClose={() => setSelectedMember(null)}>
+            <button
+              onClick={() => setSelectedMember(null)}
+              style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}
+            >
+              ✕
+            </button>
+
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: selectedMember.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", margin: "0 auto 16px" }}>
+              {selectedMember.avatar}
+            </div>
+
+            <div style={{ textAlign: "center", marginBottom: "12px" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>
+                {selectedMember.name}
+              </p>
+              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>
+                {selectedMember.role}
+              </p>
+            </div>
+
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.50)", margin: "0 0 16px", lineHeight: 1.6, textAlign: "center" }}>
+              {selectedMember.description}
+            </p>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "16px" }}>
+              {selectedMember.tags.map((tag) => (
+                <TagPill key={tag.label} label={tag.label} color={tag.color} />
+              ))}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: selectedMember.isAI ? Tiffany : "#f59e0b", display: "inline-block" }} />
+              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
+                Last active: <strong style={{ color: "rgba(255,255,255,0.70)" }}>{selectedMember.lastActive}</strong>
+              </span>
+            </div>
+
+            <button
+              onClick={() => { console.log(`Send message to ${selectedMember.name}`); }}
+              style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 24px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", fontWeight: 600, cursor: "pointer", width: "100%" }}
+            >
+              Send Message
+            </button>
+          </GlassModal>
+        )}
+      </div>
+    );
+  }
+
+  // ── Main Render ───────────────────────────────────────────────────────────
+  return (
+    <div style={{ width: "100%", boxSizing: "border-box" }}>
+      {/* Sub-Tab Switcher */}
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        gap: "8px",
+        marginBottom: "24px",
+        padding: "12px 16px",
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: "16px",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        {SUB_TABS.map(tab => {
+          const isActive = teamSubTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setTeamSubTab(tab.key)}
+              style={{
+                background: isActive ? Tiffany : "transparent",
+                border: isActive ? "none" : "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "999px",
+                color: isActive ? "#000" : "rgba(255,255,255,0.55)",
+                padding: "8px 20px",
+                fontSize: "13px",
+                fontFamily: "system-ui",
+                fontWeight: isActive ? 700 : 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "7px",
+                transition: "all 0.15s",
+                boxShadow: isActive ? `0 4px 16px ${Tiffany}40` : "none",
+              }}
+              onMouseEnter={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.85)";
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)";
+                }
+              }}
+            >
+              <span style={{ fontSize: "14px" }}>{tab.emoji}</span>
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sub-Tab Content */}
+      {teamSubTab === "team" && renderTeamProfiles()}
+      {teamSubTab === "calendar" && (
+        <ContentCalendar
+          calendarCards={calendarCards}
+          setCalendarCards={setCalendarCards}
+          poolIdeas={poolIdeas}
+          setPoolIdeas={setPoolIdeas}
+        />
+      )}
+      {teamSubTab === "ai-studio" && (
+        <AIStudio poolIdeas={poolIdeas} setPoolIdeas={setPoolIdeas} />
       )}
     </div>
   );
