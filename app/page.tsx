@@ -99,7 +99,7 @@ export interface Lead {
   phone: string;
   instagram?: string;
   source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
-  stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active" | "lost";
+  stage: "new-lead" | "book-consult" | "consult-call" | "signed" | "lost";
   stageHistory: { stage: string; date: string }[];
   notes: string;
   assignedTo: "Milzzy" | "Miggy";
@@ -595,7 +595,7 @@ function DashboardTab({ clients, onTabChange, onClientClick }: { clients: Client
     .filter(c => c.status === "active")
     .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
   const totalLeads = leads.length;
-  const conversions = leads.filter(l => l.stage === "active").length;
+  const conversions = leads.filter(l => l.stage === "signed").length;
   const convRate = totalLeads > 0 ? Math.round((conversions / totalLeads) * 100) : null;
 
   function addStep() {
@@ -2282,7 +2282,7 @@ function MacroCalculatorTab({ leads }: { leads: Lead[] }) {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  const converted = mcLeads.filter(l => l.stage === "active").length;
+  const converted = mcLeads.filter(l => l.stage === "signed").length;
   const conversionRate = mcLeads.length > 0 ? Math.round((converted / mcLeads.length) * 100) : 0;
 
   const goalCounts: Record<string, number> = {};
@@ -2290,12 +2290,11 @@ function MacroCalculatorTab({ leads }: { leads: Lead[] }) {
   const topGoal = Object.entries(goalCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
   const STAGE_COLORS: Record<string, { color: string; bg: string }> = {
-    enquiry:     { color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
-    consult_booked:  { color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
-    consult_done:    { color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
-    payment:     { color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
-    onboarding:  { color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
-    active:      { color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+    "new-lead":     { color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
+    "book-consult":  { color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
+    "consult-call":  { color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
+    "signed":        { color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+    "lost":          { color: "#34d399", bg: "rgba(52,211,153,0.12)" },
   };
 
   return (
@@ -2404,7 +2403,7 @@ function MacroCalculatorTab({ leads }: { leads: Lead[] }) {
 
       {/* Lead Detail Panel */}
       {viewingLead && (() => {
-        const stage = STAGE_COLORS[viewingLead.stage] ?? STAGE_COLORS.enquiry;
+        const stage = STAGE_COLORS[viewingLead.stage] ?? STAGE_COLORS["new-lead"];
         const goalColor: Record<string, string> = {
           "Fat Loss": "#f87171",
           "Recomp": "#a855f7",
@@ -2512,7 +2511,7 @@ function MacroCalculatorTab({ leads }: { leads: Lead[] }) {
           </div>
         ) : (
           mcLeads.map(lead => {
-            const stage = STAGE_COLORS[lead.stage] ?? STAGE_COLORS.enquiry;
+            const stage = STAGE_COLORS[lead.stage] ?? STAGE_COLORS["new-lead"];
             const created = new Date(lead.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
             return (
               <div
@@ -3722,23 +3721,22 @@ export default function Home() {
     const [dragOverStage, setDragOverStage] = useState<string | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
 
-    // Kanban stages: Enquiry | Consultation | Signed | Lost
+    // Kanban stages: New Lead | Book Consult | Consult Call | Signed | Lost
     const BOARD_STAGES = [
-      { key: "enquiry",            label: "Enquiry",      color: Tiffany },
-      { key: "consult_booked",      label: "Consultation",  color: "rgba(139,92,246,0.7)" },
-      { key: "consult_done",        label: "Consultation",  color: "rgba(139,92,246,0.7)" },
-      { key: "payment",             label: "Signed",        color: "#34d399" },
-      { key: "onboarding",          label: "Signed",        color: "#34d399" },
-      { key: "active",              label: "Signed",        color: "#34d399" },
-      { key: "lost",                label: "Lost",          color: "rgba(248,113,113,0.6)" },
+      { key: "new-lead",      label: "New Lead",         color: Tiffany },
+      { key: "book-consult",  label: "Book Consult Call", color: "rgba(139,92,246,0.7)" },
+      { key: "consult-call",   label: "Consultation Call", color: "rgba(139,92,246,0.7)" },
+      { key: "signed",        label: "Signed",            color: "#34d399" },
+      { key: "lost",          label: "Lost",             color: "rgba(248,113,113,0.6)" },
     ] as const;
 
-    type BoardKey = "enquiry" | "consultation" | "signed" | "lost";
+    type BoardKey = "new-lead" | "book-consult" | "consult-call" | "signed" | "lost";
     const COLUMNS: { key: BoardKey; label: string; stageKeys: string[]; color: string }[] = [
-      { key: "enquiry",      label: "Enquiry",      stageKeys: ["enquiry"],                    color: Tiffany },
-      { key: "consultation", label: "Consultation", stageKeys: ["consult_booked","consult_done"], color: "rgba(139,92,246,0.7)" },
-      { key: "signed",       label: "Signed",       stageKeys: ["payment","onboarding","active"], color: "#34d399" },
-      { key: "lost",         label: "Lost",         stageKeys: ["lost"],                       color: "rgba(248,113,113,0.6)" },
+      { key: "new-lead",      label: "New Lead",          stageKeys: ["new-lead"],                    color: Tiffany },
+      { key: "book-consult",  label: "Book Consult Call",  stageKeys: ["book-consult"],                color: "rgba(139,92,246,0.7)" },
+      { key: "consult-call",   label: "Consultation Call",  stageKeys: ["consult-call"],                color: "rgba(139,92,246,0.7)" },
+      { key: "signed",         label: "Signed",             stageKeys: ["signed"],                       color: "#34d399" },
+      { key: "lost",           label: "Lost",               stageKeys: ["lost"],                         color: "rgba(248,113,113,0.6)" },
     ];
 
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -3752,19 +3750,21 @@ export default function Home() {
     };
 
     const getColumnForLead = (lead: Lead): BoardKey => {
-      if (lead.stage === "enquiry") return "enquiry";
-      if (lead.stage === "consult_booked" || lead.stage === "consult_done") return "consultation";
-      if (lead.stage === "payment" || lead.stage === "onboarding" || lead.stage === "active") return "signed";
-      if (lead.stage === "lost") return "lost";
-      return "enquiry";
+      if (lead.stage === "new-lead")     return "new-lead";
+      if (lead.stage === "book-consult")  return "book-consult";
+      if (lead.stage === "consult-call")  return "consult-call";
+      if (lead.stage === "signed")         return "signed";
+      if (lead.stage === "lost")           return "lost";
+      return "new-lead";
     };
 
     async function moveLeadToStage(lead: Lead, newBoardKey: BoardKey) {
       const stageMap: Record<BoardKey, Lead["stage"]> = {
-        enquiry: "enquiry",
-        consultation: "consult_booked",
-        signed: "payment",
-        lost: "lost",
+        "new-lead":      "new-lead",
+        "book-consult":  "book-consult",
+        "consult-call":  "consult-call",
+        "signed":        "signed",
+        "lost":          "lost",
       };
       const newStage = stageMap[newBoardKey];
       if (lead.stage === newStage) return;
@@ -3776,17 +3776,16 @@ export default function Home() {
       if (res.ok) {
         const updated: Lead = await res.json();
         setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
-        if (newStage === "active") onConvertLead(lead);
+        if (newStage === "signed") onConvertLead(lead);
       }
     }
 
     const totalLeads = leads.length;
     const now = new Date();
     const thisMonth = leads.filter(l => { const d = new Date(l.createdAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
-    const activeCount = leads.filter(l => l.stage === "active").length;
-    const signedCount = leads.filter(l => ["payment","onboarding","active"].includes(l.stage)).length;
+    const signedCount = leads.filter(l => l.stage === "signed").length;
     const lostCount = leads.filter(l => l.stage === "lost").length;
-    const conversionRate = totalLeads > 0 ? Math.round((activeCount / totalLeads) * 100) : 0;
+    const conversionRate = totalLeads > 0 ? Math.round((signedCount / totalLeads) * 100) : 0;
 
     function daysAgo(iso: string): number {
       return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
@@ -3903,6 +3902,14 @@ export default function Home() {
                           }}
                           onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
                           onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+                          onMouseEnter={e => {
+                            const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".delete-btn");
+                            if (btn) { btn.style.opacity = "1"; btn.style.color = "#f87171"; }
+                          }}
+                          onMouseLeave={e => {
+                            const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".delete-btn");
+                            if (btn) { btn.style.opacity = "0"; btn.style.color = "rgba(255,255,255,0.20)"; }
+                          }}
                           style={{
                             background: isDragging
                               ? "rgba(255,255,255,0.02)"
@@ -3919,7 +3926,7 @@ export default function Home() {
                             boxShadow: isExpanded ? `0 4px 20px ${col.color}20` : "none",
                           }}
                         >
-                          {/* Row 1: Name + Source badge */}
+                          {/* Row 1: Name + Delete button + Source badge */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px", marginBottom: "4px" }}>
                             <p style={{
                               fontFamily: "system-ui",
@@ -3936,20 +3943,48 @@ export default function Home() {
                             }}>
                               {lead.name}
                             </p>
-                            <span style={{
-                              background: src.bg,
-                              color: src.color,
-                              border: `1px solid ${src.color}40`,
-                              borderRadius: "999px",
-                              padding: "1px 7px",
-                              fontSize: "10px",
-                              fontFamily: "system-ui",
-                              fontWeight: 500,
-                              flexShrink: 0,
-                              textTransform: "capitalize",
-                            }}>
-                              {lead.source === "Macro Calculator" ? "Macro" : lead.source}
-                            </span>
+                            <div style={{ display: "flex", gap: "4px", alignItems: "center", flexShrink: 0 }}>
+                              {/* Delete button */}
+                              <button
+                                className="delete-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete ${lead.name}? This cannot be undone.`)) {
+                                    fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+                                    setLeads(prev => prev.filter(l => l.id !== lead.id));
+                                  }
+                                }}
+                                title="Delete lead"
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  color: "rgba(255,255,255,0.20)",
+                                  cursor: "pointer",
+                                  padding: "2px 4px",
+                                  borderRadius: "4px",
+                                  fontSize: "13px",
+                                  opacity: 0,
+                                  transition: "opacity 0.15s, color 0.15s",
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                🗑
+                              </button>
+                              <span style={{
+                                background: src.bg,
+                                color: src.color,
+                                border: `1px solid ${src.color}40`,
+                                borderRadius: "999px",
+                                padding: "1px 7px",
+                                fontSize: "10px",
+                                fontFamily: "system-ui",
+                                fontWeight: 500,
+                                textTransform: "capitalize",
+                              }}>
+                                {lead.source === "Macro Calculator" ? "Macro" : lead.source}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Row 2: Goal */}

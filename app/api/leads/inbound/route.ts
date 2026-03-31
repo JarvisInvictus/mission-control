@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     instagram,
     goal,
     source: source || "Instagram",
-    stage: "enquiry",
+    stage: "new-lead",
     assignedTo: "Milzzy",
     createdAt: date,
     notes: "",

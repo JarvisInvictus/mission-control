@@ -47,7 +47,7 @@ export async function PATCH(
   }
 
   // Validate stage if provided
-  const validStages = ["enquiry", "consult_booked", "consult_done", "payment", "onboarding", "active"];
+  const validStages = ["new-lead", "book-consult", "consult-call", "signed", "lost"];
   if (updates.stage && !validStages.includes(updates.stage as string)) {
     return NextResponse.json({ error: `stage must be one of: ${validStages.join(", ")}` }, { status: 400 });
   }

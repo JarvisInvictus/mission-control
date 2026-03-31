@@ -20,6 +20,24 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const url = new URL(req.url);
+  if (url.searchParams.get("migrate") === "true") {
+    const raw = await redis.get("jarvis:leads");
+    const leads = parseLeads(raw);
+    const stageMap: Record<string, string> = {
+      "enquiry": "new-lead",
+      "consult_booked": "book-consult",
+      "consult_done": "consult-call",
+      "payment": "signed",
+      "onboarding": "signed",
+      "active": "signed",
+      "lost": "lost",
+    };
+    const migrated = leads.map(l => ({ ...l, stage: stageMap[l.stage as string] ?? l.stage }));
+    await redis.set("jarvis:leads", JSON.stringify(migrated));
+    return NextResponse.json({ success: true, migrated: migrated.length });
+  }
+
   const body = await req.json();
   const { name, email, phone, source, notes, assignedTo, goal, bodyFatCategory, weight, height, gender, age, bodyFat, trainingDays } = body;
 
@@ -42,8 +60,8 @@ export async function POST(req: NextRequest) {
     email: email?.trim() || "",
     phone: phone?.trim() || "",
     source: source || "other",
-    stage: "enquiry",
-    stageHistory: [{ stage: "enquiry", date: now }],
+    stage: "new-lead",
+    stageHistory: [{ stage: "new-lead", date: now }],
     notes: notes?.trim() || "",
     assignedTo: assignedTo || "Milzzy",
     createdAt: now,
