@@ -30,9 +30,30 @@ export async function POST(request: Request) {
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
 
-    // Strip markdown code blocks if present
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const ideas = JSON.parse(cleaned);
+    let ideas = null;
+
+    // Strategy 1: try parsing the whole response as-is
+    try { ideas = JSON.parse(text.trim()); } catch {}
+
+    // Strategy 2: try extracting from markdown code block
+    if (!ideas || !Array.isArray(ideas)) {
+      const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match) {
+        try { ideas = JSON.parse(match[1].trim()); } catch {}
+      }
+    }
+
+    // Strategy 3: try finding a JSON array in the text
+    if (!ideas || !Array.isArray(ideas)) {
+      const arrMatch = text.match(/\[[\s\S]*\]/);
+      if (arrMatch) {
+        try { ideas = JSON.parse(arrMatch[0]); } catch {}
+      }
+    }
+
+    if (!ideas || !Array.isArray(ideas)) {
+      return NextResponse.json({ error: "AI returned an unexpected format. Try again with shorter notes." }, { status: 422 });
+    }
 
     return NextResponse.json({ ideas });
   } catch (err: unknown) {
