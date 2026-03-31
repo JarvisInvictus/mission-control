@@ -2378,6 +2378,9 @@ function TranscriptsPanel({
 }) {
   const [transcripts, setTranscripts] = useState<Record<string, unknown>[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loomUrl, setLoomUrl] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/loom/transcripts")
@@ -2385,8 +2388,78 @@ function TranscriptsPanel({
       .then(d => setTranscripts(d.transcripts ?? []));
   }, []);
 
+  async function handleFetch() {
+    if (!loomUrl.trim() || fetching) return;
+    setFetching(true);
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/loom/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: loomUrl }),
+      });
+      const data = await res.json();
+      if (data.error) { setFetchError(data.error); return; }
+      setTranscripts(prev => [data.transcript, ...prev]);
+      setLoomUrl("");
+    } catch {
+      setFetchError("Failed to fetch. Check the URL and try again.");
+    } finally {
+      setFetching(false);
+    }
+  }
+
   return (
     <div>
+      <div style={{
+        background: GlassBg,
+        border: `1px solid ${GlassBorder}`,
+        borderRadius: "16px",
+        padding: "14px 16px",
+        marginBottom: "16px",
+        display: "flex",
+        gap: "8px",
+        alignItems: "center",
+      }}>
+        <input
+          value={loomUrl}
+          onChange={e => setLoomUrl(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleFetch()}
+          placeholder="Paste Loom URL..."
+          style={{
+            flex: 1,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "10px",
+            padding: "8px 14px",
+            color: "rgba(255,255,255,0.80)",
+            fontSize: "13px",
+            fontFamily: "system-ui",
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={handleFetch}
+          disabled={fetching || !loomUrl.trim()}
+          style={{
+            background: fetching ? "rgba(10,186,181,0.20)" : TiffanySoft,
+            border: `1px solid ${fetching ? "rgba(10,186,181,0.30)" : TiffanyBorder}`,
+            borderRadius: "10px",
+            padding: "8px 18px",
+            color: fetching ? "rgba(10,186,181,0.60)" : Tiffany,
+            fontSize: "13px",
+            fontFamily: "system-ui",
+            fontWeight: 600,
+            cursor: fetching ? "not-allowed" : "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {fetching ? "Fetching..." : "Fetch Transcript"}
+        </button>
+      </div>
+      {fetchError && (
+        <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{fetchError}</p>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" }}>
         {transcripts.map(t => (
           <div key={t.id as string} style={{
