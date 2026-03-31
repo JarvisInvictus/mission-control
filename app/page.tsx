@@ -3014,6 +3014,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return null;
 
+        const [checkInConfirmed, setCheckInConfirmed] = useState(false);
+
         // Compute the last 4 weeks using getWeekDates (reuses existing logic)
         const weeks = Array.from({ length: 4 }, (_, i) => {
           // go back (3-i) weeks from current displayed week
@@ -3063,28 +3065,6 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                     📋 Open Sheet
                   </button>
                 )}
-                <button
-                  onClick={() => setStatus(client.id, "ontime")}
-                  style={{
-                    width: "100%",
-                    background: Tiffany,
-                    border: `1px solid ${Tiffany}`,
-                    borderRadius: "10px",
-                    padding: "10px 16px",
-                    color: "#000",
-                    fontSize: "13px",
-                    fontFamily: "system-ui",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    marginTop: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                  }}
-                >
-                  ✓ Check-in Complete
-                </button>
               </div>
               <button
                 onClick={() => setSelectedClientId(null)}
@@ -3100,6 +3080,34 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 }}
               >✕</button>
             </div>
+
+            {/* ✓ Mark as On Time button — below header row */}
+            <button
+              onClick={() => {
+                setStatus(client.id, "ontime");
+                setCheckInConfirmed(true);
+                setTimeout(() => setCheckInConfirmed(false), 2000);
+              }}
+              style={{
+                width: "100%",
+                background: TiffanySoft,
+                border: `1px solid ${TiffanyBorder}`,
+                borderRadius: "10px",
+                padding: "10px 16px",
+                color: Tiffany,
+                fontSize: "13px",
+                fontFamily: "system-ui",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                marginBottom: "12px",
+              }}
+            >
+              {checkInConfirmed ? "✓ Done!" : "✓ Mark as On Time"}
+            </button>
 
             {/* Check-in history */}
             <div style={{ marginBottom: "12px" }}>
