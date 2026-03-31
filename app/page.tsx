@@ -4047,12 +4047,14 @@ export default function Home() {
               </div>
             );
           })}
-        </div>
+
+
+          </div>
       </div>
     );
   }
 
-  return (
+return (
     <div className="min-h-screen text-[var(--text-primary)] flex flex-col">
       <Header activeTab={activeTab} />
 
