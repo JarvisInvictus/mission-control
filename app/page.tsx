@@ -2126,6 +2126,17 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 </div>
               </div>
 
+              {/* Summary line */}
+              <div style={{
+                padding: "4px 12px 6px",
+                background: "rgba(255,255,255,0.03)",
+                fontFamily: "system-ui",
+                fontSize: "11px",
+                color: "rgba(255,255,255,0.35)",
+              }}>
+                Total Clients: {dayClients.length} — Remaining: {dayClients.length - checkedIn}
+              </div>
+
               {/* Client rows */}
               <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 {dayClients.length === 0 ? (
