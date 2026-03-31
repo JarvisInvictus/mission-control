@@ -2023,7 +2023,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           let dayClients = clients.filter(c => {
             if (c.checkInDay !== day) return false;
             // Always exclude cancelled clients by default
-            if (c.status === "cancelled" || c.status === "inactive") return false;
+            if (c.status === "cancelled") return false;
             // Apply status filter if set
             if (statusFilter.length > 0) {
               return statusFilter.some(f => {
@@ -3617,6 +3617,7 @@ export default function Home() {
                       cancelDate: new Date().toISOString().split("T")[0],
                       cancelReason: reason || undefined,
                       cancelNotes: notes || undefined,
+                      lastUpdated: new Date().toISOString(),
                     });
                     setSelectedClient(null);
                   }}
