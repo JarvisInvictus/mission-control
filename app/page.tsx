@@ -3182,7 +3182,7 @@ export default function Home() {
       : [];
 
     const coachFiltered = clients.filter(c => c.coach === selectedCoach);
-    const dayGroups = DAY_ORDER.map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day) })).filter(g => g.clients.length > 0);
+    const dayGroups = DAY_ORDER.map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day && c.status !== "cancelled") })).filter(g => g.clients.length > 0);
     const cancelledClients = coachFiltered.filter(c => c.status === "cancelled");
     const pausedClients = coachFiltered.filter(c => c.status === "paused");
     const activeClients = coachFiltered.filter(c => c.status === "active");
