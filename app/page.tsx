@@ -99,7 +99,7 @@ export interface Lead {
   phone: string;
   instagram?: string;
   source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
-  stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active";
+  stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active" | "lost";
   stageHistory: { stage: string; date: string }[];
   notes: string;
   assignedTo: "Milzzy" | "Miggy";
@@ -1555,6 +1555,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     { key: "ontime",   label: "On Time" },
     { key: "late",     label: "Late" },
     { key: "never",    label: "Never" },
+    { key: "skip-l",   label: "Skip-L" },
     { key: "paused",   label: "Paused" },
     { key: "sick",     label: "Sick" },
     { key: "cancelled", label: "Cancelled" },
@@ -1562,6 +1563,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [checkInFilter, setCheckInFilter] = useState("all");
 
   const week = getWeekDates(weekOffset);
@@ -1621,34 +1623,52 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   // Keyboard shortcuts for check-in status (when a client row is selected)
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (!selectedClientId) return;
       const target = e.target as HTMLElement;
       // Don't fire if user is typing in an input
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+      // Escape clears both single and multi selection
+      if (e.key === "Escape") {
+        setSelectedClientId(null);
+        setSelectedClients(new Set());
+        return;
+      }
+
+      // Determine which clients to apply status to
+      const targets = selectedClients.size > 0
+        ? Array.from(selectedClients)
+        : selectedClientId ? [selectedClientId] : [];
+
+      if (targets.length === 0) return;
+
       const key = e.key;
       if (key === "s" || key === "S") {
-        setStatus(selectedClientId, "submitted");
+        targets.forEach(id => setStatus(id, "submitted"));
       } else if (key === "1") {
-        setStatus(selectedClientId, "ontime");
+        targets.forEach(id => setStatus(id, "ontime"));
       } else if (key === "2") {
-        setStatus(selectedClientId, "late");
+        targets.forEach(id => setStatus(id, "late"));
       } else if (key === "3") {
-        setStatus(selectedClientId, "never");
+        targets.forEach(id => setStatus(id, "never"));
       } else if (key === "4") {
-        setStatus(selectedClientId, "skip-l");
+        targets.forEach(id => setStatus(id, "skip-l"));
       } else if (key === "5") {
-        setStatus(selectedClientId, "sick");
-      } else if (key === "0" || key === "Escape") {
-        setCheckIns(prev => {
-          const weekKeyClients = prev[weekKey] ?? {};
-          const { [selectedClientId]: _, ...rest } = weekKeyClients;
-          return { ...prev, [weekKey]: rest };
+        targets.forEach(id => setStatus(id, "sick"));
+      } else if (key === "6") {
+        targets.forEach(id => setStatus(id, "skip-l"));
+      } else if (key === "0") {
+        targets.forEach(id => {
+          setCheckIns(prev => {
+            const weekKeyClients = prev[weekKey] ?? {};
+            const { [id]: _, ...rest } = weekKeyClients;
+            return { ...prev, [weekKey]: rest };
+          });
         });
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedClientId, weekKey]);
+  }, [selectedClientId, selectedClients, weekKey]);
 
   function getStatus(clientId: string): CheckInStatus | null {
     return checkIns[weekKey]?.[clientId] ?? null;
@@ -1946,6 +1966,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 { key: "3", label: "❌ Never", status: "never" as CheckInStatus },
                 { key: "4", label: "⏭ Skip·L", status: "skip-l" as CheckInStatus },
                 { key: "5", label: "🤒 Sick", status: "sick" as CheckInStatus },
+                { key: "6", label: "⏭ Skip·L", status: "skip-l" as CheckInStatus },
                 { key: "0/Esc", label: "Clear", status: null },
               ].map(h => (
                 <span key={h.key} style={{
@@ -2019,11 +2040,6 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             if (c.checkInDay !== day) return false;
             // Always exclude cancelled clients by default
             if (c.status === "cancelled") return false;
-            // Apply check-in filter if not "all"
-            if (checkInFilter !== "all") {
-              if (checkInFilter === "remaining") return !checkIns[weekKey]?.[c.id] && c.status !== "paused";
-              return checkIns[weekKey]?.[c.id] === checkInFilter;
-            }
             return true;
           });
 
@@ -2036,6 +2052,18 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               new Date(c.lastUpdated) >= weekStart
             ).map(c => ({ ...c, _forceCancelled: true }));
             dayClients = [...dayClients, ...cancelledThisWeek];
+          }
+
+          // Save raw count before filter — used to decide column visibility
+          const rawDayClientsCount = dayClients.length;
+
+          // Apply check-in status filter (does not affect column visibility decision)
+          if (checkInFilter !== "all") {
+            dayClients = dayClients.filter(c => {
+              if (checkInFilter === "remaining") return !checkIns[weekKey]?.[c.id] && c.status !== "paused";
+              if (checkInFilter === "cancelled") return false; // already excluded above
+              return checkIns[weekKey]?.[c.id] === checkInFilter;
+            });
           }
 
           function CancelledBadge({ clientId }: { clientId: string }) {
@@ -2067,8 +2095,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           const totalClients = dayClients.length;
           const progress = totalClients > 0 ? checkedIn / totalClients : 0;
 
-          // Hide empty columns
-          if (dayClients.length === 0) return null;
+          // Hide column only if no clients at all for this day AND no filter active
+          if (rawDayClientsCount === 0 && checkInFilter === "all") return null;
 
           return (
             <div key={day} style={{
@@ -2132,6 +2160,22 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 Total Clients: {totalClients} — Remaining: {remaining}
               </div>
 
+              {/* Multi-select indicator */}
+              {selectedClients.size > 0 && (
+                <div style={{
+                  padding: "3px 12px 5px",
+                  background: "rgba(245,158,11,0.10)",
+                  fontFamily: "system-ui",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "#f59e0b",
+                  textAlign: "center",
+                  borderTop: "1px solid rgba(245,158,11,0.15)",
+                }}>
+                  {selectedClients.size} selected
+                </div>
+              )}
+
               {/* Client rows */}
               <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 {dayClients.length === 0 ? (
@@ -2147,11 +2191,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                   dayClients.map((client) => {
                     const status = getStatus(client.id);
                     const displayStatus = client._forceCancelled ? "cancelled" : (status ?? null);
-                    const isSelected = selectedClientId === client.id;
+                    const isSingleSelected = selectedClientId === client.id;
+                    const isMultiSelected = selectedClients.has(client.id);
+                    const isRowSelected = isSingleSelected || isMultiSelected;
                     return (
                       <div key={client.id} style={{
-                        background: isSelected ? "rgba(10,186,181,0.10)" : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${isSelected ? "rgba(10,186,181,0.40)" : "rgba(255,255,255,0.08)"}`,
+                        background: isRowSelected ? "rgba(10,186,181,0.10)" : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${isRowSelected ? "rgba(10,186,181,0.55)" : "rgba(255,255,255,0.08)"}`,
                         borderRadius: "10px",
                         padding: isMobile ? "12px 14px" : "8px 10px",
                         display: "flex",
@@ -2160,7 +2206,15 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                         cursor: "pointer",
                         transition: "all 0.15s",
                       }}
-                      onClick={() => setSelectedClientId(isSelected ? null : client.id)}>
+                      onClick={() => {
+                        setSelectedClientId(isSingleSelected ? null : client.id);
+                        setSelectedClients(prev => {
+                          const next = new Set(prev);
+                          if (next.has(client.id)) next.delete(client.id);
+                          else next.add(client.id);
+                          return next;
+                        });
+                      }}>
                         {/* Name + status badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
                           <span
@@ -3673,306 +3727,320 @@ export default function Home() {
 
   // ─── LeadsTab ─────────────────────────────────────────────────────────────
   function LeadsTab({ onConvertLead }: { onConvertLead: (lead: Lead) => void }) {
-    const [showForm, setShowForm] = useState(false);
-    const [editingLead, setEditingLead] = useState<Lead | null>(null);
-    const [form, setForm] = useState({ name: "", email: "", phone: "", source: "other" as Lead["source"], notes: "", assignedTo: "Milzzy" as Lead["assignedTo"] });
-    const [formError, setFormError] = useState<string | null>(null);
-    const [menuLead, setMenuLead] = useState<Lead | null>(null);
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [moveStage, setMoveStage] = useState<Lead["stage"] | null>(null);
     const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
+    const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
 
-    const STAGES: Lead["stage"][] = ["enquiry", "consult_booked", "consult_done", "payment", "onboarding", "active"];
-    const STAGE_LABELS: Record<Lead["stage"], string> = {
-      enquiry: "Enquiry", consult_booked: "Consult Booked", consult_done: "Consult Done",
-      payment: "Payment", onboarding: "Onboarding", active: "Active Client",
-    };
-    const STAGE_COLORS: Record<Lead["stage"], string> = {
-      enquiry: Tiffany, consult_booked: "rgba(139,92,246,0.5)", consult_done: Tiffany,
-      payment: "rgba(236,72,153,0.5)", onboarding: "rgba(16,185,129,0.5)", active: "rgba(52,211,153,0.5)",
-    };
+    // Kanban stages: Enquiry | Consultation | Signed | Lost
+    const BOARD_STAGES = [
+      { key: "enquiry",            label: "Enquiry",      color: Tiffany },
+      { key: "consult_booked",      label: "Consultation",  color: "rgba(139,92,246,0.7)" },
+      { key: "consult_done",        label: "Consultation",  color: "rgba(139,92,246,0.7)" },
+      { key: "payment",             label: "Signed",        color: "#34d399" },
+      { key: "onboarding",          label: "Signed",        color: "#34d399" },
+      { key: "active",              label: "Signed",        color: "#34d399" },
+      { key: "lost",                label: "Lost",          color: "rgba(248,113,113,0.6)" },
+    ] as const;
+
+    type BoardKey = "enquiry" | "consultation" | "signed" | "lost";
+    const COLUMNS: { key: BoardKey; label: string; stageKeys: string[]; color: string }[] = [
+      { key: "enquiry",      label: "Enquiry",      stageKeys: ["enquiry"],                    color: Tiffany },
+      { key: "consultation", label: "Consultation", stageKeys: ["consult_booked","consult_done"], color: "rgba(139,92,246,0.7)" },
+      { key: "signed",       label: "Signed",       stageKeys: ["payment","onboarding","active"], color: "#34d399" },
+      { key: "lost",         label: "Lost",         stageKeys: ["lost"],                       color: "rgba(248,113,113,0.6)" },
+    ];
+
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
       referral: { bg: "rgba(52,211,153,0.15)", color: "#34d399" },
       instagram: { bg: `${Tiffany}26`, color: Tiffany },
       facebook: { bg: "rgba(99,102,241,0.15)", color: "#6366f1" },
       content: { bg: "rgba(168,85,247,0.15)", color: "#a855f7" },
       cold: { bg: "rgba(249,115,22,0.15)", color: "#f97316" },
-      other: { bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)" },
+      other: { bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)" },
+      "Macro Calculator": { bg: `${Tiffany}26`, color: Tiffany },
     };
 
-    const now = new Date();
+    const getColumnForLead = (lead: Lead): BoardKey => {
+      if (lead.stage === "enquiry") return "enquiry";
+      if (lead.stage === "consult_booked" || lead.stage === "consult_done") return "consultation";
+      if (lead.stage === "payment" || lead.stage === "onboarding" || lead.stage === "active") return "signed";
+      if (lead.stage === "lost") return "lost";
+      return "enquiry";
+    };
+
+    async function moveLeadToStage(lead: Lead, newBoardKey: BoardKey) {
+      const stageMap: Record<BoardKey, Lead["stage"]> = {
+        enquiry: "enquiry",
+        consultation: "consult_booked",
+        signed: "payment",
+        lost: "lost",
+      };
+      const newStage = stageMap[newBoardKey];
+      if (lead.stage === newStage) return;
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      });
+      if (res.ok) {
+        const updated: Lead = await res.json();
+        setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+        if (newStage === "active") onConvertLead(lead);
+      }
+    }
+
     const totalLeads = leads.length;
+    const now = new Date();
     const thisMonth = leads.filter(l => { const d = new Date(l.createdAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
     const activeCount = leads.filter(l => l.stage === "active").length;
-    const closingCount = leads.filter(l => l.stage === "payment" || l.stage === "onboarding").length;
+    const signedCount = leads.filter(l => ["payment","onboarding","active"].includes(l.stage)).length;
+    const lostCount = leads.filter(l => l.stage === "lost").length;
     const conversionRate = totalLeads > 0 ? Math.round((activeCount / totalLeads) * 100) : 0;
 
-    // Top source: source with most active conversions
-    const sourceActiveCounts: Record<string, number> = {};
-    for (const l of leads) {
-      if (l.stage === "active") {
-        sourceActiveCounts[l.source] = (sourceActiveCounts[l.source] || 0) + 1;
-      }
-    }
-    const topSource = Object.entries(sourceActiveCounts).sort((a, b) => b[1] - a[1])[0];
-    const topSourceLabel = topSource
-      ? topSource[0].charAt(0).toUpperCase() + topSource[0].slice(1)
-      : null;
-
-    function daysAgo(iso: string): number { return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24)); }
-    function needsFollowUp(lead: Lead): "follow" | "urgent" | null {
-      if (lead.stage !== "enquiry" && lead.stage !== "consult_booked") return null;
-      const days = daysAgo(lead.createdAt);
-      if (days > 2) return "urgent";
-      if (days > 1) return "follow";
-      return null;
+    function daysAgo(iso: string): number {
+      return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
     }
 
-    async function saveLead() {
-      if (!form.name.trim()) { setFormError("Name is required"); return; }
-      setFormError(null);
-      if (editingLead) {
-        const res = await fetch(`/api/leads/${editingLead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-        if (res.ok) { const updated: Lead = await res.json(); setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)); }
-      } else {
-        const res = await fetch("/api/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-        if (res.ok) { const created: Lead = await res.json(); setLeads(prev => [...prev, created]); }
-      }
-      setForm({ name: "", email: "", phone: "", source: "other", notes: "", assignedTo: "Milzzy" });
-      setEditingLead(null);
-      setShowForm(false);
+    function formatPhone(phone: string): string {
+      const p = phone.replace(/\D/g, "");
+      return p.startsWith("0") ? `+61${p.slice(1)}` : `+${p}`;
     }
 
-    async function deleteLead(id: string) {
-      await fetch(`/api/leads/${id}`, { method: "DELETE" });
-      setLeads(prev => prev.filter(l => l.id !== id));
-      setMenuOpen(false);
-      setMenuLead(null);
-    }
-
-    async function moveLeadStage(lead: Lead, newStage: Lead["stage"]) {
-      const res = await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: newStage }) });
-      if (res.ok) { const updated: Lead = await res.json(); setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)); }
-      if (newStage === "active") { onConvertLead(lead); }
-      setMoveStage(null);
-      setMenuOpen(false);
-      setMenuLead(null);
-    }
-
-    function startEdit(lead: Lead) {
-      setForm({ name: lead.name, email: lead.email, phone: lead.phone, source: lead.source, notes: lead.notes, assignedTo: lead.assignedTo });
-      setEditingLead(lead);
-      setShowForm(true);
-      setMenuOpen(false);
-      setMenuLead(null);
-    }
-
-    const card = (label: string, value: number | string, color: string, sub?: string) => (
-      <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
-        <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color, margin: 0 }}>{value}</p>
-        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
-        {sub && <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{sub}</p>}
+    const card = (label: string, value: number | string, color: string) => (
+      <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "14px", padding: "14px 16px", textAlign: "center" }}>
+        <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color, margin: 0 }}>{value}</p>
+        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.38)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
       </div>
     );
 
     return (
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
 
-        {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lead Pipeline</p>
-          <button onClick={() => { setShowForm(!showForm); setEditingLead(null); setForm({ name: "", email: "", phone: "", source: "other", notes: "", assignedTo: "Milzzy" }); setFormError(null); }}
-            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
-            {showForm ? "Cancel" : "+ Add Lead"}
-          </button>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Lead Pipeline</p>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>Drag cards between stages</span>
+            <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: Tiffany }} />
+          </div>
         </div>
 
         {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginBottom: "20px" }}>
-          {card("Total Leads", totalLeads, "rgba(255,255,255,0.70)")}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "20px" }}>
+          {card("Total Leads", totalLeads, "rgba(255,255,255,0.75)")}
           {card("This Month", thisMonth, Tiffany)}
-          {card("Conversions", activeCount + closingCount, "#34d399", `${activeCount} active`)}
-          <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: "#a855f7", margin: 0 }}>{conversionRate}%</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Conversion Rate</p>
-            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "4px", overflow: "hidden" }}>
-              <div style={{ width: `${conversionRate}%`, height: "100%", background: `linear-gradient(90deg, ${Tiffany}, #ec4899)`, borderRadius: "999px", transition: "width 0.4s" }} />
-            </div>
-          </div>
-          {card("Top Source", topSourceLabel ?? "—", topSourceLabel ? (SOURCE_COLORS[topSource[0]]?.color ?? Tiffany) : "rgba(255,255,255,0.50)")}
+          {card("Conversions", signedCount, "#34d399")}
+          {card("Conversion Rate", `${conversionRate}%`, "rgba(168,85,247,0.85)")}
         </div>
 
-        {/* Add/Edit Form */}
-        {showForm && (
-          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: `1px solid ${GlassBorder}`, borderRadius: "20px", padding: "24px", marginBottom: "20px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>
-              {editingLead ? `Edit Lead: ${editingLead.name}` : "Add New Lead"}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name *</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ ...inputStyle }} placeholder="Full name" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{ ...inputStyle }} placeholder="client@email.com" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Phone</label><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ ...inputStyle }} placeholder="+61 ..." /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Source</label><select value={form.source} onChange={e => setForm({ ...form, source: e.target.value as Lead["source"] })} style={{ ...inputStyle }}><option value="">Source...</option><option value="referral">Referral</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="content">Content</option><option value="cold">Cold Outreach</option><option value="other">Other</option></select></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Assigned To</label><select value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value as Lead["assignedTo"] })} style={{ ...inputStyle }}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
-            </div>
-            <div style={{ marginBottom: "12px" }}><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} placeholder="Optional notes..." /></div>
-            {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={saveLead} style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "10px", padding: "10px 24px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
-                {editingLead ? "Save Changes" : "Add Lead"}
-              </button>
-              {editingLead && <button onClick={() => { setEditingLead(null); setShowForm(false); setForm({ name: "", email: "", phone: "", source: "other", notes: "", assignedTo: "Milzzy" }); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
-            </div>
-          </div>
-        )}
-
         {/* Kanban Board */}
-        <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px" }}>
-          {STAGES.map(stage => {
-            const stageLeads = leads.filter(l => l.stage === stage);
-            const isEnquiry = stage === "enquiry";
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+
+          {COLUMNS.map(col => {
+            const colLeads = leads.filter(l => col.stageKeys.includes(l.stage));
+            const isDragOver = dragOverStage === col.key;
+
             return (
-              <div key={stage} style={{ minWidth: "180px", maxWidth: "220px", flex: "0 0 auto", width: "100%" }}>
+              <div key={col.key}>
                 {/* Column header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: STAGE_COLORS[stage] }} />
-                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{STAGE_LABELS[stage]}</span>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "10px",
+                  padding: "0 4px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                    <div style={{ width: "9px", height: "9px", borderRadius: "50%", background: col.color }} />
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
+                      {col.label}
+                    </span>
                   </div>
-                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", background: "rgba(255,255,255,0.06)", borderRadius: "999px", padding: "1px 7px" }}>{stageLeads.length}</span>
+                  <span style={{
+                    fontFamily: "system-ui",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    color: colLeads.length > 0 ? col.color : "rgba(255,255,255,0.25)",
+                    background: isDragOver ? `${col.color}30` : "rgba(255,255,255,0.06)",
+                    borderRadius: "999px",
+                    padding: "2px 8px",
+                    transition: "all 0.15s",
+                  }}>
+                    {colLeads.length}
+                  </span>
                 </div>
-                {/* Column body */}
-                <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${isEnquiry ? TiffanyBorder : GlassBorder}`, borderLeft: isEnquiry ? `3px solid ${Tiffany}` : `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
-                  {stageLeads.map(lead => {
-                    const fu = needsFollowUp(lead);
+
+                {/* Drop zone */}
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOverStage(col.key); }}
+                  onDragLeave={() => setDragOverStage(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("leadId");
+                    const lead = leads.find(l => l.id === id);
+                    if (lead) moveLeadToStage(lead, col.key);
+                    setDragOverStage(null);
+                    setDraggingId(null);
+                  }}
+                  style={{
+                    background: isDragOver ? `${col.color}10` : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${isDragOver ? col.color + "60" : "rgba(255,255,255,0.07)"}`,
+                    borderTop: `2px solid ${isDragOver ? col.color : "rgba(255,255,255,0.07)"}`,
+                    borderRadius: "14px",
+                    padding: "8px",
+                    minHeight: "200px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {colLeads.map(lead => {
                     const src = SOURCE_COLORS[lead.source] || SOURCE_COLORS.other;
                     const days = daysAgo(lead.createdAt);
-                    const isOverdue = fu === "urgent";
+                    const isExpanded = expandedLeadId === lead.id;
+                    const isDragging = draggingId === lead.id;
+
                     return (
-                      <>
-                      <div
-                        key={lead.id}
-                        onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}
-                        style={{
-                          background: "rgba(255,255,255,0.04)",
-                          backdropFilter: GlassBlur,
-                          border: `1px solid ${isOverdue ? TiffanyBorder : "rgba(255,255,255,0.08)"}`,
-                          borderLeft: `3px solid ${STAGE_COLORS[stage]}`,
-                          borderRadius: "12px",
-                          padding: "12px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
-                            <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)", margin: 0, lineHeight: 1.3 }}>{lead.name}</p>
-                            {lead.source && (
-                              <span style={{ marginLeft: '6px', background: lead.source === 'referral' ? 'rgba(52,211,153,0.15)' : lead.source === 'instagram' ? 'rgba(10,186,181,0.15)' : 'rgba(107,114,128,0.15)', color: lead.source === 'referral' ? '#34d399' : lead.source === 'instagram' ? '#0abab5' : '#9ca3af', border: `1px solid ${lead.source === 'referral' ? 'rgba(52,211,153,0.3)' : lead.source === 'instagram' ? 'rgba(10,186,181,0.3)' : 'rgba(107,114,128,0.3)'}`, borderRadius: '999px', padding: '1px 7px', fontSize: '10px', fontFamily: 'system-ui', textTransform: 'capitalize' }}>
-                                {lead.source}
-                              </span>
-                            )}
+                      <div key={lead.id}>
+                        {/* Card */}
+                        <div
+                          draggable
+                          onDragStart={e => {
+                            e.dataTransfer.setData("leadId", lead.id);
+                            setDraggingId(lead.id);
+                          }}
+                          onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
+                          onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+                          style={{
+                            background: isDragging
+                              ? "rgba(255,255,255,0.02)"
+                              : isExpanded
+                                ? "rgba(255,255,255,0.07)"
+                                : "rgba(255,255,255,0.05)",
+                            border: `1px solid ${isExpanded ? TiffanyBorder : "rgba(255,255,255,0.09)"}`,
+                            borderLeft: `3px solid ${col.color}`,
+                            borderRadius: "12px",
+                            padding: "12px 12px 10px",
+                            cursor: "grab",
+                            opacity: isDragging ? 0.4 : 1,
+                            transition: "all 0.15s",
+                            boxShadow: isExpanded ? `0 4px 20px ${col.color}20` : "none",
+                          }}
+                        >
+                          {/* Row 1: Name + Source badge */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px", marginBottom: "4px" }}>
+                            <p style={{
+                              fontFamily: "system-ui",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              color: "rgba(255,255,255,0.90)",
+                              margin: 0,
+                              lineHeight: 1.3,
+                              flex: 1,
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}>
+                              {lead.name}
+                            </p>
+                            <span style={{
+                              background: src.bg,
+                              color: src.color,
+                              border: `1px solid ${src.color}40`,
+                              borderRadius: "999px",
+                              padding: "1px 7px",
+                              fontSize: "10px",
+                              fontFamily: "system-ui",
+                              fontWeight: 500,
+                              flexShrink: 0,
+                              textTransform: "capitalize",
+                            }}>
+                              {lead.source === "Macro Calculator" ? "Macro" : lead.source}
+                            </span>
                           </div>
-                          <div style={{ position: "relative" }}>
-                            <button onClick={(e) => { e.stopPropagation(); setMenuLead(menuLead?.id === lead.id ? null : lead); setMenuOpen(menuLead?.id === lead.id ? !menuOpen : true); setMoveStage(null); }}
-                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "2px 4px", borderRadius: "4px", fontSize: "16px", lineHeight: 1, flexShrink: 0 }}>
-                              &#x22EE;
-                            </button>
-                            {menuLead?.id === lead.id && menuOpen && (
-                              <div style={{ position: "absolute", right: 0, top: "100%", zIndex: 100, background: "rgba(15,20,40,0.98)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "12px", padding: "6px", minWidth: "140px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                                {moveStage === lead.stage ? (
-                                  <div>
-                                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", padding: "4px 8px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Move to stage</p>
-                                    {STAGES.filter(s => s !== lead.stage).map(s => (
-                                      <button key={s} onClick={() => moveLeadStage(lead, s)} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.70)", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
-                                        onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
-                                        onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                                        {STAGE_LABELS[s]}
-                                      </button>
-                                    ))}
-                                    <button onClick={() => setMoveStage(null)} style={{ display: "block", width: "100%", textAlign: "center", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontSize: "11px", fontFamily: "system-ui", marginTop: "2px" }}>Cancel</button>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <button onClick={() => startEdit(lead)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.75)", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
-                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                                      ✏️ Edit
-                                    </button>
-                                    <button onClick={() => { setMoveStage(lead.stage); }} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "rgba(255,255,255,0.75)", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"}
-                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                                      ↗️ Move Stage
-                                    </button>
-                                    <button onClick={() => deleteLead(lead.id)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#f87171", cursor: "pointer", padding: "7px 10px", borderRadius: "8px", fontSize: "12px", fontFamily: "system-ui" }}
-                                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "rgba(248,113,113,0.10)"}
-                                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}>
-                                      🗑 Delete
-                                    </button>
-                                  </div>
-                                )}
+
+                          {/* Row 2: Goal */}
+                          {lead.goal && (
+                            <p style={{
+                              fontFamily: "system-ui",
+                              fontSize: "11px",
+                              color: "rgba(255,255,255,0.30)",
+                              margin: 0,
+                              lineHeight: 1.4,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}>
+                              {lead.goal}
+                            </p>
+                          )}
+
+                          {/* Row 3: Meta — days ago + expand indicator */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                            <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)" }}>
+                              {days === 0 ? "Today" : `${days}d ago`}
+                            </span>
+                            <span style={{
+                              fontFamily: "system-ui",
+                              fontSize: "12px",
+                              color: "rgba(255,255,255,0.25)",
+                              transition: "transform 0.15s",
+                              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                              display: "inline-block",
+                            }}>
+                              ▼
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expanded detail — flush to card, connected look */}
+                        {isExpanded && (
+                          <div style={{
+                            background: "rgba(255,255,255,0.04)",
+                            border: `1px solid ${TiffanyBorder}`,
+                            borderTop: "none",
+                            borderRadius: "0 0 12px 12px",
+                            padding: "10px 14px",
+                            marginTop: "-1px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "7px",
+                          }}>
+                            {lead.email && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                                <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.28)", width: "52px", flexShrink: 0 }}>Email</span>
+                                <a href={`mailto:${lead.email}`} style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.email}</a>
+                              </div>
+                            )}
+                            {lead.phone && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                                <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.28)", width: "52px", flexShrink: 0 }}>Phone</span>
+                                <a href={`https://wa.me/${formatPhone(lead.phone)}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textDecoration: "none" }}>{lead.phone}</a>
+                              </div>
+                            )}
+                            {lead.instagram && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                                <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.28)", width: "52px", flexShrink: 0 }}>Instagram</span>
+                                <a href={`https://instagram.com/${lead.instagram.replace("@","")}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textDecoration: "none" }}>{lead.instagram}</a>
+                              </div>
+                            )}
+                            {lead.notes && (
+                              <div style={{ display: "flex", alignItems: "flex-start", gap: "7px", marginTop: "2px" }}>
+                                <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.28)", width: "52px", flexShrink: 0 }}>Notes</span>
+                                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>{lead.notes}</span>
                               </div>
                             )}
                           </div>
-                        </div>
-                        <div style={{ marginBottom: "6px", display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                          <span style={{ background: src.bg, color: src.color, border: `1px solid ${src.color}40`, borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}</span>
-                          {lead.stage === "active" && <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.35)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>✅ Converted</span>}
-                        </div>
-                        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>{days === 0 ? "Today" : `${days}d ago`}</p>
-                        {fu === "follow" && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>⚠️ Follow up</span>}
-                        {fu === "urgent" && <span style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>🔴 Urgent</span>}
+                        )}
                       </div>
-                      {expandedLeadId === lead.id && (
-                        <div style={{
-                          background: "rgba(255,255,255,0.04)",
-                          borderTop: "1px solid rgba(255,255,255,0.06)",
-                          borderBottom: "1px solid rgba(255,255,255,0.06)",
-                          padding: "12px 20px",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "8px",
-                          marginTop: "8px",
-                        }}>
-                          {lead.email && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Email</span>
-                              <a href={`mailto:${lead.email}`} style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}>{lead.email}</a>
-                            </div>
-                          )}
-                          {lead.phone && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Phone</span>
-                              <a
-                                href={(() => {
-                                  const p = lead.phone.replace(/\D/g, "");
-                                  const au = p.startsWith("0") ? "61" + p.slice(1) : p;
-                                  return `https://wa.me/${au}`;
-                                })()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}
-                              >{lead.phone}</a>
-                            </div>
-                          )}
-                          {lead.instagram && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Instagram</span>
-                              <a
-                                href={`https://instagram.com/${lead.instagram.replace("@","")}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}
-                              >{lead.instagram}</a>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      </>
                     );
                   })}
-                  {stageLeads.length === 0 && (
-                    <div style={{ textAlign: "center", padding: "20px 8px" }}>
-                      <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.20)" }}>No leads</p>
+
+                  {colLeads.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "32px 8px", opacity: 0.3 }}>
+                      <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>Drop here</p>
                     </div>
                   )}
                 </div>
