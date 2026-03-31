@@ -1563,8 +1563,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
-  const [checkInFilter, setCheckInFilter] = useState("all");
+  const [hoveredClientId, setHoveredClientId] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
 
   const week = getWeekDates(weekOffset);
   const weekKey = getWeekKey(week.start);
@@ -1620,24 +1620,22 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     return () => clearInterval(interval);
   }, [weekOffset]);
 
-  // Keyboard shortcuts for check-in status (when a client row is selected)
+  // Keyboard shortcuts for check-in status (when a client row is hovered)
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       // Don't fire if user is typing in an input
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
-      // Escape clears both single and multi selection
+      // Escape clears the hovered client
       if (e.key === "Escape") {
         setSelectedClientId(null);
-        setSelectedClients(new Set());
+        setHoveredClientId(null);
         return;
       }
 
       // Determine which clients to apply status to
-      const targets = selectedClients.size > 0
-        ? Array.from(selectedClients)
-        : selectedClientId ? [selectedClientId] : [];
+      const targets = hoveredClientId ? [hoveredClientId] : [];
 
       if (targets.length === 0) return;
 
@@ -1668,7 +1666,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedClientId, selectedClients, weekKey]);
+  }, [hoveredClientId, weekKey]);
 
   function getStatus(clientId: string): CheckInStatus | null {
     return checkIns[weekKey]?.[clientId] ?? null;
@@ -1815,23 +1813,35 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         ))}
       </div>
 
-      {/* ── Status Filter Bar (single-select pills) ── */}
+      {/* ── Status Filter Bar (multi-select toggles) ── */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
         {FILTER_OPTIONS.map(opt => {
-          const isActive = checkInFilter === opt.key;
+          const isAll = opt.key === "all";
+          const isActive = isAll ? activeFilters.size === 0 : activeFilters.has(opt.key);
           return (
             <button
               key={opt.key}
-              onClick={() => setCheckInFilter(opt.key)}
+              onClick={() => {
+                if (isAll) {
+                  setActiveFilters(new Set());
+                } else {
+                  setActiveFilters(prev => {
+                    const next = new Set(prev);
+                    if (next.has(opt.key)) next.delete(opt.key);
+                    else next.add(opt.key);
+                    return next;
+                  });
+                }
+              }}
               style={{
-                background: isActive ? Tiffany : "rgba(255,255,255,0.06)",
-                border: `1px solid ${isActive ? Tiffany : "rgba(255,255,255,0.10)"}`,
+                background: isActive ? TiffanySoft : "rgba(255,255,255,0.06)",
+                border: `1px solid ${isActive ? TiffanyBorder : "rgba(255,255,255,0.10)"}`,
                 borderRadius: "999px",
                 padding: "3px 12px",
                 fontSize: "11px",
                 fontFamily: "system-ui",
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? "#000" : "rgba(255,255,255,0.55)",
+                color: isActive ? Tiffany : "rgba(255,255,255,0.55)",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -2057,12 +2067,21 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           // Save raw count before filter — used to decide column visibility
           const rawDayClientsCount = dayClients.length;
 
-          // Apply check-in status filter (does not affect column visibility decision)
-          if (checkInFilter !== "all") {
+          // Apply check-in status filter (multi-select: activeFilters.size === 0 means show all)
+          if (activeFilters.size > 0) {
             dayClients = dayClients.filter(c => {
-              if (checkInFilter === "remaining") return !checkIns[weekKey]?.[c.id] && c.status !== "paused";
-              if (checkInFilter === "cancelled") return false; // already excluded above
-              return checkIns[weekKey]?.[c.id] === checkInFilter;
+              const storedStatus = checkIns[weekKey]?.[c.id] ?? null;
+              // "remaining" = no stored check-in AND not paused
+              if (activeFilters.has("remaining")) {
+                if (!storedStatus && c.status !== "paused") return true;
+              }
+              // "cancelled" is already excluded above — no-op filter button
+              if (activeFilters.has("cancelled")) {
+                return false;
+              }
+              // Match by stored check-in status
+              if (storedStatus && activeFilters.has(storedStatus)) return true;
+              return false;
             });
           }
 
@@ -2096,7 +2115,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           const progress = totalClients > 0 ? checkedIn / totalClients : 0;
 
           // Hide column only if no clients at all for this day AND no filter active
-          if (rawDayClientsCount === 0 && checkInFilter === "all") return null;
+          if (rawDayClientsCount === 0 && activeFilters.size === 0) return null;
 
           return (
             <div key={day} style={{
@@ -2160,22 +2179,6 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 Total Clients: {totalClients} — Remaining: {remaining}
               </div>
 
-              {/* Multi-select indicator */}
-              {selectedClients.size > 0 && (
-                <div style={{
-                  padding: "3px 12px 5px",
-                  background: "rgba(245,158,11,0.10)",
-                  fontFamily: "system-ui",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "#f59e0b",
-                  textAlign: "center",
-                  borderTop: "1px solid rgba(245,158,11,0.15)",
-                }}>
-                  {selectedClients.size} selected
-                </div>
-              )}
-
               {/* Client rows */}
               <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 {dayClients.length === 0 ? (
@@ -2190,31 +2193,19 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 ) : (
                   dayClients.map((client) => {
                     const status = getStatus(client.id);
-                    const displayStatus = client._forceCancelled ? "cancelled" : (status ?? null);
-                    const isSingleSelected = selectedClientId === client.id;
-                    const isMultiSelected = selectedClients.has(client.id);
-                    const isRowSelected = isSingleSelected || isMultiSelected;
                     return (
                       <div key={client.id} style={{
-                        background: isRowSelected ? "rgba(10,186,181,0.10)" : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${isRowSelected ? "rgba(10,186,181,0.55)" : "rgba(255,255,255,0.08)"}`,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.08)",
                         borderRadius: "10px",
                         padding: isMobile ? "12px 14px" : "8px 10px",
                         display: "flex",
                         flexDirection: "column",
                         gap: "5px",
-                        cursor: "pointer",
                         transition: "all 0.15s",
                       }}
-                      onClick={() => {
-                        setSelectedClientId(isSingleSelected ? null : client.id);
-                        setSelectedClients(prev => {
-                          const next = new Set(prev);
-                          if (next.has(client.id)) next.delete(client.id);
-                          else next.add(client.id);
-                          return next;
-                        });
-                      }}>
+                      onMouseEnter={() => setHoveredClientId(client.id)}
+                      onMouseLeave={() => setHoveredClientId(null)}>
                         {/* Name + status badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
                           <span
