@@ -117,7 +117,7 @@ export interface Lead {
   trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -290,6 +290,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     leads: "Leads",
     retention: "Retention",
     "macro-calculator": "Macro Calculator",
+    content: "Content",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -464,7 +465,8 @@ function Sidebar({
                      item.id === "clients" ? "◉" :
                      item.id === "leads" ? "◎" :
                      item.id === "finance" ? "◑" :
-                     item.id === "agents" ? "◧" : "◨"}
+                     item.id === "agents" ? "◧" :
+                     item.id === "content" ? "✨" : "◨"}
                   </span>
                   <span>{item.label}</span>
                 </button>
@@ -1870,40 +1872,18 @@ function AIStudio({
     setError(null);
     setIdeas([]);
     try {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey || apiKey === "sk-ant-placeholder") {
-        setError("⚠️ No API key set. Add ANTHROPIC_API_KEY to .env.local with your key.");
+      const response = await fetch("/api/content/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: trimmed }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        setError(data.error);
         setGenerating(false);
         return;
       }
-      const systemPrompt = `You are a content strategist for Invictus Physiques, an online physique coaching brand. Analyse the provided transcript or coaching notes and generate 6–8 content ideas. For each idea return JSON with fields: hook, contentType (Reel/Carousel/Story), platform (Instagram/YouTube), caption. Return only a JSON array, no markdown or preamble.`;
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          system: systemPrompt,
-          messages: [{ role: "user", content: trimmed }],
-        }),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`API error ${res.status}: ${errText}`);
-      }
-      const json = await res.json();
-      const rawText = json.content?.[0]?.text;
-      if (!rawText) throw new Error("No content in response");
-      // Try to extract JSON array
-      let text = rawText.trim();
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) text = jsonMatch[0];
-      const parsed = JSON.parse(text) as IdeaForPool[];
-      setIdeas(parsed);
+      setIdeas(data.ideas as IdeaForPool[]);
     } catch (err) {
       setError(`Failed to generate ideas: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -2013,11 +1993,6 @@ function AIStudio({
           color: "#f87171",
         }}>
           {error}
-          {!process.env.ANTHROPIC_API_KEY && (
-            <div style={{ marginTop: "8px", fontSize: "12px", color: "rgba(255,255,255,0.50)" }}>
-              Add your key to <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>.env.local</code>: <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>ANTHROPIC_API_KEY=sk-ant-...</code>
-            </div>
-          )}
         </div>
       )}
 
@@ -2096,33 +2071,7 @@ function AIStudio({
 // ─── Team Tab ─────────────────────────────────────────────────────────────────
 
 function TeamTab() {
-  const [teamSubTab, setTeamSubTab] = useState<"team" | "calendar" | "ai-studio">("team");
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
-
-  // Shared state for Calendar and AI Studio
-  const [calendarCards, setCalendarCards] = useState<CalendarCard[]>([]);
-  const [poolIdeas, setPoolIdeas] = useState<PoolIdea[]>([]);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const storedCalendar = localStorage.getItem("ip_content_calendar");
-      if (storedCalendar) setCalendarCards(JSON.parse(storedCalendar));
-    } catch { /* ignore */ }
-    try {
-      const storedPool = localStorage.getItem("ip_content_pool");
-      if (storedPool) setPoolIdeas(JSON.parse(storedPool));
-    } catch { /* ignore */ }
-  }, []);
-
-  // Persist to localStorage on change
-  useEffect(() => {
-    localStorage.setItem("ip_content_calendar", JSON.stringify(calendarCards));
-  }, [calendarCards]);
-
-  useEffect(() => {
-    localStorage.setItem("ip_content_pool", JSON.stringify(poolIdeas));
-  }, [poolIdeas]);
 
   function TagPill({ label, color }: { label: string; color: string }) {
     return (
@@ -2232,113 +2181,136 @@ function TeamTab() {
   const tier2 = TEAM_MEMBERS.slice(1, 4);
   const tier3 = TEAM_MEMBERS.slice(4);
 
-  // ── Sub-Tab Switcher ──────────────────────────────────────────────────────
-  const SUB_TABS: { key: "team" | "calendar" | "ai-studio"; label: string; emoji: string }[] = [
-    { key: "team",       label: "Team",       emoji: "👥" },
-    { key: "calendar",   label: "Calendar",   emoji: "📅" },
-    { key: "ai-studio",  label: "AI Studio", emoji: "✨" },
+  return (
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 0 40px", width: "100%", boxSizing: "border-box" }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: "8px" }}>
+        <h1 style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "white", margin: "0 0 10px", lineHeight: 1.1 }}>
+          Meet the Team
+        </h1>
+        <p style={{ fontFamily: "system-ui", fontSize: "16px", color: "rgba(255,255,255,0.55)", margin: "0 0 12px" }}>
+          The people + agents behind Invictus Physiques
+        </p>
+        <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.40)", margin: "0 auto 32px", maxWidth: "600px", lineHeight: 1.6, textAlign: "center" }}>
+          From founder to AI agents — everyone has a role. Tap any card to learn more about how they keep Invictus Physiques running.
+        </p>
+      </div>
+
+      {/* TIER 1: Jarvis */}
+      <div style={{ marginBottom: "24px" }}>
+        <AgentCard member={tier1} />
+        <div style={{ width: "2px", height: "30px", background: `${Tiffany}50`, margin: "0 auto" }} />
+      </div>
+
+      {/* Divider */}
+      <div style={{ marginBottom: "24px" }}>
+        <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
+      </div>
+
+      {/* TIER 2: Human Team row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        {tier2.map((member) => (
+          <AgentCard key={member.name} member={member} />
+        ))}
+      </div>
+
+      {/* Divider: META LAYER */}
+      <div style={{ marginBottom: "24px" }}>
+        <MetaDivider />
+      </div>
+
+      {/* TIER 3: AI Agents */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+        {tier3.map((member) => (
+          <AgentCard key={member.name} member={member} />
+        ))}
+      </div>
+
+      {/* Role Card Modal */}
+      {selectedMember && (
+        <GlassModal onClose={() => setSelectedMember(null)}>
+          <button
+            onClick={() => setSelectedMember(null)}
+            style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}
+          >
+            ✕
+          </button>
+
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: selectedMember.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", margin: "0 auto 16px" }}>
+            {selectedMember.avatar}
+          </div>
+
+          <div style={{ textAlign: "center", marginBottom: "12px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>
+              {selectedMember.name}
+            </p>
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>
+              {selectedMember.role}
+            </p>
+          </div>
+
+          <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.50)", margin: "0 0 16px", lineHeight: 1.6, textAlign: "center" }}>
+            {selectedMember.description}
+          </p>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "16px" }}>
+            {selectedMember.tags.map((tag) => (
+              <TagPill key={tag.label} label={tag.label} color={tag.color} />
+            ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: selectedMember.isAI ? Tiffany : "#f59e0b", display: "inline-block" }} />
+            <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
+              Last active: <strong style={{ color: "rgba(255,255,255,0.70)" }}>{selectedMember.lastActive}</strong>
+            </span>
+          </div>
+
+          <button
+            onClick={() => { console.log(`Send message to ${selectedMember.name}`); }}
+            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 24px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", fontWeight: 600, cursor: "pointer", width: "100%" }}
+          >
+            Send Message
+          </button>
+        </GlassModal>
+      )}
+    </div>
+  );
+}
+
+// ─── Content Tab ─────────────────────────────────────────────────────────────
+
+function ContentTab() {
+  const [teamSubTab, setTeamSubTab] = useState<"calendar" | "ai-studio">("calendar");
+  const [calendarCards, setCalendarCards] = useState<CalendarCard[]>([]);
+  const [poolIdeas, setPoolIdeas] = useState<PoolIdea[]>([]);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedCalendar = localStorage.getItem("ip_content_calendar");
+      if (storedCalendar) setCalendarCards(JSON.parse(storedCalendar));
+    } catch { /* ignore */ }
+    try {
+      const storedPool = localStorage.getItem("ip_content_pool");
+      if (storedPool) setPoolIdeas(JSON.parse(storedPool));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist to localStorage on change
+  useEffect(() => {
+    localStorage.setItem("ip_content_calendar", JSON.stringify(calendarCards));
+  }, [calendarCards]);
+
+  useEffect(() => {
+    localStorage.setItem("ip_content_pool", JSON.stringify(poolIdeas));
+  }, [poolIdeas]);
+
+  const SUB_TABS: { key: "calendar" | "ai-studio"; label: string; emoji: string }[] = [
+    { key: "calendar",  label: "Calendar",  emoji: "📅" },
+    { key: "ai-studio", label: "AI Studio", emoji: "✨" },
   ];
 
-  // ── Team Profiles Content ─────────────────────────────────────────────────
-  function renderTeamProfiles() {
-    return (
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 0 40px", width: "100%", boxSizing: "border-box" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <h1 style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "white", margin: "0 0 10px", lineHeight: 1.1 }}>
-            Meet the Team
-          </h1>
-          <p style={{ fontFamily: "system-ui", fontSize: "16px", color: "rgba(255,255,255,0.55)", margin: "0 0 12px" }}>
-            The people + agents behind Invictus Physiques
-          </p>
-          <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.40)", margin: "0 auto 32px", maxWidth: "600px", lineHeight: 1.6, textAlign: "center" }}>
-            From founder to AI agents — everyone has a role. Tap any card to learn more about how they keep Invictus Physiques running.
-          </p>
-        </div>
-
-        {/* TIER 1: Jarvis */}
-        <div style={{ marginBottom: "24px" }}>
-          <AgentCard member={tier1} />
-          <div style={{ width: "2px", height: "30px", background: `${Tiffany}50`, margin: "0 auto" }} />
-        </div>
-
-        {/* Divider */}
-        <div style={{ marginBottom: "24px" }}>
-          <SectionDivider left="↓ INPUT SIGNAL" right="OUTPUT ACTION ↓" />
-        </div>
-
-        {/* TIER 2: Human Team row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-          {tier2.map((member) => (
-            <AgentCard key={member.name} member={member} />
-          ))}
-        </div>
-
-        {/* Divider: META LAYER */}
-        <div style={{ marginBottom: "24px" }}>
-          <MetaDivider />
-        </div>
-
-        {/* TIER 3: AI Agents */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-          {tier3.map((member) => (
-            <AgentCard key={member.name} member={member} />
-          ))}
-        </div>
-
-        {/* Role Card Modal */}
-        {selectedMember && (
-          <GlassModal onClose={() => setSelectedMember(null)}>
-            <button
-              onClick={() => setSelectedMember(null)}
-              style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}
-            >
-              ✕
-            </button>
-
-            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: selectedMember.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", margin: "0 auto 16px" }}>
-              {selectedMember.avatar}
-            </div>
-
-            <div style={{ textAlign: "center", marginBottom: "12px" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 6px" }}>
-                {selectedMember.name}
-              </p>
-              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>
-                {selectedMember.role}
-              </p>
-            </div>
-
-            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.50)", margin: "0 0 16px", lineHeight: 1.6, textAlign: "center" }}>
-              {selectedMember.description}
-            </p>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginBottom: "16px" }}>
-              {selectedMember.tags.map((tag) => (
-                <TagPill key={tag.label} label={tag.label} color={tag.color} />
-              ))}
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "20px" }}>
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: selectedMember.isAI ? Tiffany : "#f59e0b", display: "inline-block" }} />
-              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)" }}>
-                Last active: <strong style={{ color: "rgba(255,255,255,0.70)" }}>{selectedMember.lastActive}</strong>
-              </span>
-            </div>
-
-            <button
-              onClick={() => { console.log(`Send message to ${selectedMember.name}`); }}
-              style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 24px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", fontWeight: 600, cursor: "pointer", width: "100%" }}
-            >
-              Send Message
-            </button>
-          </GlassModal>
-        )}
-      </div>
-    );
-  }
-
-  // ── Main Render ───────────────────────────────────────────────────────────
   return (
     <div style={{ width: "100%", boxSizing: "border-box" }}>
       {/* Sub-Tab Switcher */}
@@ -2395,7 +2367,6 @@ function TeamTab() {
       </div>
 
       {/* Sub-Tab Content */}
-      {teamSubTab === "team" && renderTeamProfiles()}
       {teamSubTab === "calendar" && (
         <ContentCalendar
           calendarCards={calendarCards}
@@ -2410,6 +2381,7 @@ function TeamTab() {
     </div>
   );
 }
+
 
 // ─── Check-Ins Tab ───────────────────────────────────────────────────────────
 
@@ -4116,6 +4088,7 @@ export default function Home() {
         { id: "leads", label: "Leads" },
         { id: "finance", label: "Finance" },
         { id: "retention", label: "Retention" },
+        { id: "content", label: "Content" },
       ],
     },
     {
@@ -5038,6 +5011,7 @@ return (
              activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
              activeTab === "retention" ? <RetentionTab clients={clients} /> :
              activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
+             activeTab === "content" ? <ContentTab /> :
 <LeadsTab onConvertLead={(lead) => {
                const newClient: Client = {
                  id: `lead-${lead.id}`,
