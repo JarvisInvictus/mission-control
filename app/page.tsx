@@ -4860,6 +4860,41 @@ export default function Home() {
                     📊 Open Sheet
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const startOfYear = new Date(year, 0, 1);
+                    const week1Start = new Date(startOfYear);
+                    week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
+                    const weekNum = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+                    const weekKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
+                    try {
+                      const stored = localStorage.getItem("mc_checkins");
+                      const checkIns = stored ? JSON.parse(stored) : {};
+                      const next = { ...checkIns, [weekKey]: { ...checkIns[weekKey], [selectedClient.id]: "ontime" } };
+                      localStorage.setItem("mc_checkins", JSON.stringify(next));
+                    } catch { /* ignore */ }
+                  }}
+                  style={{
+                    width: "100%",
+                    background: Tiffany,
+                    border: `1px solid ${Tiffany}`,
+                    borderRadius: "12px",
+                    padding: "12px 16px",
+                    color: "#000",
+                    fontSize: "14px",
+                    fontFamily: "system-ui",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  ✓ Check-in Complete
+                </button>
                 <button onClick={() => setActionPanel("cancel")}
                   style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
                   ✕ Cancel Client
