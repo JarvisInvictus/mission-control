@@ -1870,9 +1870,9 @@ function AIStudio({
     setError(null);
     setIdeas([]);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
+      const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey || apiKey === "sk-ant-placeholder") {
-        setError("⚠️ No API key set. Add NEXT_PUBLIC_ANTHROPIC_API_KEY to .env.local with your key.");
+        setError("⚠️ No API key set. Add ANTHROPIC_API_KEY to .env.local with your key.");
         setGenerating(false);
         return;
       }
@@ -2013,9 +2013,9 @@ function AIStudio({
           color: "#f87171",
         }}>
           {error}
-          {!process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY && (
+          {!process.env.ANTHROPIC_API_KEY && (
             <div style={{ marginTop: "8px", fontSize: "12px", color: "rgba(255,255,255,0.50)" }}>
-              Add your key to <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>.env.local</code>: <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>NEXT_PUBLIC_ANTHROPIC_API_KEY=sk-ant-...</code>
+              Add your key to <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>.env.local</code>: <code style={{ background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: "4px" }}>ANTHROPIC_API_KEY=sk-ant-...</code>
             </div>
           )}
         </div>
