@@ -2705,6 +2705,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [checkInConfirmed, setCheckInConfirmed] = useState(false);
   const [hoveredClientId, setHoveredClientId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
