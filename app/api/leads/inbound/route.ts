@@ -62,7 +62,13 @@ export async function POST(request: Request) {
   }
 
   // Log raw payload so we can see exactly what Fillout is sending
-  console.log("[leads/inbound] Raw Fillout payload:", JSON.stringify(body));
+  const rawStr = JSON.stringify(body);
+  console.log("RAW_FILLOUT_BODY_START" + rawStr + "RAW_FILLOUT_BODY_END");
+  console.log("RAW_FILLOUT_HEADERS:", JSON.stringify({
+    "content-type": request.headers.get("content-type"),
+    "user-agent": request.headers.get("user-agent"),
+    "x-fillout": request.headers.get("x-fillout-version"),
+  }));
 
   // Extract answers — Fillout wraps responses in an answers array
   // Each answer: { field: { name: "Field Label" }, value: "answer" }
