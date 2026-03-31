@@ -2707,6 +2707,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [hoveredClientId, setHoveredClientId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
 
   const week = getWeekDates(weekOffset);
   const weekKey = getWeekKey(week.start);
@@ -2762,29 +2763,38 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     return () => clearInterval(interval);
   }, [weekOffset]);
 
-  // Keyboard shortcuts for check-in status (when a client row is hovered)
+  // Keyboard shortcuts for check-in status
+  // 1=On Time, 2=Late, 3=Never, 4=Skip-L, 5=Sick, 6=Submitted, 7=Skip-L, 0=Cancelled
+  // Priority: selectedClients (multi-select) > hoveredClientId
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       // Don't fire if user is typing in an input
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
-      // Escape clears the hovered client
+      // Escape clears selections
       if (e.key === "Escape") {
+        setSelectedClients(new Set());
         setSelectedClientId(null);
         setHoveredClientId(null);
         return;
       }
 
-      // Determine which clients to apply status to
-      const targets = hoveredClientId ? [hoveredClientId] : [];
+      // Determine which clients to apply status to:
+      // 1. If selectedClients has items → apply to ALL selected
+      // 2. Else if hoveredClientId is set → apply to hovered
+      // 3. Else do nothing
+      let targets: string[] = [];
+      if (selectedClients.size > 0) {
+        targets = Array.from(selectedClients);
+      } else if (hoveredClientId !== null) {
+        targets = [hoveredClientId];
+      }
 
       if (targets.length === 0) return;
 
       const key = e.key;
-      if (key === "s" || key === "S") {
-        targets.forEach(id => setStatus(id, "submitted"));
-      } else if (key === "1") {
+      if (key === "1") {
         targets.forEach(id => setStatus(id, "ontime"));
       } else if (key === "2") {
         targets.forEach(id => setStatus(id, "late"));
@@ -2795,6 +2805,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       } else if (key === "5") {
         targets.forEach(id => setStatus(id, "sick"));
       } else if (key === "6") {
+        targets.forEach(id => setStatus(id, "submitted"));
+      } else if (key === "7") {
         targets.forEach(id => setStatus(id, "skip-l"));
       } else if (key === "0") {
         targets.forEach(id => {
@@ -2805,10 +2817,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           });
         });
       }
+
+      // Clear selection after applying a status
+      setSelectedClients(new Set());
     }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [hoveredClientId, weekKey]);
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [selectedClients, hoveredClientId, weekKey]);
 
   function getStatus(clientId: string): CheckInStatus | null {
     return checkIns[weekKey]?.[clientId] ?? null;
@@ -3138,6 +3153,50 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         );
       })()}
 
+      {/* Bulk selection banner */}
+      {selectedClients.size > 0 && (
+        <div style={{
+          background: "rgba(10,186,181,0.10)",
+          border: "1px solid rgba(10,186,181,0.25)",
+          borderRadius: "12px",
+          padding: "10px 16px",
+          marginBottom: "16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}>
+          <span style={{ fontFamily: "system-ui", fontSize: "13px", color: Tiffany, fontWeight: 600 }}>
+            {selectedClients.size} client{selectedClients.size !== 1 ? "s" : ""} selected — press 1–7 or 0 to apply status
+          </span>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {[
+              { key: "1", label: "On Time" },
+              { key: "2", label: "Late" },
+              { key: "3", label: "Never" },
+              { key: "4", label: "Skip·L" },
+              { key: "5", label: "Sick" },
+              { key: "6", label: "Submitted" },
+              { key: "7", label: "Skip·L" },
+              { key: "0", label: "Clear" },
+            ].map(h => (
+              <span key={h.key} style={{
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: "6px",
+                padding: "2px 7px",
+                fontFamily: "system-ui",
+                fontSize: "10px",
+                color: "rgba(255,255,255,0.55)",
+              }}>
+                <strong style={{ color: "rgba(255,255,255,0.90)" }}>{h.key}</strong> {h.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Week Navigation ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginBottom: "20px" }}>
         <button
@@ -3335,10 +3394,11 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 ) : (
                   dayClients.map((client) => {
                     const status = getStatus(client.id);
+                    const isSelected = selectedClients.has(client.id);
                     return (
                       <div key={client.id} style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: isSelected ? "rgba(10,186,181,0.08)" : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${isSelected ? "rgba(10,186,181,0.40)" : "rgba(255,255,255,0.08)"}`,
                         borderRadius: "10px",
                         padding: isMobile ? "12px 14px" : "8px 10px",
                         display: "flex",
@@ -3348,24 +3408,39 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                       }}
                       onMouseEnter={() => setHoveredClientId(client.id)}
                       onMouseLeave={() => setHoveredClientId(null)}>
-                        {/* Name + status badge */}
+                        {/* Selection checkbox + Name + status badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
-                          <span
-                            style={{
-                              fontFamily: "system-ui",
-                              fontSize: "13px",
-                              color: "rgba(255,255,255,0.90)",
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              cursor: "pointer",
-                            }}
-                            onClick={() => onClientClick(client)}
-                            title="View profile"
-                          >
-                            {client.name}
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                setSelectedClients(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(client.id)) next.delete(client.id);
+                                  else next.add(client.id);
+                                  return next;
+                                });
+                              }}
+                              style={{ accentColor: Tiffany, cursor: "pointer", flexShrink: 0, width: "14px", height: "14px" }}
+                            />
+                            <span
+                              style={{
+                                fontFamily: "system-ui",
+                                fontSize: "13px",
+                                color: "rgba(255,255,255,0.90)",
+                                fontWeight: 500,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => onClientClick(client)}
+                              title="View profile"
+                            >
+                              {client.name}
+                            </span>
+                          </div>
                           {client._forceCancelled
                             ? <CancelledBadge clientId={client.id} />
                             : <StatusBadge clientId={client.id} status={status ?? null} />
