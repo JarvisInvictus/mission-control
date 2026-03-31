@@ -1550,12 +1550,14 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   };
   const FILTER_OPTIONS = [
     { key: "all",      label: "All" },
+    { key: "remaining", label: "Remaining" },
     { key: "submitted", label: "Submitted" },
     { key: "ontime",   label: "On Time" },
     { key: "late",     label: "Late" },
     { key: "never",    label: "Never" },
-    { key: "paused",    label: "Paused" },
-    { key: "unset",     label: "Unset" },
+    { key: "paused",   label: "Paused" },
+    { key: "sick",     label: "Sick" },
+    { key: "cancelled", label: "Cancelled" },
   ];
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
@@ -1793,7 +1795,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         ))}
       </div>
 
-      {/* ── Status Filter Bar ── */}
+      {/* ── Status Filter Bar (single-select pills) ── */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
         {FILTER_OPTIONS.map(opt => {
           const isActive = checkInFilter === opt.key;
@@ -1802,14 +1804,14 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               key={opt.key}
               onClick={() => setCheckInFilter(opt.key)}
               style={{
-                background: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
-                border: `1px solid ${isActive ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.10)"}`,
+                background: isActive ? Tiffany : "rgba(255,255,255,0.06)",
+                border: `1px solid ${isActive ? Tiffany : "rgba(255,255,255,0.10)"}`,
                 borderRadius: "999px",
                 padding: "3px 12px",
                 fontSize: "11px",
                 fontFamily: "system-ui",
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.45)",
+                color: isActive ? "#000" : "rgba(255,255,255,0.55)",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -2019,7 +2021,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             if (c.status === "cancelled") return false;
             // Apply check-in filter if not "all"
             if (checkInFilter !== "all") {
-              if (checkInFilter === "unset") return !checkIns[weekKey]?.[c.id];
+              if (checkInFilter === "remaining") return !checkIns[weekKey]?.[c.id] && c.status !== "paused";
               return checkIns[weekKey]?.[c.id] === checkInFilter;
             }
             return true;
@@ -2061,7 +2063,9 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             const s = getStatus(c.id);
             return s && s !== "never";
           }).length;
-          const progress = dayClients.length > 0 ? checkedIn / dayClients.length : 0;
+          const remaining = dayClients.filter(c => getStatus(c.id) === null && c.status !== "paused").length;
+          const totalClients = dayClients.length;
+          const progress = totalClients > 0 ? checkedIn / totalClients : 0;
 
           // Hide empty columns
           if (dayClients.length === 0) return null;
@@ -2125,7 +2129,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 fontSize: "11px",
                 color: "rgba(255,255,255,0.35)",
               }}>
-                Total Clients: {dayClients.length} — Remaining: {dayClients.length - checkedIn}
+                Total Clients: {totalClients} — Remaining: {remaining}
               </div>
 
               {/* Client rows */}
