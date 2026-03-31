@@ -20,6 +20,19 @@ function slugify(name: string): string {
 // Fillout sends: { answers: [{ field: { name: "..." }, value: "..." }] }
 // Each answer has field.name and a value
 function getField(answers: Record<string, unknown>[], ...labels: string[]): string {
+  // First pass: exact match on field.name (Fillout uses consistent field names)
+  for (const label of labels) {
+    const found = answers.find((a) => {
+      const field = a.field as Record<string, unknown> | undefined;
+      if (!field) return false;
+      const fieldName = String(field.name ?? "");
+      return fieldName === label;
+    });
+    if (found && found.value !== null && found.value !== undefined && String(found.value).trim() !== "") {
+      return String(found.value).trim();
+    }
+  }
+  // Second pass: fuzzy match on field.label (fallback for non-standard names)
   for (const label of labels) {
     const found = answers.find((a) => {
       const field = a.field as Record<string, unknown> | undefined;
@@ -75,12 +88,12 @@ export async function POST(request: Request) {
   const rawAnswers = Array.isArray(body.answers) ? body.answers : [];
   const answers = rawAnswers as Record<string, unknown>[];
 
-  const name      = getField(answers, "name", "full name", "fullname", "first name") || "Unknown";
-  const email     = getField(answers, "email", "email address", "e-mail") || "";
-  const phone     = getField(answers, "phone", "mobile", "phone number", "contact") || "";
-  const instagram = getField(answers, "instagram", "ig", "instagram handle") || "";
-  const goal     = getField(answers, "goal", "fitness goal", "what is your goal") || "";
-  const source   = getField(answers, "source", "how did you find us", "referred by", "how did you hear") || "Instagram";
+  const name      = getField(answers, "Full Name") || "Unknown";
+  const email     = getField(answers, "Email") || "";
+  const phone     = getField(answers, "Phone") || "";
+  const instagram = getField(answers, "Instagram") || "";
+  const goal      = getField(answers, "Goal") || "";
+  const source    = getField(answers, "source", "how did you find us", "referred by", "how did you hear") || "Instagram";
 
   const id   = slugify(name) + "-" + Date.now();
   const date = (body.submitted_at as string)

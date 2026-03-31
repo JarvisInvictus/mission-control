@@ -97,6 +97,7 @@ export interface Lead {
   name: string;
   email: string;
   phone: string;
+  instagram?: string;
   source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
   stage: "enquiry" | "consult_booked" | "consult_done" | "payment" | "onboarding" | "active";
   stageHistory: { stage: string; date: string }[];
@@ -3685,6 +3686,7 @@ export default function Home() {
     const [menuLead, setMenuLead] = useState<Lead | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [moveStage, setMoveStage] = useState<Lead["stage"] | null>(null);
+    const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
 
     const STAGES: Lead["stage"][] = ["enquiry", "consult_booked", "consult_done", "payment", "onboarding", "active"];
     const STAGE_LABELS: Record<Lead["stage"], string> = {
@@ -3853,14 +3855,20 @@ export default function Home() {
                     const days = daysAgo(lead.createdAt);
                     const isOverdue = fu === "urgent";
                     return (
-                      <div key={lead.id} style={{
-                        background: "rgba(255,255,255,0.04)",
-                        backdropFilter: GlassBlur,
-                        border: `1px solid ${isOverdue ? TiffanyBorder : "rgba(255,255,255,0.08)"}`,
-                        borderLeft: `3px solid ${STAGE_COLORS[stage]}`,
-                        borderRadius: "12px",
-                        padding: "12px",
-                      }}>
+                      <>
+                      <div
+                        key={lead.id}
+                        onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}
+                        style={{
+                          background: "rgba(255,255,255,0.04)",
+                          backdropFilter: GlassBlur,
+                          border: `1px solid ${isOverdue ? TiffanyBorder : "rgba(255,255,255,0.08)"}`,
+                          borderLeft: `3px solid ${STAGE_COLORS[stage]}`,
+                          borderRadius: "12px",
+                          padding: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
                             <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)", margin: 0, lineHeight: 1.3 }}>{lead.name}</p>
@@ -3920,6 +3928,52 @@ export default function Home() {
                         {fu === "follow" && <span style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>⚠️ Follow up</span>}
                         {fu === "urgent" && <span style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "1px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>🔴 Urgent</span>}
                       </div>
+                      {expandedLeadId === lead.id && (
+                        <div style={{
+                          background: "rgba(255,255,255,0.04)",
+                          borderTop: "1px solid rgba(255,255,255,0.06)",
+                          borderBottom: "1px solid rgba(255,255,255,0.06)",
+                          padding: "12px 20px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                          marginTop: "8px",
+                        }}>
+                          {lead.email && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Email</span>
+                              <a href={`mailto:${lead.email}`} style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}>{lead.email}</a>
+                            </div>
+                          )}
+                          {lead.phone && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Phone</span>
+                              <a
+                                href={(() => {
+                                  const p = lead.phone.replace(/\D/g, "");
+                                  const au = p.startsWith("0") ? "61" + p.slice(1) : p;
+                                  return `https://wa.me/${au}`;
+                                })()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}
+                              >{lead.phone}</a>
+                            </div>
+                          )}
+                          {lead.instagram && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", width: "70px" }}>Instagram</span>
+                              <a
+                                href={`https://instagram.com/${lead.instagram.replace("@","")}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontFamily: "system-ui", fontSize: "12px", color: "#0abab5", textDecoration: "none" }}
+                              >{lead.instagram}</a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      </>
                     );
                   })}
                   {stageLeads.length === 0 && (
