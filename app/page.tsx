@@ -2019,28 +2019,30 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           const isPastWeek = weekEnd <= now;
           const isCurrentWeek = weekStart <= now && weekEnd > now;
 
+          // Always filter by checkInDay first
           let dayClients = clients.filter(c => {
             if (c.checkInDay !== day) return false;
-            if (statusFilter.length === 0) return true;
-            return statusFilter.some(f => {
-              if (f === "unset") return !checkIns[weekKey]?.[c.id];
-              return checkIns[weekKey]?.[c.id] === f;
-            });
+            // Always exclude cancelled clients by default
+            if (c.status === "cancelled" || c.status === "inactive") return false;
+            // Apply status filter if set
+            if (statusFilter.length > 0) {
+              return statusFilter.some(f => {
+                if (f === "unset") return !checkIns[weekKey]?.[c.id];
+                return checkIns[weekKey]?.[c.id] === f;
+              });
+            }
+            return true;
           });
 
-          if (!isPastWeek) {
-            // For current and future weeks: remove cancelled clients
-            dayClients = dayClients.filter(c => c.status !== "cancelled" && c.status !== "inactive");
-
-            if (isCurrentWeek) {
-              // For current week: also include cancelled-this-week clients with forced Cancelled badge
-              const cancelledThisWeek = clients.filter(c =>
-                c.status === "cancelled" &&
-                c.lastUpdated &&
-                new Date(c.lastUpdated) >= weekStart
-              ).map(c => ({ ...c, _forceCancelled: true }));
-              dayClients = [...dayClients, ...cancelledThisWeek];
-            }
+          if (isCurrentWeek && !isPastWeek) {
+            // For current week: also include clients cancelled this week (with matching checkInDay)
+            const cancelledThisWeek = clients.filter(c =>
+              c.checkInDay === day &&
+              c.status === "cancelled" &&
+              c.lastUpdated &&
+              new Date(c.lastUpdated) >= weekStart
+            ).map(c => ({ ...c, _forceCancelled: true }));
+            dayClients = [...dayClients, ...cancelledThisWeek];
           }
 
           function CancelledBadge({ clientId }: { clientId: string }) {
