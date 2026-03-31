@@ -1559,8 +1559,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   ];
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [checkInFilter, setCheckInFilter] = useState("all");
 
   const week = getWeekDates(weekOffset);
   const weekKey = getWeekKey(week.start);
@@ -1796,19 +1796,11 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       {/* ── Status Filter Bar ── */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
         {FILTER_OPTIONS.map(opt => {
-          const isActive = opt.key === "all" ? statusFilter.length === 0 : statusFilter.includes(opt.key);
+          const isActive = checkInFilter === opt.key;
           return (
             <button
               key={opt.key}
-              onClick={() => {
-                if (opt.key === "all") {
-                  setStatusFilter([]);
-                } else if (isActive) {
-                  setStatusFilter(prev => prev.filter(k => k !== opt.key));
-                } else {
-                  setStatusFilter(prev => [...prev, opt.key]);
-                }
-              }}
+              onClick={() => setCheckInFilter(opt.key)}
               style={{
                 background: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
                 border: `1px solid ${isActive ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.10)"}`,
@@ -2025,12 +2017,10 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             if (c.checkInDay !== day) return false;
             // Always exclude cancelled clients by default
             if (c.status === "cancelled") return false;
-            // Apply status filter if set
-            if (statusFilter.length > 0) {
-              return statusFilter.some(f => {
-                if (f === "unset") return !checkIns[weekKey]?.[c.id];
-                return checkIns[weekKey]?.[c.id] === f;
-              });
+            // Apply check-in filter if not "all"
+            if (checkInFilter !== "all") {
+              if (checkInFilter === "unset") return !checkIns[weekKey]?.[c.id];
+              return checkIns[weekKey]?.[c.id] === checkInFilter;
             }
             return true;
           });

@@ -17,34 +17,20 @@ function slugify(name: string): string {
 }
 
 // ─── Field extraction ────────────────────────────────────────────────────────
-// Fillout sends: { answers: [{ field: { name: "..." }, value: "..." }] }
-// Each answer has field.name and a value
-function getField(answers: Record<string, unknown>[], ...labels: string[]): string {
-  // First pass: exact match on field.name (Fillout uses consistent field names)
-  for (const label of labels) {
-    const found = answers.find((a) => {
-      const field = a.field as Record<string, unknown> | undefined;
-      if (!field) return false;
-      const fieldName = String(field.name ?? "");
-      return fieldName === label;
-    });
-    if (found && found.value !== null && found.value !== undefined && String(found.value).trim() !== "") {
-      return String(found.value).trim();
-    }
+// Fillout sends: { submission: { questions: [{ name: "Field Name:", value: "..." }] } }
+// Field names include trailing colons (e.g. "Full Name:")
+function buildFieldMap(questions: Array<{ name: string; value: unknown }>): Record<string, string> {
+  const fieldMap: Record<string, string> = {};
+  for (const item of questions) {
+    fieldMap[item.name.toLowerCase()] = String(item.value ?? "");
   }
-  // Second pass: fuzzy match on field.label (fallback for non-standard names)
-  for (const label of labels) {
-    const found = answers.find((a) => {
-      const field = a.field as Record<string, unknown> | undefined;
-      if (!field) return false;
-      const fieldName = String(field.name ?? "").toLowerCase();
-      const fieldLabel = String(field.label ?? "").toLowerCase();
-      const search = label.toLowerCase();
-      return fieldName.includes(search) || fieldLabel.includes(search);
-    });
-    if (found && found.value !== null && found.value !== undefined && String(found.value).trim() !== "") {
-      return String(found.value).trim();
-    }
+  return fieldMap;
+}
+
+function getQ(fieldMap: Record<string, string>, ...aliases: string[]): string {
+  for (const a of aliases) {
+    const key = Object.keys(fieldMap).find((k) => k.includes(a.toLowerCase()));
+    if (key && fieldMap[key]) return fieldMap[key];
   }
   return "";
 }
@@ -83,29 +69,29 @@ export async function POST(request: Request) {
     "x-fillout": request.headers.get("x-fillout-version"),
   }));
 
-  // Extract answers — Fillout wraps responses in an answers array
-  // Each answer: { field: { name: "Field Label" }, value: "answer" }
-  const rawAnswers = Array.isArray(body.answers) ? body.answers : [];
-  const answers = rawAnswers as Record<string, unknown>[];
+  // Extract questions from body.submission.questions
+  // Fillout structure: { submission: { questions: [{ name: "Full Name:", value: "..." }] } }
+  const questions = (body.submission as Record<string, unknown> | undefined)?.questions as Array<{ name: string; value: unknown }> | undefined;
+  const q = questions ?? [];
+  const fieldMap = buildFieldMap(q);
 
-  const name      = getField(answers, "Full Name") || "Unknown";
-  const email     = getField(answers, "Email") || "";
-  const phone     = getField(answers, "Phone") || "";
-  const instagram = getField(answers, "Instagram") || "";
-  const goal      = getField(answers, "Goal") || "";
-  const source    = getField(answers, "source", "how did you find us", "referred by", "how did you hear") || "Instagram";
+  const name        = getQ(fieldMap, "full name") || "Unknown";
+  const email       = getQ(fieldMap, "email");
+  const phoneRaw    = getQ(fieldMap, "mobile", "phone", "whatsapp");
+  const phone       = phoneRaw.replace(/\D/g, "").replace(/^0/, "61");
+  const instagram   = getQ(fieldMap, "instagram").replace("@", "");
+  const goal        = getQ(fieldMap, "goal");
+  const source      = "Instagram"; // Fillout form is Instagram-sourced
 
   const id   = slugify(name) + "-" + Date.now();
-  const date = (body.submitted_at as string)
-    ? new Date(body.submitted_at as string).toISOString().split("T")[0]
-    : new Date().toISOString().split("T")[0];
+  const date = new Date().toISOString().split("T")[0];
 
   const newLead: Record<string, unknown> = {
     id,
     name,
     email,
     phone,
-    instagram: instagram ? (instagram.startsWith("@") ? instagram : "@" + instagram) : "",
+    instagram,
     goal,
     source: source || "Instagram",
     stage: "enquiry",
