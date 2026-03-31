@@ -2011,7 +2011,15 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         overflowX: isMobile ? "visible" : "auto",
       }}>
         {WEEK_DAYS.map((day) => {
-          const dayClients = clients.filter(c => {
+          // Week-aware cancelled client logic
+          const now = new Date();
+          const weekStart = new Date(week.start);
+          const weekEnd = new Date(week.start);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+          const isPastWeek = weekEnd <= now;
+          const isCurrentWeek = weekStart <= now && weekEnd > now;
+
+          let dayClients = clients.filter(c => {
             if (c.checkInDay !== day) return false;
             if (statusFilter.length === 0) return true;
             return statusFilter.some(f => {
@@ -2019,6 +2027,39 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               return checkIns[weekKey]?.[c.id] === f;
             });
           });
+
+          if (!isPastWeek) {
+            // For current and future weeks: remove cancelled clients
+            dayClients = dayClients.filter(c => c.status !== "cancelled" && c.status !== "inactive");
+
+            if (isCurrentWeek) {
+              // For current week: also include cancelled-this-week clients with forced Cancelled badge
+              const cancelledThisWeek = clients.filter(c =>
+                c.status === "cancelled" &&
+                c.lastUpdated &&
+                new Date(c.lastUpdated) >= weekStart
+              ).map(c => ({ ...c, _forceCancelled: true }));
+              dayClients = [...dayClients, ...cancelledThisWeek];
+            }
+          }
+
+          function CancelledBadge({ clientId }: { clientId: string }) {
+            return (
+              <span style={{
+                background: "rgba(248,113,113,0.12)",
+                color: "#f87171",
+                border: "1px solid rgba(248,113,113,0.25)",
+                borderRadius: "999px",
+                padding: "2px 10px",
+                fontSize: "11px",
+                fontFamily: "system-ui",
+                fontWeight: 500,
+                display: "inline-block",
+              }}>
+                Cancelled
+              </span>
+            );
+          }
           const dayIndex = WEEK_DAYS.indexOf(day);
           const dayDate = new Date(week.start);
           dayDate.setDate(week.start.getDate() + dayIndex);
@@ -2130,7 +2171,10 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                           >
                             {client.name}
                           </span>
-                          <StatusBadge clientId={client.id} status={displayStatus} />
+                          {client._forceCancelled
+                            ? <CancelledBadge clientId={client.id} />
+                            : <StatusBadge clientId={client.id} status={status ?? null} />
+                          }
                         </div>
                         {/* Coach */}
                         <span style={{
