@@ -3063,6 +3063,28 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                     📋 Open Sheet
                   </button>
                 )}
+                <button
+                  onClick={() => setStatus(client.id, "ontime")}
+                  style={{
+                    width: "100%",
+                    background: Tiffany,
+                    border: `1px solid ${Tiffany}`,
+                    borderRadius: "10px",
+                    padding: "10px 16px",
+                    color: "#000",
+                    fontSize: "13px",
+                    fontFamily: "system-ui",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    marginTop: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  ✓ Check-in Complete
+                </button>
               </div>
               <button
                 onClick={() => setSelectedClientId(null)}
