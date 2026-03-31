@@ -1325,18 +1325,18 @@ function ContentCalendar({
 
   const firstDayOfMonth = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  // Monday = 0 ... Sunday = 6
   const startDow = (firstDayOfMonth.getDay() + 6) % 7;
 
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-  const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAYS_OF_WEEK = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-  const CT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-    Reel:     { bg: "rgba(168,85,247,0.15)", color: "#c084fc", label: "🟣 Reel" },
-    Carousel: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa", label: "🔵 Carousel" },
-    Story:    { bg: "rgba(249,115,22,0.15)", color: "#fb923c", label: "🟠 Story" },
+  // Content type badge colors per spec
+  const CT_BADGE: Record<string, { bg: string; color: string; emoji: string }> = {
+    Reel:     { bg: "rgba(10,186,181,0.15)",  color: "#0abab5", emoji: "📱" },
+    Carousel: { bg: "rgba(139,92,246,0.15)",  color: "#a855f7", emoji: "📱" },
+    Story:    { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24", emoji: "📱" },
   };
 
   function addCalendarCard(day: string, assignee: "milzzy" | "miggy", hook: string, contentType: "Reel" | "Carousel" | "Story", platform: "Instagram" | "YouTube", fromPool = false) {
@@ -1382,7 +1382,6 @@ function ContentCalendar({
 
   function deletePoolIdea(id: string) {
     setPoolIdeas(prev => prev.filter(p => p.id !== id));
-    // Also un-schedule any calendar cards that came from this pool idea
     setCalendarCards(prev => prev.map(c => c.id.startsWith("cc-") ? c : c));
   }
 
@@ -1396,7 +1395,6 @@ function ContentCalendar({
         setPoolIdeas(prev => prev.map(p => p.id === id ? { ...p, scheduled: true } : p));
       }
     } else if (type === "calendar") {
-      // Move card between days/assignees
       setCalendarCards(prev => prev.map(c => {
         if (c.id !== id) return c;
         return { ...c, day, assignee };
@@ -1406,17 +1404,17 @@ function ContentCalendar({
     setDraggingCard(null);
   }
 
-  function renderContentCard(card: CalendarCard) {
+  function renderContentCard(card: CalendarCard, sectionBg?: string) {
     const badge = CT_BADGE[card.contentType];
     const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-      draft:  { bg: "rgba(156,163,175,0.15)", color: "#9ca3af" },
-      filmed: { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
-      posted: { bg: "rgba(52,211,153,0.15)",  color: "#34d399" },
+      draft:  { bg: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.40)" },
+      filmed: { bg: "rgba(251,191,36,0.15)",   color: "#fbbf24" },
+      posted: { bg: "rgba(10,186,181,0.15)",   color: "#0abab5" },
     };
     const statusStyle = STATUS_STYLE[card.status];
+    const isDragging = draggingCard?.id === card.id;
     return (
       <div
-        key={card.id}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", JSON.stringify({ type: "calendar", id: card.id }));
@@ -1424,107 +1422,124 @@ function ContentCalendar({
         }}
         onDragEnd={() => { setDraggingCard(null); setDragOverDay(null); }}
         style={{
-          background: "rgba(255,255,255,0.06)",
+          background: "rgba(255,255,255,0.08)",
           border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: "8px",
-          padding: "5px 7px",
-          cursor: "grab",
+          borderRadius: "10px",
+          padding: "6px 8px",
+          cursor: isDragging ? "grabbing" : "grab",
           display: "flex",
           flexDirection: "column",
-          gap: "3px",
-          opacity: draggingCard?.id === card.id ? 0.5 : 1,
+          gap: "4px",
+          opacity: isDragging ? 0.4 : 1,
+          transform: isDragging ? "scale(0.98)" : "none",
+          transition: "opacity 0.15s, transform 0.15s",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "4px" }}>
-          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-            <span style={{ background: badge.bg, color: badge.color, borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600 }}>
-              {badge.label}
-            </span>
-            <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui" }}>
-              {card.platform === "Instagram" ? "📷" : "▶️"} {card.platform}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <span style={{ fontSize: "9px" }}>{card.platform === "Instagram" ? "📱" : "▶️"}</span>
+            <span style={{
+              background: badge.bg,
+              color: badge.color,
+              borderRadius: "999px",
+              padding: "1px 6px",
+              fontSize: "9px",
+              fontFamily: "system-ui",
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+            }}>
+              {card.contentType}
             </span>
           </div>
           <button
             onClick={() => deleteCard(card.id)}
-            style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", padding: "0", fontSize: "10px", lineHeight: 1, flexShrink: 0 }}
+            style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", padding: "0", fontSize: "9px", lineHeight: 1, flexShrink: 0 }}
           >
             ✕
           </button>
         </div>
-        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.80)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.70)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
           {card.hook}
         </p>
-        <button
-          onClick={() => cycleCardStatus(card.id)}
-          style={{
-            background: statusStyle.bg,
-            color: statusStyle.color,
-            border: `1px solid ${statusStyle.color}50`,
-            borderRadius: "999px",
-            padding: "1px 6px",
-            fontSize: "9px",
-            fontFamily: "system-ui",
-            fontWeight: 600,
-            cursor: "pointer",
-            textAlign: "left",
-            textTransform: "capitalize",
-          }}
-        >
-          {card.status}
-        </button>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => cycleCardStatus(card.id)}
+            style={{
+              background: statusStyle.bg,
+              color: statusStyle.color,
+              border: "none",
+              borderRadius: "999px",
+              padding: "1px 7px",
+              fontSize: "9px",
+              fontFamily: "system-ui",
+              fontWeight: 500,
+              cursor: "pointer",
+              textTransform: "capitalize",
+            }}
+          >
+            {card.status}
+          </button>
+        </div>
       </div>
     );
   }
 
-  // Build weeks: array of arrays of day numbers (0 = empty)
+  // Build weeks array
   const weeks: number[][] = [];
   let week: number[] = Array(startDow).fill(0);
   for (let d = 1; d <= daysInMonth; d++) {
     week.push(d);
-    if (week.length === 7) {
-      weeks.push(week);
-      week = [];
-    }
+    if (week.length === 7) { weeks.push(week); week = []; }
   }
-  if (week.length > 0) {
-    while (week.length < 7) week.push(0);
-    weeks.push(week);
-  }
+  if (week.length > 0) { while (week.length < 7) week.push(0); weeks.push(week); }
 
   return (
     <div style={{ display: "flex", gap: "16px", width: "100%" }}>
       {/* ── Calendar Grid ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Month navigation */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
           <button
             onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.60)", cursor: "pointer", padding: "6px 12px", fontSize: "14px", fontFamily: "system-ui" }}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "10px", color: "rgba(255,255,255,0.45)", cursor: "pointer", padding: "7px 14px", fontSize: "15px", fontFamily: "system-ui", transition: "color 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = Tiffany}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.45)"}
           >
             ←
           </button>
-          <h2 style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "white", margin: 0 }}>{monthName}</h2>
+          <h2 style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "rgba(255,255,255,0.85)", margin: 0, letterSpacing: "-0.01em" }}>{monthName}</h2>
           <button
             onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.60)", cursor: "pointer", padding: "6px 12px", fontSize: "14px", fontFamily: "system-ui" }}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "10px", color: "rgba(255,255,255,0.45)", cursor: "pointer", padding: "7px 14px", fontSize: "15px", fontFamily: "system-ui", transition: "color 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = Tiffany}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.45)"}
           >
             →
           </button>
         </div>
 
-        {/* Day headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "4px" }}>
+        {/* Day column headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px", marginBottom: "6px" }}>
           {DAYS_OF_WEEK.map(d => (
-            <div key={d} style={{ textAlign: "center", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, padding: "4px 0" }}>
+            <div key={d} style={{
+              textAlign: "center",
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.30)",
+              textTransform: "uppercase",
+              letterSpacing: "0.10em",
+              fontWeight: 600,
+              padding: "4px 0",
+            }}>
               {d}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {weeks.map((week, wi) => (
-            <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+            <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px" }}>
               {week.map((dayNum, di) => {
                 const dayStr = dayNum > 0
                   ? `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`
@@ -1546,7 +1561,6 @@ function ContentCalendar({
                     onDrop={(e) => {
                       e.preventDefault();
                       if (dayNum === 0) return;
-                      // Read drag data from dataTransfer
                       try {
                         const raw = e.dataTransfer.getData("text/plain");
                         const data = JSON.parse(raw);
@@ -1556,110 +1570,76 @@ function ContentCalendar({
                     }}
                     style={{
                       background: isDragOver
-                        ? "rgba(10,186,181,0.10)"
-                        : dayNum === 0
-                        ? "transparent"
-                        : "rgba(255,255,255,0.03)",
-                      border: isDragOver
-                        ? `1px solid ${Tiffany}`
-                        : dayNum === 0
-                        ? "none"
-                        : "1px solid rgba(255,255,255,0.07)",
-                      borderRadius: "10px",
-                      minHeight: "100px",
-                      padding: "6px",
+                        ? "rgba(10,186,181,0.05)"
+                        : "rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(20px)",
+                      border: isToday
+                        ? "1px solid rgba(10,186,181,0.40)"
+                        : isDragOver
+                        ? "1px solid rgba(10,186,181,0.40)"
+                        : "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: "20px",
+                      minHeight: "120px",
+                      padding: "8px",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "3px",
-                      boxShadow: isDragOver ? `0 0 0 1px ${TiffanyBorder}` : "none",
-                      transition: "background 0.15s, box-shadow 0.15s",
+                      gap: "0px",
+                      boxShadow: isToday ? "0 0 12px rgba(10,186,181,0.15)" : isDragOver ? "0 0 0 1px rgba(10,186,181,0.40)" : "none",
+                      transition: "background 0.15s, box-shadow 0.15s, border 0.15s",
                       position: "relative",
                     }}
                   >
+                    {/* Day number */}
                     {dayNum > 0 && (
                       <span style={{
                         fontFamily: "system-ui",
-                        fontSize: "10px",
+                        fontSize: "11px",
                         fontWeight: isToday ? 700 : 400,
                         color: isToday ? Tiffany : "rgba(255,255,255,0.40)",
-                        position: "absolute",
-                        top: "5px",
-                        left: "7px",
+                        marginBottom: "6px",
+                        display: "block",
                       }}>
                         {dayNum}
                       </span>
                     )}
 
-                    {/* Milzzy slot */}
+                    {/* Milzzy section */}
                     {dayNum > 0 && (
-                      <div
-                        style={{
-                          flex: 1,
-                          background: "rgba(59,130,246,0.05)",
-                          borderRadius: "6px",
-                          padding: "3px",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "3px",
-                          minHeight: "28px",
-                        }}
-                        onDragOver={(e) => {
-                          e.stopPropagation();
-                          if (dayNum === 0) return;
-                          e.preventDefault();
-                          setDragOverDay(dayStr);
-                        }}
-                        onDrop={(e) => {
-                          e.stopPropagation();
-                          if (dayNum === 0) return;
-                          e.preventDefault();
-                          try {
-                            const raw = e.dataTransfer.getData("text/plain");
-                            const data = JSON.parse(raw);
-                            setDraggingCard(data);
-                            handleDrop(dayStr, "milzzy");
-                          } catch { /* ignore */ }
-                        }}
-                      >
-                        <span style={{ fontFamily: "system-ui", fontSize: "8px", color: "rgba(59,130,246,0.70)", fontWeight: 700, letterSpacing: "0.04em", paddingLeft: "2px" }}>MILZZY</span>
-                        {milzzyCards.map(card => renderContentCard(card))}
-                      </div>
+                      <SectionSlot
+                        label="MILZZY"
+                        cards={milzzyCards}
+                        renderCard={renderContentCard}
+                        tintBg="rgba(59,130,246,0.05)"
+                        sectionKey="milzzy"
+                        dayStr={dayStr}
+                        isDragOver={isDragOver}
+                        dragOverDay={dragOverDay}
+                        setDragOverDay={setDragOverDay}
+                        setDraggingCard={setDraggingCard}
+                        handleDrop={handleDrop}
+                      />
                     )}
 
-                    {/* Miggy slot */}
+                    {/* Divider */}
+                    {dayNum > 0 && milzzyCards.length > 0 || miggyCards.length > 0 ? (
+                      <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                    ) : null}
+
+                    {/* Miggy section */}
                     {dayNum > 0 && (
-                      <div
-                        style={{
-                          flex: 1,
-                          background: "rgba(168,85,247,0.05)",
-                          borderRadius: "6px",
-                          padding: "3px",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "3px",
-                          minHeight: "28px",
-                        }}
-                        onDragOver={(e) => {
-                          e.stopPropagation();
-                          if (dayNum === 0) return;
-                          e.preventDefault();
-                          setDragOverDay(dayStr);
-                        }}
-                        onDrop={(e) => {
-                          e.stopPropagation();
-                          if (dayNum === 0) return;
-                          e.preventDefault();
-                          try {
-                            const raw = e.dataTransfer.getData("text/plain");
-                            const data = JSON.parse(raw);
-                            setDraggingCard(data);
-                            handleDrop(dayStr, "miggy");
-                          } catch { /* ignore */ }
-                        }}
-                      >
-                        <span style={{ fontFamily: "system-ui", fontSize: "8px", color: "rgba(168,85,247,0.70)", fontWeight: 700, letterSpacing: "0.04em", paddingLeft: "2px" }}>MIGGY</span>
-                        {miggyCards.map(card => renderContentCard(card))}
-                      </div>
+                      <SectionSlot
+                        label="MIGGY"
+                        cards={miggyCards}
+                        renderCard={renderContentCard}
+                        tintBg="rgba(139,92,246,0.05)"
+                        sectionKey="miggy"
+                        dayStr={dayStr}
+                        isDragOver={isDragOver}
+                        dragOverDay={dragOverDay}
+                        setDragOverDay={setDragOverDay}
+                        setDraggingCard={setDraggingCard}
+                        handleDrop={handleDrop}
+                      />
                     )}
                   </div>
                 );
@@ -1670,33 +1650,38 @@ function ContentCalendar({
       </div>
 
       {/* ── Idea Pool Sidebar ── */}
-      <div style={{ width: "250px", flexShrink: 0 }}>
+      <div style={{ width: "280px", flexShrink: 0 }}>
         <div style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "16px",
+          background: "rgba(255,255,255,0.05)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: "20px",
           padding: "16px",
           position: "sticky",
           top: "80px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          maxHeight: "calc(100vh - 120px)",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <h3 style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, color: "white", margin: 0 }}>Idea Pool</h3>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.85)", margin: 0 }}>Idea Pool</h3>
             <span style={{
-              background: TiffanySoft,
-              color: Tiffany,
-              border: `1px solid ${TiffanyBorder}`,
+              background: Tiffany,
+              color: "#000",
               borderRadius: "999px",
               padding: "1px 8px",
               fontSize: "10px",
               fontFamily: "system-ui",
-              fontWeight: 600,
+              fontWeight: 700,
             }}>
               {poolIdeas.length}
             </span>
           </div>
 
-          {/* Add idea form */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
+          {/* Add idea row */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <input
               value={newIdeaText}
               onChange={e => setNewIdeaText(e.target.value)}
@@ -1705,7 +1690,7 @@ function ContentCalendar({
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: "10px",
+                borderRadius: "12px",
                 color: "white",
                 padding: "8px 12px",
                 fontSize: "12px",
@@ -1722,7 +1707,7 @@ function ContentCalendar({
                 style={{
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: "8px",
+                  borderRadius: "10px",
                   color: "rgba(255,255,255,0.70)",
                   padding: "5px 8px",
                   fontSize: "11px",
@@ -1742,7 +1727,7 @@ function ContentCalendar({
                 style={{
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: "8px",
+                  borderRadius: "10px",
                   color: "rgba(255,255,255,0.70)",
                   padding: "5px 8px",
                   fontSize: "11px",
@@ -1759,27 +1744,29 @@ function ContentCalendar({
             <button
               onClick={addIdeaToPool}
               style={{
-                background: TiffanySoft,
-                border: `1px solid ${TiffanyBorder}`,
-                borderRadius: "10px",
-                color: Tiffany,
-                padding: "7px 12px",
+                background: Tiffany,
+                border: "none",
+                borderRadius: "12px",
+                color: "#000",
+                padding: "7px 14px",
                 fontSize: "12px",
                 fontFamily: "system-ui",
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: "pointer",
                 width: "100%",
               }}
             >
-              + Add Idea
+              + Add
             </button>
           </div>
 
-          {/* Pool ideas list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "400px", overflowY: "auto" }}>
+          {/* Pool list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto", flex: 1 }}>
             {poolIdeas.length === 0 && (
-              <div style={{ textAlign: "center", padding: "20px 8px", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: "10px" }}>
-                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>No ideas yet. Add one above or use AI Studio to generate ideas.</p>
+              <div style={{ textAlign: "center", padding: "20px 8px", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", lineHeight: 1.5 }}>
+                  No ideas yet. Add one above or use AI Studio to generate ideas.
+                </p>
               </div>
             )}
             {poolIdeas.map(idea => {
@@ -1794,22 +1781,24 @@ function ContentCalendar({
                   }}
                   onDragEnd={() => { setDraggingCard(null); setDragOverDay(null); }}
                   style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.09)",
-                    borderRadius: "10px",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    borderRadius: "12px",
                     padding: "8px 10px",
                     cursor: "grab",
                     display: "flex",
                     flexDirection: "column",
                     gap: "5px",
-                    opacity: idea.scheduled ? 0.55 : 1,
+                    opacity: idea.scheduled ? 0.50 : 1,
+                    minHeight: "60px",
+                    transition: "opacity 0.15s",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "4px" }}>
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                      <span style={{ background: badge.bg, color: badge.color, borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600 }}>{badge.label}</span>
-                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", borderRadius: "4px", padding: "1px 5px", fontSize: "9px", fontFamily: "system-ui" }}>
-                        {idea.platform === "Instagram" ? "📷" : "▶️"} {idea.platform}
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ fontSize: "10px" }}>{idea.platform === "Instagram" ? "📱" : "▶️"}</span>
+                      <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.70)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "140px" }}>
+                        {idea.hook}
                       </span>
                     </div>
                     <button
@@ -1819,20 +1808,116 @@ function ContentCalendar({
                       ✕
                     </button>
                   </div>
-                  <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.80)", margin: 0, lineHeight: 1.4 }}>
-                    {idea.hook}
-                  </p>
-                  {idea.scheduled && (
-                    <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.30)", borderRadius: "999px", padding: "1px 7px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600, alignSelf: "flex-start" }}>
-                      ✓ Scheduled
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <span style={{ background: badge.bg, color: badge.color, borderRadius: "999px", padding: "1px 6px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 600 }}>
+                      {idea.contentType}
                     </span>
-                  )}
+                    {idea.scheduled && (
+                      <span style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "999px", padding: "1px 6px", fontSize: "9px", fontFamily: "system-ui", fontWeight: 500 }}>
+                        ✓ Scheduled
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Section Slot Component ──────────────────────────────────────────────────
+
+interface SectionSlotProps {
+  label: string;
+  cards: CalendarCard[];
+  renderCard: (card: CalendarCard, tintBg?: string) => React.ReactNode;
+  tintBg: string;
+  sectionKey: "milzzy" | "miggy";
+  dayStr: string;
+  isDragOver: boolean;
+  dragOverDay: string | null;
+  setDragOverDay: (v: string | null) => void;
+  setDraggingCard: (v: { type: "pool" | "calendar"; id: string } | null) => void;
+  handleDrop: (day: string, assignee: "milzzy" | "miggy") => void;
+}
+
+function SectionSlot({ label, cards, renderCard, tintBg, sectionKey, dayStr, isDragOver, dragOverDay, setDragOverDay, setDraggingCard, handleDrop }: SectionSlotProps) {
+  const [hovering, setHovering] = useState(false);
+  const isThisDragOver = isDragOver && dragOverDay === dayStr;
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        background: cards.length > 0 ? tintBg : "transparent",
+        borderRadius: "12px",
+        padding: "4px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "4px",
+        minHeight: "40px",
+        border: isThisDragOver ? "1px solid rgba(10,186,181,0.40)" : "1px solid transparent",
+        transition: "background 0.15s, border 0.15s",
+        position: "relative",
+      }}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      onDragOver={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setDragOverDay(dayStr);
+      }}
+      onDrop={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        try {
+          const raw = e.dataTransfer.getData("text/plain");
+          const data = JSON.parse(raw);
+          setDraggingCard(data);
+          handleDrop(dayStr, sectionKey);
+        } catch { /* ignore */ }
+      }}
+    >
+      {/* Section label */}
+      <span style={{
+        fontFamily: "system-ui",
+        fontSize: "9px",
+        color: "rgba(255,255,255,0.25)",
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        fontWeight: 600,
+        paddingLeft: "2px",
+      }}>
+        {label}
+      </span>
+
+      {/* Cards */}
+      {cards.map(card => renderCard(card, tintBg))}
+
+      {/* Empty state — show + on hover */}
+      {cards.length === 0 && hovering && (
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "12px",
+          pointerEvents: "none",
+        }}>
+          <span style={{
+            fontFamily: "system-ui",
+            fontSize: "16px",
+            color: "rgba(255,255,255,0.15)",
+            userSelect: "none",
+          }}>
+            +
+          </span>
+        </div>
+      )}
     </div>
   );
 }
