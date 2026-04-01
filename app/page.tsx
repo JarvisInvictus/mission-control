@@ -4878,7 +4878,7 @@ function ProjectsTab() {
   const statusCount = (s: string) => projects.filter(p => p.status === s).length;
 
   return (
-    <div style={{ minHeight: "100vh", background: "rgba(10,10,20,1)", padding: "24px 16px 48px" }}>
+    <div style={{ minHeight: "100vh", background: "transparent", padding: "24px 16px 48px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
 
         {/* Header */}
