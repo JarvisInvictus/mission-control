@@ -117,7 +117,7 @@ export interface Lead {
   trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -291,6 +291,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     retention: "Retention",
     "macro-calculator": "Macro Calculator",
     content: "Content",
+    projects: "Projects",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -466,7 +467,8 @@ function Sidebar({
                      item.id === "leads" ? "◎" :
                      item.id === "finance" ? "◑" :
                      item.id === "agents" ? "◧" :
-                     item.id === "content" ? "✨" : "◨"}
+                     item.id === "content" ? "✨" :
+                     item.id === "projects" ? "📋" : "◨"}
                   </span>
                   <span>{item.label}</span>
                 </button>
@@ -4442,6 +4444,7 @@ export default function Home() {
         { id: "finance", label: "Finance" },
         { id: "retention", label: "Retention" },
         { id: "content", label: "Content" },
+        { id: "projects", label: "Projects" },
       ],
     },
     {
@@ -5400,6 +5403,7 @@ return (
              activeTab === "retention" ? <RetentionTab clients={clients} /> :
              activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
              activeTab === "content" ? <ContentTab /> :
+             activeTab === "projects" ? (window.location.href = "/projects", null) :
 <LeadsTab onConvertLead={(lead) => {
                const newClient: Client = {
                  id: `lead-${lead.id}`,
