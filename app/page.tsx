@@ -3466,7 +3466,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                                 whiteSpace: "nowrap",
                                 cursor: "pointer",
                               }}
-                              onClick={() => onClientClick(client)}
+                              onClick={() => { setSelectedClientId(client.id); onClientClick(client); }}
                               title="View profile"
                             >
                               {client.name}
