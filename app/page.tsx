@@ -1972,16 +1972,16 @@ function AIStudio({
     } catch { /* ignore */ }
   }, [savedIdeas]);
 
-  // Save active ideas to saved list when user leaves the tab
+  // Clear active ideas when user switches tab (don't auto-save)
   useEffect(() => {
     function handleVisibility() {
-      if (document.hidden && ideas.length > 0) {
-        moveToSaved();
+      if (document.hidden) {
+        setIdeas([]);
       }
     }
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [ideas]);
+  }, []);
 
   function moveToSaved() {
     if (ideas.length === 0) return;
@@ -2011,10 +2011,9 @@ function AIStudio({
   async function generateIdeas() {
     const trimmed = input.trim();
     if (!trimmed) return;
-    // Move any unsaved active ideas to saved first
-    moveToSaved();
     setGenerating(true);
     setError(null);
+    // Clear unsaved active ideas (don't auto-save them)
     setIdeas([]);
     try {
       const response = await fetch("/api/content/generate", {
@@ -2030,24 +2029,28 @@ function AIStudio({
       }
       const newIdeas = data.ideas as IdeaForPool[];
       setIdeas(newIdeas);
-      // Auto-save new ideas to saved list
-      const newOnes = newIdeas.map(idea => ({
+    } catch (err) {
+      setError(`Failed to generate ideas: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // Save a single active idea to the saved list
+  function saveIdea(idea: IdeaForPool) {
+    setSavedIdeas(prev => {
+      if (prev.some(s => s.hook === idea.hook)) return prev;
+      return [{
         id: `saved-${Date.now()}-${Math.random()}`,
         hook: idea.hook,
         contentType: idea.contentType,
         platform: idea.platform,
         caption: idea.caption,
         savedAt: new Date().toISOString(),
-      }));
-      setSavedIdeas(prev => {
-        const deduped = newOnes.filter(n => !prev.some(s => s.hook === n.hook));
-        return [...deduped, ...prev];
-      });
-    } catch (err) {
-      setError(`Failed to generate ideas: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setGenerating(false);
-    }
+      }, ...prev];
+    });
+    // Remove from active ideas
+    setIdeas(prev => prev.filter(i => i.hook !== idea.hook));
   }
 
   function addToPool(idea: IdeaForPool | SavedIdea, idx: number) {
@@ -2201,12 +2204,12 @@ function AIStudio({
                     {idea.caption}
                   </p>
                   <button
-                    onClick={() => addToPool(idea, idx)}
+                    onClick={() => saveIdea(idea)}
                     style={{
-                      background: isAdded ? "rgba(52,211,153,0.15)" : TiffanySoft,
-                      border: `1px solid ${isAdded ? "rgba(52,211,153,0.40)" : TiffanyBorder}`,
+                      background: TiffanySoft,
+                      border: `1px solid ${TiffanyBorder}`,
                       borderRadius: "10px",
-                      color: isAdded ? "#34d399" : Tiffany,
+                      color: Tiffany,
                       padding: "8px 14px",
                       fontSize: "12px",
                       fontFamily: "system-ui",
@@ -2219,7 +2222,7 @@ function AIStudio({
                       transition: "all 0.15s",
                     }}
                   >
-                    {isAdded ? "✓ Added to Pool" : "+ Add to Pool"}
+                    ☆ Save
                   </button>
                 </div>
               );
@@ -2240,9 +2243,33 @@ function AIStudio({
       {/* Saved ideas — always shown when there are saved */}
       {savedIdeas.length > 0 && (
         <div>
-          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
-            📋 Saved Ideas — {savedIdeas.length}
-          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+              ★ Saved Ideas — {savedIdeas.length}
+            </p>
+            <button
+              onClick={() => {
+                if (window.confirm("Clear all saved ideas?")) {
+                  setSavedIdeas([]);
+                }
+              }}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "8px",
+                color: "rgba(255,255,255,0.30)",
+                padding: "4px 12px",
+                fontSize: "11px",
+                fontFamily: "system-ui",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              🗑 Clear All
+            </button>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
             {savedIdeas.map((saved, idx) => {
               const badge = CT_BADGE[saved.contentType] ?? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", label: saved.contentType };
@@ -2296,29 +2323,6 @@ function AIStudio({
               );
             })}
           </div>
-          {/* Clear All */}
-          <button
-            onClick={() => {
-              if (window.confirm("Clear all saved ideas?")) {
-                setSavedIdeas([]);
-              }
-            }}
-            style={{
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "8px",
-              color: "rgba(255,255,255,0.30)",
-              padding: "6px 14px",
-              fontSize: "11px",
-              fontFamily: "system-ui",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            🗑 Clear All Saved
-          </button>
         </div>
       )}
     </div>
