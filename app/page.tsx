@@ -3017,8 +3017,6 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return null;
 
-        const [checkInConfirmed, setCheckInConfirmed] = useState(false);
-
         // Compute the last 4 weeks using getWeekDates (reuses existing logic)
         const weeks = Array.from({ length: 4 }, (_, i) => {
           // go back (3-i) weeks from current displayed week
@@ -3084,7 +3082,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               >✕</button>
             </div>
 
-            {/* ✓ Mark as On Time button — below header row */}
+            {/* ✓ Mark as On Time button */}
             <button
               onClick={() => {
                 setStatus(client.id, "ontime");
@@ -3093,11 +3091,11 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               }}
               style={{
                 width: "100%",
-                background: TiffanySoft,
-                border: `1px solid ${TiffanyBorder}`,
+                background: "#0abab5",
+                border: "none",
                 borderRadius: "10px",
                 padding: "10px 16px",
-                color: Tiffany,
+                color: "white",
                 fontSize: "13px",
                 fontFamily: "system-ui",
                 fontWeight: 700,
