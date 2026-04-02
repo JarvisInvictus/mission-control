@@ -4980,22 +4980,37 @@ function ProjectsTab() {
       due: formData.due || null,
     };
 
-    if (editingProject) {
-      const res = await fetch(`/api/projects/${editingProject.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const updated: P_Project = await res.json();
-      setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
-    } else {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const created: P_Project = await res.json();
-      setProjects(prev => [...prev, created]);
+    try {
+      if (editingProject) {
+        const res = await fetch(`/api/projects/${editingProject.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          console.error("Projects PUT error:", res.status, text);
+          return;
+        }
+        const updated: P_Project = await res.json();
+        setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
+      } else {
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          console.error("Projects POST error:", res.status, text);
+          return;
+        }
+        const created: P_Project = await res.json();
+        setProjects(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error("Projects saveProject error:", err);
+      return;
     }
 
     setShowModal(false);
