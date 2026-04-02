@@ -1948,6 +1948,60 @@ function AIStudio({
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
+  // ── Saved ideas (persistent) ──
+  type SavedIdea = {
+    id: string;
+    hook: string;
+    contentType: "Reel" | "Carousel" | "Story";
+    platform: "Instagram" | "YouTube";
+    caption: string;
+    savedAt: string; // ISO date string
+  };
+  const [savedIdeas, setSavedIdeas] = useState<SavedIdea[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("ip_content_ideas");
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  // Persist saved ideas to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem("ip_content_ideas", JSON.stringify(savedIdeas));
+    } catch { /* ignore */ }
+  }, [savedIdeas]);
+
+  // Save active ideas to saved list when user leaves the tab
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden && ideas.length > 0) {
+        moveToSaved();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [ideas]);
+
+  function moveToSaved() {
+    if (ideas.length === 0) return;
+    setSavedIdeas(prev => {
+      const newOnes = ideas
+        .filter(idea => !prev.some(s => s.hook === idea.hook))
+        .map(idea => ({
+          id: `saved-${Date.now()}-${Math.random()}`,
+          hook: idea.hook,
+          contentType: idea.contentType,
+          platform: idea.platform,
+          caption: idea.caption,
+          savedAt: new Date().toISOString(),
+        }));
+      if (newOnes.length === 0) return prev;
+      return [...newOnes, ...prev];
+    });
+    setIdeas([]);
+  }
+
   const CT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
     Reel:     { bg: "rgba(168,85,247,0.15)", color: "#c084fc", label: "🟣 Reel" },
     Carousel: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa", label: "🔵 Carousel" },
@@ -1957,6 +2011,8 @@ function AIStudio({
   async function generateIdeas() {
     const trimmed = input.trim();
     if (!trimmed) return;
+    // Move any unsaved active ideas to saved first
+    moveToSaved();
     setGenerating(true);
     setError(null);
     setIdeas([]);
@@ -1972,7 +2028,21 @@ function AIStudio({
         setGenerating(false);
         return;
       }
-      setIdeas(data.ideas as IdeaForPool[]);
+      const newIdeas = data.ideas as IdeaForPool[];
+      setIdeas(newIdeas);
+      // Auto-save new ideas to saved list
+      const newOnes = newIdeas.map(idea => ({
+        id: `saved-${Date.now()}-${Math.random()}`,
+        hook: idea.hook,
+        contentType: idea.contentType,
+        platform: idea.platform,
+        caption: idea.caption,
+        savedAt: new Date().toISOString(),
+      }));
+      setSavedIdeas(prev => {
+        const deduped = newOnes.filter(n => !prev.some(s => s.hook === n.hook));
+        return [...deduped, ...prev];
+      });
     } catch (err) {
       setError(`Failed to generate ideas: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -1980,7 +2050,7 @@ function AIStudio({
     }
   }
 
-  function addToPool(idea: IdeaForPool, idx: number) {
+  function addToPool(idea: IdeaForPool | SavedIdea, idx: number) {
     const newIdea: PoolIdea = {
       id: `pool-ai-${Date.now()}-${idx}`,
       hook: idea.hook,
@@ -1989,10 +2059,23 @@ function AIStudio({
       scheduled: false,
     };
     setPoolIdeas(prev => [...prev, newIdea]);
-    setAddedIds(prev => new Set([...prev, idx]));
-    setTimeout(() => {
-      setAddedIds(prev => { const next = new Set(prev); next.delete(idx); return next; });
-    }, 2000);
+    if (typeof idx === "number") {
+      setAddedIds(prev => new Set([...prev, idx]));
+      setTimeout(() => {
+        setAddedIds(prev => { const next = new Set(prev); next.delete(idx); return next; });
+      }, 2000);
+    }
+  }
+
+  function addSavedToPool(saved: SavedIdea, savedIdx: number) {
+    const newIdea: PoolIdea = {
+      id: `pool-ai-${Date.now()}-${savedIdx}`,
+      hook: saved.hook,
+      contentType: saved.contentType,
+      platform: saved.platform,
+      scheduled: false,
+    };
+    setPoolIdeas(prev => [...prev, newIdea]);
   }
 
   return (
@@ -2085,11 +2168,11 @@ function AIStudio({
         </div>
       )}
 
-      {/* Ideas grid */}
+      {/* Active ideas */}
       {ideas.length > 0 && (
-        <div>
-          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
-            {ideas.length} Ideas Generated
+        <div style={{ marginBottom: "28px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.70)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+            ✏️ Active — {ideas.length} Ideas
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
             {ideas.map((idea, idx) => {
@@ -2145,12 +2228,97 @@ function AIStudio({
         </div>
       )}
 
-      {/* Empty state */}
-      {!generating && ideas.length === 0 && !error && (
+      {/* Empty state — only shown when no active AND no saved */}
+      {!generating && ideas.length === 0 && !error && savedIdeas.length === 0 && (
         <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: "16px" }}>
           <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.25)" }}>
             Paste a transcript above and click "✨ Generate Ideas" to get AI-powered content ideas.
           </p>
+        </div>
+      )}
+
+      {/* Saved ideas — always shown when there are saved */}
+      {savedIdeas.length > 0 && (
+        <div>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+            📋 Saved Ideas — {savedIdeas.length}
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+            {savedIdeas.map((saved, idx) => {
+              const badge = CT_BADGE[saved.contentType] ?? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.50)", label: saved.contentType };
+              const dateStr = new Date(saved.savedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+              return (
+                <div key={saved.id} style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                    <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "white", margin: 0, lineHeight: 1.3, flex: 1 }}>
+                      {saved.hook}
+                    </p>
+                    <button
+                      onClick={() => addSavedToPool(saved, idx)}
+                      style={{
+                        background: TiffanySoft,
+                        border: `1px solid ${TiffanyBorder}`,
+                        borderRadius: "8px",
+                        color: Tiffany,
+                        padding: "5px 12px",
+                        fontSize: "11px",
+                        fontFamily: "system-ui",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      + Add to Pool
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ background: badge.bg, color: badge.color, borderRadius: "6px", padding: "2px 8px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 600 }}>{badge.label}</span>
+                    <span style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", borderRadius: "6px", padding: "2px 8px", fontSize: "10px", fontFamily: "system-ui" }}>
+                      {saved.platform === "Instagram" ? "📷" : "▶️"} {saved.platform}
+                    </span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", marginLeft: "auto" }}>
+                      {dateStr}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.38)", margin: 0, lineHeight: 1.5 }}>
+                    {saved.caption}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {/* Clear All */}
+          <button
+            onClick={() => {
+              if (window.confirm("Clear all saved ideas?")) {
+                setSavedIdeas([]);
+              }
+            }}
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "8px",
+              color: "rgba(255,255,255,0.30)",
+              padding: "6px 14px",
+              fontSize: "11px",
+              fontFamily: "system-ui",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            🗑 Clear All Saved
+          </button>
         </div>
       )}
     </div>
