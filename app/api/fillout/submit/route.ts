@@ -6,12 +6,13 @@ export const dynamic = "force-dynamic";
 
 // ─── Lead shape ───────────────────────────────────────────────────────────────
 
-interface Answer { question_name?: string; name?: string; value?: string | number | null; }
+interface Question { name?: string; value?: string | number | null; }
+interface Submission { questions?: Question[]; }
 interface FilloutSubmission {
   submission_id?: string;
   form_id?: string;
   submitted_at?: string;
-  answers?: Answer[];
+  submission?: Submission;
 }
 
 // ─── Redis ───────────────────────────────────────────────────────────────────
@@ -37,16 +38,16 @@ function parseLeadDate(dateStr?: string): string {
   }
 }
 
-function getAnswer(answers: Answer[] | undefined, ...names: string[]): string {
-  if (!answers) return "";
+function getAnswer(questions: Question[] | undefined, ...names: string[]): string {
+  if (!questions) return "";
   for (const name of names) {
-    const a = answers.find(
+    const q = questions.find(
       (q) =>
-        (q.question_name ?? "").toLowerCase().replace(/\s+/g, "") ===
+        (q.name ?? "").toLowerCase().replace(/\s+/g, "") ===
           name.toLowerCase().replace(/\s+/g, "")
     );
-    if (a && a.value !== null && a.value !== undefined && a.value !== "") {
-      return String(a.value).trim();
+    if (q && q.value !== null && q.value !== undefined && q.value !== "") {
+      return String(q.value).trim();
     }
   }
   return "";
@@ -74,14 +75,14 @@ export async function POST(req: Request) {
   try {
     const payload: FilloutSubmission = await req.json();
 
-    const answers = payload.answers ?? [];
+    const questions = payload.submission?.questions ?? [];
 
-    const name     = getAnswer(answers, "name", "full name", "fullname", "your name", "first name");
-    const email    = getAnswer(answers, "email", "email address", "e-mail");
-    const phone    = getAnswer(answers, "phone", "mobile", "phone number", "contact number", "mobile number", "whatsapp");
-    const instagram= getAnswer(answers, "instagram", "instagram handle", "instagram username", "ig");
-    const goal     = getAnswer(answers, "goal", "fitness goal", "what is your goal", "your goal", "main goal");
-    const source   = getAnswer(answers, "source", "how did you find us", "referred by", "how did you hear about us");
+    const name      = getAnswer(questions, "full name", "name", "fullname", "your name", "first name");
+    const email     = getAnswer(questions, "email", "email address", "e-mail");
+    const phone     = getAnswer(questions, "phone", "mobile", "phone number", "contact number", "mobile number", "whatsapp");
+    const instagram = getAnswer(questions, "instagram", "instagram handle", "instagram username", "ig");
+    const goal      = getAnswer(questions, "goal", "fitness goal", "what is your goal", "your goal", "main goal");
+    const source    = getAnswer(questions, "source", "how did you find us", "referred by", "how did you hear about us");
 
     if (!name) {
       return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
       phone,
       instagram: instagram ? (instagram.startsWith("@") ? instagram : "@" + instagram) : "",
       goal,
-      source: source || "Instagram",
+      source: source || "Macro Calculator",
       stage: "enquiry",
       assignedTo: "Milzzy",
       createdAt: date,
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, lead: newLead }, { status: 200 });
 
   } catch (err) {
-    console.error("[leads/inbound] Error:", err);
+    console.error("[fillout/submit] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
