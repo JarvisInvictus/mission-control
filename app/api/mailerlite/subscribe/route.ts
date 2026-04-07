@@ -6,6 +6,14 @@ export const dynamic = "force-dynamic";
 
 const MAILERLITE_API_URL = "https://connect.mailerlite.com/api/subscribers";
 const MAILERLITE_GROUP_ID = "183769412893935583";
+const CORS_ORIGIN = "https://invictus-macro.vercel.app";
+
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": CORS_ORIGIN,
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
 
 interface SubscribeBody {
   email: string;
@@ -41,14 +49,27 @@ async function saveLeads(leads: Record<string, unknown>[]) {
   } catch { /* ignore */ }
 }
 
+export async function OPTIONS(req: Request) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": CORS_ORIGIN,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+  return new NextResponse(null, { status: 405 });
+}
+
 export async function POST(req: Request) {
   try {
     const body: SubscribeBody = await req.json();
-
     const { email, name, calories, protein, carbs, fat, goal } = body;
 
     if (!email) {
-      return NextResponse.json({ error: "Missing email" }, { status: 400 });
+      return NextResponse.json({ error: "Missing email" }, { status: 400, headers: CORS_HEADERS });
     }
 
     // ── MailerLite ────────────────────────────────────────────────────────────
@@ -62,27 +83,27 @@ export async function POST(req: Request) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Accept": "application/json",
             "Authorization": `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
             email,
             fields: {
               name,
-              calories: String(calories),
-              protein: String(protein),
-              carbs: String(carbs),
-              fat: String(fat),
-              goal,
+              calories: Number(calories),
+              protein: Number(protein),
+              carbs: Number(carbs),
+              fat: Number(fat),
+              goal: String(goal),
             },
-            groups: [MAILERLITE_GROUP_ID],
+            groups: ["183769412893935583"],
           }),
         });
-
-        if (mlRes.ok) {
-          mailerliteOk = true;
-        } else {
-          const errText = await mlRes.text();
-          console.error("[mailerlite/subscribe] MailerLite error:", mlRes.status, errText);
+        mailerliteOk = mlRes.ok;
+        const responseText = await mlRes.text();
+        console.log("[mailerlite/subscribe] MailerLite response:", mlRes.status, responseText);
+        if (!mlRes.ok) {
+          console.error("[mailerlite/subscribe] MailerLite error:", mlRes.status, responseText);
         }
       }
     } catch (err) {
@@ -111,10 +132,10 @@ export async function POST(req: Request) {
       console.error("[mailerlite/subscribe] Redis save error:", err);
     }
 
-    return NextResponse.json({ success: true, mailerlite: mailerliteOk });
+    return NextResponse.json({ success: true, mailerlite: mailerliteOk, _debug: `ml_called_at_${new Date().toISOString()}` }, { headers: CORS_HEADERS });
 
   } catch (err) {
     console.error("[mailerlite/subscribe] Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500, headers: CORS_HEADERS });
   }
 }

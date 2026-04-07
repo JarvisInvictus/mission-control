@@ -117,7 +117,7 @@ export interface Lead {
   trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects" | "pages";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -292,6 +292,8 @@ function Header({ activeTab }: { activeTab: Tab }) {
     "macro-calculator": "Macro Calculator",
     content: "Content",
     projects: "Projects",
+    pages: "Pages",
+    Funnel: "Funnel",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -468,7 +470,9 @@ function Sidebar({
                      item.id === "finance" ? "◑" :
                      item.id === "agents" ? "◧" :
                      item.id === "content" ? "✨" :
-                     item.id === "projects" ? "📋" : "◨"}
+                     item.id === "projects" ? "📋" :
+                     item.id === "pages" ? "◎" :
+                     item.id === "Funnel" ? "◎" : "◨"}
                   </span>
                   <span>{item.label}</span>
                 </button>
@@ -5366,6 +5370,189 @@ function ProjectsTab() {
   );
 }
 
+// ─── PagesTab ────────────────────────────────────────────────────────────────
+
+function PagesTab() {
+  const pages = [
+    {
+      name: "Links Page",
+      description: "Main Instagram bio link page for Milzzy and Miggy",
+      url: "https://invictus-links.vercel.app",
+      status: "Live",
+    },
+    {
+      name: "Macro Calculator",
+      description: "4-step calculator with AI body fat detection and MailerLite email automation",
+      url: "https://invictus-macro.vercel.app",
+      status: "Live",
+    },
+    {
+      name: "Macro Calculator Landing Page",
+      description: "Instagram Story landing page that drives traffic into the calculator",
+      url: "https://invictus-macro-landing.vercel.app",
+      status: "Live",
+    },
+    {
+      name: "Invictus Syringe",
+      description: "Syringe training information and supplement guidance",
+      url: "https://invictus-syringe.vercel.app",
+      status: "Live",
+    },
+  ];
+
+  const funnels = [
+    {
+      name: "Macro Lead Funnel",
+      steps: [
+        { label: "Macro Calculator Landing Page", sub: "Story link click", type: "teal" },
+        { label: "Macro Calculator", sub: "User calculates macros", type: "teal" },
+        { label: "Email 1: Macros Delivered", sub: "MailerLite auto-email", type: "purple" },
+        { label: "Email 2: Scale Truth", sub: "Follow-up nurture", type: "purple" },
+        { label: "Email 3: The Sell", sub: "Consult call CTA", type: "purple" },
+        { label: "Consult Call Booked", sub: "Lead converts", type: "green" },
+      ],
+    },
+    {
+      name: "Coaching Client Leads",
+      steps: [
+        { label: "Instagram Story", sub: "Organic reach", type: "teal" },
+        { label: "Links Page", sub: "Bio link destination", type: "teal" },
+        { label: "Book Free Consult", sub: "Fillout form submission", type: "teal" },
+        { label: "Lead Pipeline", sub: "Mission Control tracking", type: "green" },
+      ],
+    },
+  ];
+
+  const typeColors = {
+    teal: { border: `${Tiffany}55`, bg: `${Tiffany}12`, text: Tiffany, label: "rgba(255,255,255,0.85)" },
+    purple: { border: "rgba(155,127,230,0.55)", bg: "rgba(155,127,230,0.10)", text: "#9b7fe6", label: "rgba(255,255,255,0.85)" },
+    green: { border: "rgba(34,197,94,0.55)", bg: "rgba(34,197,94,0.10)", text: "#22c55e", label: "rgba(255,255,255,0.85)" },
+  };
+
+  function StepCard({ step, isLast }: { step: typeof funnels[0]["steps"][0]; isLast: boolean }) {
+    const colors = typeColors[step.type as keyof typeof typeColors];
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "0", flexShrink: 0 }}>
+        <div style={{
+          background: colors.bg,
+          border: `1px solid ${colors.border}`,
+          borderRadius: "12px",
+          padding: "12px 14px",
+          minWidth: "150px",
+          maxWidth: "180px",
+        }}>
+          <p style={{ fontSize: "12px", fontWeight: 700, color: colors.label, marginBottom: "3px", lineHeight: 1.3 }}>{step.label}</p>
+          <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: 0 }}>{step.sub}</p>
+        </div>
+        {!isLast && (
+          <div style={{ display: "flex", alignItems: "center", padding: "0 4px", flexShrink: 0 }}>
+            <div style={{ width: "20px", height: "1px", background: "rgba(255,255,255,0.20)" }} />
+            <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.25)", marginLeft: "-2px" }}>›</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "32px 28px 40px" }}>
+
+      {/* Section 1: Live Pages */}
+      <div style={{ marginBottom: "48px" }}>
+        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, marginBottom: "16px" }}>
+          Live Pages
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
+          {pages.map((page) => (
+            <div key={page.url} style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "16px",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1.3 }}>{page.name}</p>
+                <span style={{
+                  fontFamily: "system-ui",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "#22c55e",
+                  background: "rgba(34,197,94,0.12)",
+                  border: "1px solid rgba(34,197,94,0.30)",
+                  borderRadius: "20px",
+                  padding: "2px 8px",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}>Live</span>
+              </div>
+              <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.5 }}>{page.description}</p>
+              <a
+                href={page.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "11px",
+                  color: Tiffany,
+                  textDecoration: "none",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {page.url}
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section 2: Funnel Timelines */}
+      <div>
+        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, marginBottom: "16px" }}>
+          Funnel Timelines
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+          {funnels.map((funnel) => (
+            <div key={funnel.name} style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "16px",
+              padding: "20px",
+            }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, color: "white", marginBottom: "16px" }}>{funnel.name}</p>
+              {/* Scrollable horizontal timeline */}
+              <div style={{ display: "flex", overflowX: "auto", gap: "0", paddingBottom: "8px", scrollbarWidth: "thin" }}>
+                {funnel.steps.map((step, i) => (
+                  <StepCard key={i} step={step} isLast={i === funnel.steps.length - 1} />
+                ))}
+              </div>
+              {/* Legend */}
+              <div style={{ display: "flex", gap: "16px", marginTop: "14px", flexWrap: "wrap" }}>
+                {[
+                  { label: "Page", color: typeColors.teal },
+                  { label: "Email", color: typeColors.purple },
+                  { label: "Conversion", color: typeColors.green },
+                ].map(l => (
+                  <div key={l.label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ width: "8px", height: "8px", borderRadius: "2px", background: l.color.text }} />
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -5438,6 +5625,7 @@ export default function Home() {
       label: "Lead Magnets",
       items: [
         { id: "macro-calculator", label: "Macro Calculator" },
+        { id: "pages", label: "Pages" },
       ],
     },
     {
@@ -6391,6 +6579,8 @@ return (
              activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
              activeTab === "content" ? <ContentTab /> :
              activeTab === "projects" ? <ProjectsTab /> :
+             activeTab === "pages" ? <PagesTab /> :
+             activeTab === "Funnel" ? <FunnelTab /> :
 <LeadsTab onConvertLead={(lead) => {
                const newClient: Client = {
                  id: `lead-${lead.id}`,
