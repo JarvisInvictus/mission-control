@@ -117,7 +117,7 @@ export default function FunnelTab() {
       .then(r => r.json())
       .then(d => {
         setMacroLandingVisits(d.landing ?? 0);
-        setMacroCalcVisits(d.calculator ?? 0);
+        setMacroCalcVisits(d.landing ?? 0); // same as landing since all visitors use the calculator on the home page
       })
       .catch(() => {});
     load("/api/mailer/subscribers", setEmailSubscribers, "subscribers");
@@ -392,16 +392,10 @@ export default function FunnelTab() {
       {/* Row 1 — 3 big KPI cards */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
         <KpiCard
-          label="Landing Page Visits"
+          label="Calculator Visits"
           value={macroLandingVisits !== null ? macroLandingVisits.toLocaleString() : "—"}
           sub="Last 30 days"
           sparkline={<SparkBars />}
-        />
-        <KpiCard
-          label="Calculator Visits"
-          value={macroCalcVisits !== null ? macroCalcVisits.toLocaleString() : "—"}
-          sub="Last 30 days"
-          sparkline={<SparkBars color="#3b82f6" />}
         />
         <KpiCard
           label="Email Subscribers"
@@ -441,9 +435,8 @@ export default function FunnelTab() {
         {/* Table 1: Funnel Stages */}
         <TableCard title="Funnel Stages">
           <TableHead3 />
-          <TableRow3 col1="Landing Page" col2={landing > 0 ? landing.toLocaleString() : "—"} col3="100%" highlight />
-          <TableRow3 col1="Calculator" col2={calc > 0 ? calc.toLocaleString() : "—"} col3={`${convRate(calc, landing)}%`} />
-          <TableRow3 col1="Email Captured" col2={subs > 0 ? subs.toLocaleString() : "—"} col3={`${convRate(subs, calc)}%`} />
+          <TableRow3 col1="Calculator" col2={landing > 0 ? landing.toLocaleString() : "—"} col3="100%" highlight />
+          <TableRow3 col1="Email Captured" col2={subs > 0 ? subs.toLocaleString() : "—"} col3={`${convRate(subs, landing)}%`} />
           <TableRow3 col1="Leads" col2={leads > 0 ? leads.toLocaleString() : "—"} col3={`${convRate(leads, subs)}%`} />
           <TableRow3
             col1="Clients"
