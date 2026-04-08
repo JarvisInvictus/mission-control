@@ -5,7 +5,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const path = searchParams.get("path") || "/";
     const token = process.env.VERCEL_API_TOKEN;
-    const projectId = process.env.MACRO_PROJECT_ID || "DXR6sRQkbBOqY3wxOlFxbV3I7K7Pi";
+    const projectId = process.env.MACRO_PROJECT_ID || "prj_QDmczE7kUOsSHhL2lElm0A4bpelw";
 
     // Vercel Analytics stats by path
     const res = await fetch(

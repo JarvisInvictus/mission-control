@@ -112,8 +112,14 @@ export default function FunnelTab() {
   }, []);
 
   useEffect(() => {
-    load("/api/analytics/visits?path=/", setMacroLandingVisits, "macroLanding");
-    load("/api/analytics/visits?path=/calculator", setMacroCalcVisits, "macroCalc");
+    // Use Redis-based tracking API (single call for all funnel pages)
+    fetch("/api/tracking/visits")
+      .then(r => r.json())
+      .then(d => {
+        setMacroLandingVisits(d.landing ?? 0);
+        setMacroCalcVisits(d.calculator ?? 0);
+      })
+      .catch(() => {});
     load("/api/mailer/subscribers", setEmailSubscribers, "subscribers");
     load("/api/leads/count", setTotalLeads, "leads");
     const stored = localStorage.getItem("mc_funnel_clients_signed");
