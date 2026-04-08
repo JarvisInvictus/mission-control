@@ -10,6 +10,7 @@ import { FinanceTab } from "@/components/FinanceTab";
 import { RetentionCharts } from "@/components/RetentionCharts";
 import { ClientProfilePanel } from "@/components/ClientProfilePanel";
 import { MemoryTab } from "@/components/MemoryTab";
+import FunnelTab from "@/components/FunnelTab";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { RevenueTrend } from "@/components/RevenueTrend";
 
@@ -117,7 +118,7 @@ export interface Lead {
   trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects" | "pages";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
