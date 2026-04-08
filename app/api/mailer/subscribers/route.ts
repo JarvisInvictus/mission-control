@@ -6,7 +6,7 @@ export async function GET() {
     const groupId = "183769412893935583"; // Macro Calculator group
 
     const res = await fetch(
-      `https://connect.mailerlite.com/api/groups/${groupId}/subscribers?limit=1`,
+      `https://connect.mailerlite.com/api/groups/${groupId}`,
       {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         next: { revalidate: 300 },
@@ -18,7 +18,7 @@ export async function GET() {
     }
 
     const data = await res.json();
-    const total = data?.meta?.total ?? 0;
+    const total = data?.data?.active_count ?? 0;
 
     return NextResponse.json({ total });
   } catch (e) {
