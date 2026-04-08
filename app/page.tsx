@@ -5627,6 +5627,7 @@ export default function Home() {
       items: [
         { id: "macro-calculator", label: "Macro Calculator" },
         { id: "pages", label: "Pages" },
+        { id: "Funnel", label: "Lead Gen Funnel" },
       ],
     },
     {
