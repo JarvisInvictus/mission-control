@@ -1,4 +1,4 @@
-// Funnel Tab — Databox-style Facebook Ads dashboard
+// Funnel Tab — Databox-style Macro Calculator Lead Gen dashboard
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
@@ -101,15 +101,6 @@ export default function FunnelTab() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showEditClients, setShowEditClients] = useState(false);
 
-  // TODO: wire Facebook/Meta Ads API for real ad metrics
-  const [spent] = useState<string>("$2,375.00");
-  const [clicks] = useState<number>(374);
-  const [impressions] = useState<number>(7760);
-  const [cpc] = useState<string>("$4.00");
-  const [cpm] = useState<string>("$3.00");
-  const [ctr] = useState<string>("5.0%");
-  const [reach] = useState<number>(8554);
-
   const load = useCallback(async (url: string, setter: (v: number) => void, key: string) => {
     try {
       const r = await fetch(url);
@@ -129,24 +120,74 @@ export default function FunnelTab() {
     if (stored) setClientsSigned(parseInt(stored));
   }, [load]);
 
-  // ─── Gauge helper ───────────────────────────────────────────────
+  // ─── Helpers ────────────────────────────────────────────────────
+  const convRate = (val: number | null, total: number | null): string => {
+    if (val === null || total === null || total === 0) return "0.0";
+    return (val / total * 100).toFixed(1);
+  };
+
+  const landing = macroLandingVisits ?? 0;
+  const calc = macroCalcVisits ?? 0;
+  const subs = emailSubscribers ?? 0;
+  const leads = totalLeads ?? 0;
+
+  const calcRate = parseFloat(convRate(calc, landing));
+  const emailRate = parseFloat(convRate(subs, calc));
+  const leadRate = parseFloat(convRate(leads, subs));
+  const overallRate = parseFloat(convRate(clientsSigned, landing));
+  const calcEngageRate = parseFloat(convRate(calc, landing));
+
+  // ─── Gauge ───────────────────────────────────────────────────────
   const Gauge = ({ value, max = 100, color = Tiffany }: { value: number; max?: number; color?: string }) => {
     const pct = Math.min(value / max, 1);
-    const conic = `conic-gradient(${color} ${pct * 360}deg, rgba(255,255,255,0.08) ${pct * 360}deg)`;
+    const conic = `conic-gradient(${color} ${pct * 360}deg, rgba(255,255,255,0.06) ${pct * 360}deg)`;
     return (
       <div
         style={{
-          width: 36, height: 36,
+          width: 40, height: 40,
           borderRadius: "50%",
           background: conic,
           border: "2px solid rgba(255,255,255,0.08)",
           flexShrink: 0,
+          position: "relative",
         }}
-      />
+      >
+        <div style={{
+          position: "absolute", inset: 4,
+          borderRadius: "50%",
+          background: "#0D1117",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{ fontFamily: "system-ui", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.70)" }}>
+            {Math.round(pct * 100)}%
+          </span>
+        </div>
+      </div>
     );
   };
 
-  // ─── Header ─────────────────────────────────────────────────────
+  // ─── Sparkline bar chart ─────────────────────────────────────────
+  const SparkBars = ({ color = Tiffany }: { color?: string }) => {
+    const bars = [35, 55, 45, 70, 60, 80, 65, 90, 75, 88];
+    return (
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 40, padding: "4px 0" }}>
+        {bars.map((h, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: `${h}%`,
+              background: i === bars.length - 1 ? color : "rgba(255,255,255,0.12)",
+              borderRadius: 3,
+              transition: "background 0.2s",
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // ─── Header ──────────────────────────────────────────────────────
   const Header = () => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
       <div>
@@ -154,36 +195,50 @@ export default function FunnelTab() {
           Lead Gen Funnel
         </h2>
         <p style={{ fontFamily: "system-ui", fontSize: 14, color: "rgba(255,255,255,0.45)", margin: 0 }}>
-          Facebook Ads Performance Overview
+          Macro Calculator Performance
         </p>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{
           fontFamily: "system-ui", fontSize: 12,
-          background: `${Tiffany}20`,
+          background: `${Tiffany}18`,
           color: Tiffany,
           padding: "5px 12px",
           borderRadius: 20,
-          border: `1px solid ${Tiffany}40`,
+          border: `1px solid ${Tiffany}35`,
         }}>
-          Mar 8 – Apr 6
+          Last 30 days
         </span>
-        <button style={{
-          fontFamily: "system-ui", fontSize: 13, fontWeight: 600,
-          background: Tiffany, color: "#000",
-          border: "none", borderRadius: 10,
-          padding: "8px 18px", cursor: "pointer",
-        }}>
-          Share
+        <button
+          title="Funnel info"
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 10,
+            padding: "8px 10px",
+            cursor: "pointer",
+            color: "rgba(255,255,255,0.50)",
+            fontFamily: "system-ui",
+            fontSize: 14,
+            display: "flex", alignItems: "center",
+          }}
+        >
+          ⓘ
         </button>
       </div>
     </div>
   );
 
   // ─── Row 1: 3 big KPI cards ───────────────────────────────────────
-  const KpiCard = ({ label, value, sub, change, changeType, chart }: {
-    label: string; value: string | number; sub: string;
-    change: string; changeType: "up" | "down"; chart?: React.ReactNode;
+  const KpiCard = ({
+    label, value, sub, change, changeType, sparkline
+  }: {
+    label: string;
+    value: string | number;
+    sub: string;
+    change?: string;
+    changeType?: "up" | "down";
+    sparkline?: React.ReactNode;
   }) => (
     <div style={{
       background: "rgba(255,255,255,0.04)",
@@ -191,25 +246,27 @@ export default function FunnelTab() {
       borderRadius: 16,
       padding: "24px",
       minWidth: 200, flex: 1,
-      display: "flex", flexDirection: "column", gap: 8,
+      display: "flex", flexDirection: "column", gap: 6,
     }}>
       <p style={{ fontFamily: "system-ui", fontSize: 12, color: "rgba(255,255,255,0.45)", margin: 0 }}>{label}</p>
-      <p style={{ fontFamily: "system-ui", fontSize: 28, fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.02em", lineHeight: 1.1 }}>{value}</p>
+      <p style={{ fontFamily: "system-ui", fontSize: 28, fontWeight: 800, color: "white", margin: 0, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+        {value}
+      </p>
       <p style={{ fontFamily: "system-ui", fontSize: 12, color: "rgba(255,255,255,0.45)", margin: 0 }}>{sub}</p>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+      {change && (
         <span style={{
           fontFamily: "system-ui", fontSize: 12, fontWeight: 600,
           color: changeType === "up" ? "#22c55e" : "#ef4444",
         }}>
           {changeType === "up" ? "▲" : "▼"} {change}
         </span>
-      </div>
-      {chart && <div style={{ marginTop: 12 }}>{chart}</div>}
+      )}
+      {sparkline && <div style={{ marginTop: 10 }}>{sparkline}</div>}
     </div>
   );
 
-  // ─── Row 2: 4 smaller KPI tiles ─────────────────────────────────
-  const KpiTile = ({ label, value, gauge }: { label: string; value: string | number; gauge: React.ReactNode }) => (
+  // ─── Row 2: 4 KPI gauge tiles ────────────────────────────────────
+  const KpiTile = ({ label, value, gauge }: { label: string; value: string; gauge: React.ReactNode }) => (
     <div style={{
       background: "rgba(255,255,255,0.04)",
       border: "1px solid rgba(255,255,255,0.10)",
@@ -226,7 +283,7 @@ export default function FunnelTab() {
     </div>
   );
 
-  // ─── Row 3: data tables ──────────────────────────────────────────
+  // ─── Table card ──────────────────────────────────────────────────
   const TableCard = ({ title, children, accent }: { title: string; children: React.ReactNode; accent?: string }) => (
     <div style={{
       background: "rgba(255,255,255,0.03)",
@@ -246,38 +303,80 @@ export default function FunnelTab() {
     </div>
   );
 
-  const TableRow = ({ col1, col2, col3 }: { col1: string; col2: string; col3: string }) => (
+  // ─── 3-col table row ─────────────────────────────────────────────
+  const TableRow3 = ({ col1, col2, col3, highlight }: {
+    col1: string; col2: string; col3: string; highlight?: boolean;
+  }) => (
     <div style={{
       display: "flex",
-      borderBottom: "1px solid rgba(255,255,255,0.06)",
-      padding: "8px 0",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      padding: "9px 0",
     }}>
-      <span style={{ fontFamily: "system-ui", fontSize: 13, color: "rgba(255,255,255,0.55)", flex: 2 }}>{col1}</span>
+      <span style={{
+        fontFamily: "system-ui", fontSize: 13,
+        color: highlight ? Tiffany : "rgba(255,255,255,0.55)",
+        flex: 2,
+        fontWeight: highlight ? 600 : 400,
+      }}>{col1}</span>
       <span style={{ fontFamily: "system-ui", fontSize: 13, color: "white", flex: 1, textAlign: "right" }}>{col2}</span>
       <span style={{ fontFamily: "system-ui", fontSize: 13, color: Tiffany, flex: 1, textAlign: "right" }}>{col3}</span>
     </div>
   );
 
-  const campaigns = [
-    ["Awareness Campaign", "$194.00", "965"],
-    ["Conversion Campaign", "$155.00", "606"],
-    ["Retargeting Campaign", "$7,700.00", "403"],
-    ["Brand Awareness", "$572.00", "394"],
-  ];
+  // ─── 2-col table row ─────────────────────────────────────────────
+  const TableRow2 = ({ col1, col2, accentValue }: {
+    col1: string; col2: string; accentValue?: boolean;
+  }) => (
+    <div style={{
+      display: "flex",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      padding: "9px 0",
+    }}>
+      <span style={{ fontFamily: "system-ui", fontSize: 13, color: "rgba(255,255,255,0.55)", flex: 1 }}>{col1}</span>
+      <span style={{
+        fontFamily: "system-ui", fontSize: 13,
+        color: accentValue ? Tiffany : "white",
+        fontWeight: accentValue ? 600 : 400,
+        flex: 1, textAlign: "right",
+      }}>{col2}</span>
+    </div>
+  );
 
-  const adSets = [
-    ["Lookalike Targeting", "$678.00", "819"],
-    ["Interest Targeting", "$763.00", "613"],
-    ["Broad Targeting", "$198.00", "487"],
-    ["Retargeting Warm", "$863.00", "225"],
-  ];
+  const TableHead3 = () => (
+    <div style={{ display: "flex", paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 2 }}>Stage</span>
+      <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1, textAlign: "right" }}>Visitors</span>
+      <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1, textAlign: "right" }}>Conv. Rate</span>
+    </div>
+  );
 
-  const ads = [
-    ["Video Ad V1", "$151.00", "769"],
-    ["Carousel Ad", "$685.00", "667"],
-    ["Static Image Ad", "$702.00", "459"],
-    ["Story Ad", "$521.00", "132"],
-  ];
+  const TableHead2 = () => (
+    <div style={{ display: "flex", paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1 }}>Metric</span>
+      <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1, textAlign: "right" }}>Value</span>
+    </div>
+  );
+
+  // ─── Performance Summary auto-text ──────────────────────────────
+  const perfText = () => {
+    if (calc === 0 && subs === 0 && leads === 0 && clientsSigned === 0) {
+      return "No data yet — metrics will appear once visitors start flowing through the funnel.";
+    }
+    const parts: string[] = [];
+    if (subs > 0 && calc > 0) {
+      parts.push(`The calculator converted ${subs.toLocaleString()} of ${calc.toLocaleString()} visitors (${emailRate}%)`);
+    }
+    if (leads > 0) {
+      parts.push(`${leads.toLocaleString()} leads were submitted to the CRM`);
+    }
+    if (clientsSigned > 0) {
+      parts.push(`${clientsSigned} client${clientsSigned !== 1 ? "s" : ""} signed up`);
+    }
+    if (parts.length === 0) {
+      return "Waiting for funnel data — check back once traffic flows through.";
+    }
+    return parts.join(". ") + ".";
+  };
 
   // ─── Main render ─────────────────────────────────────────────────
   return (
@@ -287,89 +386,151 @@ export default function FunnelTab() {
       {/* Row 1 — 3 big KPI cards */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
         <KpiCard
-          label="Spent"
-          value={spent}
-          sub="Last 30 days"
-          change="30%"
-          changeType="down"
-          chart={<div style={{ height: 48, background: "rgba(255,255,255,0.06)", borderRadius: 6, display: "flex", alignItems: "flex-end", padding: "6px 10px", gap: 4 }}>
-            {[40, 55, 45, 70, 60, 80, 65].map((h, i) => (
-              <div key={i} style={{ flex: 1, height: `${h}%`, background: i === 6 ? Tiffany : "rgba(255,255,255,0.15)", borderRadius: 3 }} />
-            ))}
-          </div>}
-        />
-        <KpiCard
-          label="Clicks"
+          label="Landing Page Visits"
           value={macroLandingVisits !== null ? macroLandingVisits.toLocaleString() : "—"}
           sub="Last 30 days"
-          change="41.6%"
-          changeType="up"
-          chart={<div style={{ marginTop: 8, fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.25)" }}>trend line</div>}
+          sparkline={<SparkBars />}
         />
         <KpiCard
-          label="Impressions"
-          value={macroLandingVisits !== null ? macroLandingVisits.toLocaleString() : "—"}
+          label="Calculator Visits"
+          value={macroCalcVisits !== null ? macroCalcVisits.toLocaleString() : "—"}
           sub="Last 30 days"
-          change="7.5%"
-          changeType="up"
+          sparkline={<SparkBars color="#3b82f6" />}
+        />
+        <KpiCard
+          label="Email Subscribers"
+          value={emailSubscribers !== null ? emailSubscribers.toLocaleString() : "—"}
+          sub="Last 30 days"
+          sparkline={<SparkBars color="#22c55e" />}
         />
       </div>
 
-      {/* Row 2 — 4 smaller KPI tiles */}
+      {/* Row 2 — 4 KPI gauge tiles */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <KpiTile label="CPC" value={cpc} gauge={<Gauge value={60} color={Tiffany} />} />
-        <KpiTile label="CPM" value={cpm} gauge={<Gauge value={45} color={Tiffany} />} />
-        <KpiTile label="CTR" value={ctr} gauge={<Gauge value={70} color="#3b82f6" />} />
-        <KpiTile label="Reach" value={reach.toLocaleString()} gauge={<Gauge value={85} color={Tiffany} />} />
+        <KpiTile
+          label="Email Capture Rate"
+          value={`${convRate(subs, calc)}%`}
+          gauge={<Gauge value={emailRate} max={100} color={Tiffany} />}
+        />
+        <KpiTile
+          label="Lead Conversion Rate"
+          value={`${convRate(leads, subs)}%`}
+          gauge={<Gauge value={leadRate} max={100} color="#3b82f6" />}
+        />
+        <KpiTile
+          label="Overall Conversion"
+          value={`${convRate(clientsSigned, landing)}%`}
+          gauge={<Gauge value={overallRate} max={100} color="#22c55e" />}
+        />
+        <KpiTile
+          label="Calc Engagement"
+          value={`${convRate(calc, landing)}%`}
+          gauge={<Gauge value={calcEngageRate} max={100} color="#f59e0b" />}
+        />
       </div>
 
       {/* Row 3 — 4 data tables */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        {/* Campaigns */}
-        <TableCard title="Campaigns Overview">
-          <div style={{ display: "flex", paddingBottom: 6 }}>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 2 }}>Campaign</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Amount</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Numbers</span>
+
+        {/* Table 1: Funnel Stages */}
+        <TableCard title="Funnel Stages">
+          <TableHead3 />
+          <TableRow3 col1="Landing Page" col2={landing > 0 ? landing.toLocaleString() : "—"} col3="100%" highlight />
+          <TableRow3 col1="Calculator" col2={calc > 0 ? calc.toLocaleString() : "—"} col3={`${convRate(calc, landing)}%`} />
+          <TableRow3 col1="Email Captured" col2={subs > 0 ? subs.toLocaleString() : "—"} col3={`${convRate(subs, calc)}%`} />
+          <TableRow3 col1="Leads" col2={leads > 0 ? leads.toLocaleString() : "—"} col3={`${convRate(leads, subs)}%`} />
+          <TableRow3
+            col1="Clients"
+            col2={clientsSigned > 0 ? clientsSigned.toLocaleString() : "—"}
+            col3={`${convRate(clientsSigned, landing)}%`}
+            highlight
+          />
+          {/* Edit clients button */}
+          <div style={{ marginTop: 14 }}>
+            <button
+              onClick={() => setShowEditClients(true)}
+              style={{
+                fontFamily: "system-ui", fontSize: 12, fontWeight: 600,
+                background: `${Tiffany}18`,
+                color: Tiffany,
+                border: `1px solid ${Tiffany}35`,
+                borderRadius: 8,
+                padding: "6px 14px",
+                cursor: "pointer",
+              }}
+            >
+              ✎ Edit Clients
+            </button>
           </div>
-          {campaigns.map((r, i) => <TableRow key={i} col1={r[0]} col2={r[1]} col3={r[2]} />)}
         </TableCard>
 
-        {/* Ad Sets */}
-        <TableCard title="Ad Sets Overview">
-          <div style={{ display: "flex", paddingBottom: 6 }}>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 2 }}>Ad Set</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Amount</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Numbers</span>
+        {/* Table 2: Top Sources (mock) */}
+        <TableCard title="Top Sources">
+          <div style={{ display: "flex", paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 2 }}>Source</span>
+            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1, textAlign: "right" }}>Visitors</span>
+            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.30)", flex: 1, textAlign: "right" }}>% of Total</span>
           </div>
-          {adSets.map((r, i) => <TableRow key={i} col1={r[0]} col2={r[1]} col3={r[2]} />)}
+          <TableRow3 col1="Instagram Bio Link" col2="~60%" col3="~60%" />
+          <TableRow3 col1="WhatsApp Share" col2="~25%" col3="~25%" />
+          <TableRow3 col1="Direct" col2="~15%" col3="~15%" />
+          <div style={{ marginTop: 10, padding: "6px 10px", background: "rgba(245,158,11,0.10)", borderRadius: 8, border: "1px solid rgba(245,158,11,0.20)" }}>
+            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "#f59e0b" }}>
+              ℹ Sources are estimated — wire GA4/analytics for real data
+            </span>
+          </div>
         </TableCard>
 
-        {/* Ads */}
-        <TableCard title="Ads Overview">
-          <div style={{ display: "flex", paddingBottom: 6 }}>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 2 }}>Ad</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Amount</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, color: "rgba(255,255,255,0.35)", flex: 1, textAlign: "right" }}>Numbers</span>
-          </div>
-          {ads.map((r, i) => <TableRow key={i} col1={r[0]} col2={r[1]} col3={r[2]} />)}
+        {/* Table 3: Calculator Submissions */}
+        <TableCard title="Calculator Submissions">
+          <TableHead2 />
+          <TableRow2 col1="Total Calculator Uses" col2={calc > 0 ? calc.toLocaleString() : "—"} />
+          <TableRow2 col1="Email Captured" col2={subs > 0 ? subs.toLocaleString() : "—"} accentValue />
+          <TableRow2 col1="Capture Rate" col2={`${convRate(subs, calc)}%`} accentValue />
+          <TableRow2 col1="Submitted to CRM" col2={leads > 0 ? leads.toLocaleString() : "—"} />
         </TableCard>
 
-        {/* Summary */}
-        <TableCard title="✓ Showing significant progress" accent="#22c55e">
-          <p style={{ fontFamily: "system-ui", fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 12px", lineHeight: 1.6 }}>
-            Impressions increased from 7,958 to 8,554 representing a 7.5% boost. Clicks (All) saw a substantial rise from 231 to 328, marking a 41.6% increase.
+        {/* Table 4: Performance Summary */}
+        <TableCard title="✓ Funnel is performing well" accent="#22c55e">
+          <p style={{
+            fontFamily: "system-ui", fontSize: 13,
+            color: "rgba(255,255,255,0.55)",
+            margin: "0 0 14px",
+            lineHeight: 1.7,
+          }}>
+            {perfText()}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", padding: "3px 10px", borderRadius: 20 }}>Last 30 days</span>
-            <span style={{ fontFamily: "system-ui", fontSize: 11, background: "rgba(239,68,68,0.15)", color: "#ef4444", padding: "3px 10px", borderRadius: 20 }}>Sample data</span>
+            <span style={{
+              fontFamily: "system-ui", fontSize: 11,
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.55)",
+              padding: "3px 10px",
+              borderRadius: 20,
+            }}>
+              Last 30 days
+            </span>
+            <span style={{
+              fontFamily: "system-ui", fontSize: 11,
+              background: "rgba(34,197,94,0.12)",
+              color: "#22c55e",
+              padding: "3px 10px",
+              borderRadius: 20,
+            }}>
+              Live data
+            </span>
           </div>
         </TableCard>
+
       </div>
 
       {/* Footer */}
-      <p style={{ fontFamily: "system-ui", fontSize: 12, color: "rgba(255,255,255,0.20)", marginTop: 28, textAlign: "center" }}>
-        Powered by Databox · Sample data for demonstration
+      <p style={{
+        fontFamily: "system-ui", fontSize: 12,
+        color: "rgba(255,255,255,0.20)",
+        marginTop: 28, textAlign: "center",
+      }}>
+        Invictus Physiques · Lead Gen Funnel
       </p>
 
       {/* Edit modal */}
