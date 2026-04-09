@@ -5402,7 +5402,7 @@ function PagesTab() {
     {
       name: "Retatrutide Guide",
       description: "Reconstitution, dosing, and injection guide for Retatrutide peptide therapy",
-      url: "https://reta-glass.vercel.app",
+      url: "https://reta5.vercel.app",
       status: "Live",
     },
   ];
