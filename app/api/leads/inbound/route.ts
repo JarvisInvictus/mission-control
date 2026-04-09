@@ -85,6 +85,7 @@ export async function POST(request: Request) {
 
   const id   = slugify(name) + "-" + Date.now();
   const date = new Date().toISOString().split("T")[0];
+  const referralCode = getQ(fieldMap, "referral code") || "";
 
   const newLead: Record<string, unknown> = {
     id,
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
     phone,
     instagram,
     goal,
+    referralCode,
     source: source || "Instagram",
     stage: "new-lead",
     assignedTo: "Milzzy",

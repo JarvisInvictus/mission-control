@@ -7,6 +7,7 @@ import { CronCard, type CronJob } from "@/components/CronCard";
 import { SubagentCard, type SubAgent } from "@/components/SubagentCard";
 import { BusinessCard } from "@/components/BusinessCard";
 import { FinanceTab } from "@/components/FinanceTab";
+import { ReferralsTab } from "@/components/ReferralsTab";
 import { RetentionCharts } from "@/components/RetentionCharts";
 import { ClientProfilePanel } from "@/components/ClientProfilePanel";
 import { MemoryTab } from "@/components/MemoryTab";
@@ -118,7 +119,7 @@ export interface Lead {
   trainingDays?: number | null;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -290,6 +291,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     finance: "Finance",
     leads: "Leads",
     retention: "Retention",
+    referrals: "Referrals",
     "macro-calculator": "Macro Calculator",
     content: "Content",
     projects: "Projects",
@@ -5624,6 +5626,7 @@ export default function Home() {
         { id: "leads", label: "Leads" },
         { id: "finance", label: "Finance" },
         { id: "retention", label: "Retention" },
+        { id: "referrals", label: "Referrals" },
         { id: "content", label: "Content" },
         { id: "projects", label: "Projects" },
       ],
@@ -6582,6 +6585,7 @@ return (
              activeTab === "team" ? <TeamTab /> :
              activeTab === "clients" ? <ClientsTab onClientClick={setSelectedClient} /> :
              activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
+             activeTab === "referrals" ? <ReferralsTab /> :
              activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
              activeTab === "retention" ? <RetentionTab clients={clients} /> :
              activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
