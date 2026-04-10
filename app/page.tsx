@@ -5425,7 +5425,9 @@ function PagesTab() {
       url: "https://invictus-consult.vercel.app/notes",
       status: "Live",
     },
-  ]; funnels = [
+  ];
+
+const funnels = [
     {
       name: "Macro Lead Funnel",
       steps: [
