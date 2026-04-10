@@ -7,17 +7,14 @@ interface ReferralLead {
   id: string;
   name: string;
   email: string;
-  phone: string;
   referralCode: string;
   createdAt: string;
-  stage: string;
 }
 
 interface ReferralStat {
   code: string;
-  name: string;
-  email: string;
-  clicks: number;
+  ownerName: string | null;
+  ownerEmail: string | null;
   conversions: number;
   referredLeads: ReferralLead[];
 }
@@ -30,25 +27,37 @@ export function ReferralsTab() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/leads");
-        const data = await res.json();
-        const allLeads: ReferralLead[] = Array.isArray(data) ? data : data.leads || [];
+        // Fetch leads
+        const leadsRes = await fetch("/api/leads");
+        const leadsData = await leadsRes.json();
+        const allLeads: ReferralLead[] = Array.isArray(leadsData) ? leadsData : leadsData.leads || [];
 
-        // Group leads by referral code
+        // Extract unique referral codes
         const codeMap: Record<string, ReferralLead[]> = {};
         for (const lead of allLeads) {
-          if ((lead as any).referralCode) {
-            const code = (lead as any).referralCode;
+          const code = (lead as any).referralCode;
+          if (code) {
             if (!codeMap[code]) codeMap[code] = [];
             codeMap[code].push(lead);
           }
         }
 
+        const uniqueCodes = Object.keys(codeMap);
+
+        // Fetch owner names for each code
+        let owners: Record<string, { name: string; email: string } | null> = {};
+        if (uniqueCodes.length > 0) {
+          try {
+            const ownerRes = await fetch(`/api/referrals?codes=${uniqueCodes.join(",")}`);
+            const ownerData = await ownerRes.json();
+            owners = ownerData.owners || {};
+          } catch {}
+        }
+
         const referralStats: ReferralStat[] = Object.entries(codeMap).map(([code, leads]) => ({
           code,
-          name: leads[0]?.name || "Unknown",
-          email: leads[0]?.email || "",
-          clicks: 0,
+          ownerName: owners[code]?.name || null,
+          ownerEmail: owners[code]?.email || null,
           conversions: leads.length,
           referredLeads: leads,
         }));
@@ -90,7 +99,7 @@ export function ReferralsTab() {
           Referral Tracking
         </h2>
         <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
-          Tracks which clients refer the most leads via their referral codes.
+          Tracks which clients have referred new leads via their referral codes.
         </p>
       </div>
 
@@ -123,7 +132,7 @@ export function ReferralsTab() {
         fontSize: "13px",
         color: Tiffany,
       }}>
-        Referral codes are captured when a lead submits the enquiry form with a referral link. Codes are deterministic — they appear here once a referred lead enquiry arrives.
+        Referral codes are captured when a lead submits the enquiry form with a referral link. Client names appear once a referred lead enquiry arrives.
       </div>
 
       {/* Table */}
@@ -137,7 +146,7 @@ export function ReferralsTab() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                {["Referral Code", "Client", "Referred Leads", "Email"].map(h => (
+                {["Client", "Referral Code", "Referred Leads"].map(h => (
                   <th key={h} style={{
                     padding: "10px 14px",
                     textAlign: "left",
@@ -151,13 +160,19 @@ export function ReferralsTab() {
               </tr>
             </thead>
             <tbody>
-              {stats.map((s, i) => (
+              {stats.map((s) => (
                 <tr key={s.code} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <td style={{ padding: "14px", fontFamily: "monospace", fontSize: "13px", color: Tiffany, fontWeight: 700 }}>
-                    {s.code}
+                  <td style={{ padding: "14px", fontSize: "14px", color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
+                    {s.ownerName
+                      ? <span style={{ color: Tiffany }}>{s.ownerName}</span>
+                      : <span style={{ color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>Unknown</span>
+                    }
+                    {s.ownerEmail && (
+                      <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>{s.ownerEmail}</p>
+                    )}
                   </td>
-                  <td style={{ padding: "14px", fontSize: "14px", color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>
-                    {s.name || "—"}
+                  <td style={{ padding: "14px", fontFamily: "monospace", fontSize: "13px", color: "rgba(255,255,255,0.5)", fontWeight: 600, letterSpacing: "0.05em" }}>
+                    {s.code}
                   </td>
                   <td style={{ padding: "14px" }}>
                     <span style={{
@@ -170,9 +185,6 @@ export function ReferralsTab() {
                     }}>
                       {s.conversions} {s.conversions === 1 ? "lead" : "leads"}
                     </span>
-                  </td>
-                  <td style={{ padding: "14px", fontSize: "13px", color: "rgba(255,255,255,0.40)" }}>
-                    {s.email || "—"}
                   </td>
                 </tr>
               ))}
