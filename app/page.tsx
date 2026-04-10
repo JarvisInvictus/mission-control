@@ -5407,9 +5407,25 @@ function PagesTab() {
       url: "https://reta5.vercel.app",
       status: "Live",
     },
-  ];
-
-  const funnels = [
+    {
+      name: "Content Planner",
+      description: "Content calendar and post planning for Milzzy and Miggy",
+      url: "https://invictus-content.vercel.app",
+      status: "Live",
+    },
+    {
+      name: "Consult Slides",
+      description: "Presentation slides for Sonta to run consult calls",
+      url: "https://invictus-consult.vercel.app",
+      status: "Live",
+    },
+    {
+      name: "Consult Notes",
+      description: "Presenter script and guidance for Sonta's consult calls",
+      url: "https://invictus-consult.vercel.app/notes",
+      status: "Live",
+    },
+  ]; funnels = [
     {
       name: "Macro Lead Funnel",
       steps: [
