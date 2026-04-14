@@ -6169,7 +6169,7 @@ export default function Home() {
               </div>
             )}
             {actionPanel === "edit" && (
-              <div>
+              <div onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                   <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
                   <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
