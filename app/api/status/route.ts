@@ -62,10 +62,28 @@ function getMockStatus() {
 
 export async function GET() {
   try {
+    // Try to get real cron state synced from Mac mini gateway
+    const cronRaw = await redis.get<string>("jarvis:cron:jobs");
+    const cronJobs = cronRaw ? JSON.parse(cronRaw) : null;
+
+    // Try full status cache
     const raw = await redis.get<string>("jarvis:status");
 
     if (!raw) {
-      return NextResponse.json(getMockStatus());
+      const status = getMockStatus();
+      // Inject real cron jobs if available
+      if (cronJobs && Array.isArray(cronJobs) && cronJobs.length > 0) {
+        status.cron = cronJobs.map((j: any) => ({
+          id: j.id || j.name?.toLowerCase().replace(/\s+/g, "-"),
+          name: j.name,
+          schedule: j.cron || j.schedule || "?",
+          scheduleLabel: j.name || j.description || j.cron || "?",
+          lastRun: j.lastRun || null,
+          nextRun: j.nextRun || null,
+          status: j.state?.status || (j.lastRun ? "ok" : "pending"),
+        }));
+      }
+      return NextResponse.json(status);
     }
 
     const data = typeof raw === "string" ? JSON.parse(raw) : raw;

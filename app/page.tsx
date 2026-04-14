@@ -2813,7 +2813,7 @@ function ContentTab() {
 
 // ─── Check-Ins Tab ───────────────────────────────────────────────────────────
 
-type CheckInStatus = "ontime" | "submitted" | "late" | "never" | "skip-l" | "sick" | "paused";
+type CheckInStatus = "ontime" | "submitted" | "late" | "unset" | "skip-l" | "sick" | "paused";
 
 interface CheckInStore {
   [weekKey: string]: { [clientId: string]: CheckInStatus };
@@ -2823,13 +2823,13 @@ const STATUS_META: Record<CheckInStatus, { label: string; color: string; bg: str
   ontime:    { label: "On Time",  color: Tiffany,     bg: TiffanySoft,                             order: 0 },
   submitted: { label: "Submitted", color: "#34d399",   bg: "rgba(52,211,153,0.12)",                  order: 1 },
   late:      { label: "Late",     color: "#fbbf24",   bg: "rgba(251,191,36,0.12)",                  order: 2 },
-  never:     { label: "Never",    color: "#f87171",   bg: "rgba(248,113,113,0.12)",                 order: 3 },
+  unset:     { label: "Unset",    color: "#f87171",   bg: "rgba(248,113,113,0.12)",                 order: 3 },
   "skip-l":  { label: "Skip·L",  color: "#f59e0b",   bg: "rgba(245,158,11,0.12)",                  order: 4 },
   sick:      { label: "Sick",     color: "#60a5fa",   bg: "rgba(96,165,250,0.12)",                  order: 5 },
   paused:    { label: "Paused",  color: "#9ca3af",   bg: "rgba(156,163,175,0.12)",                 order: 6 },
 };
 
-const STATUS_CYCLE: CheckInStatus[] = ["ontime", "submitted", "late", "never", "skip-l", "sick"];
+const STATUS_CYCLE: CheckInStatus[] = ["ontime", "submitted", "late", "unset", "skip-l", "sick"];
 
 function getWeekKey(date: Date): string {
   const year = date.getFullYear();
@@ -2866,7 +2866,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     ontime:   { label: "On Time",   color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
     submitted: { label: "Submitted", color: "#34d399", bg: "rgba(52,211,153,0.12)" },
     late:     { label: "Late",     color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
-    never:    { label: "Never",    color: "#f87171", bg: "rgba(248,113,113,0.12)" },
+    unset:    { label: "Unset",    color: "#f87171", bg: "rgba(248,113,113,0.12)" },
     "skip-l": { label: "Skip·L",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
     sick:     { label: "Sick",     color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
     paused:   { label: "Paused",   color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
@@ -2877,7 +2877,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     { key: "submitted", label: "Submitted" },
     { key: "ontime",   label: "On Time" },
     { key: "late",     label: "Late" },
-    { key: "never",    label: "Never" },
+    { key: "unset",    label: "Unset" },
     { key: "skip-l",   label: "Skip-L" },
     { key: "paused",   label: "Paused" },
     { key: "sick",     label: "Sick" },
@@ -2981,7 +2981,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       } else if (key === "2") {
         targets.forEach(id => setStatus(id, "late"));
       } else if (key === "3") {
-        targets.forEach(id => setStatus(id, "never"));
+        targets.forEach(id => setStatus(id, "unset"));
       } else if (key === "4") {
         targets.forEach(id => setStatus(id, "skip-l"));
       } else if (key === "5") {
@@ -3019,7 +3019,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   }
 
   function cycleStatus(clientId: string, current: CheckInStatus | null) {
-    const CYCLE: CheckInStatus[] = ["submitted", "ontime", "late", "never", "skip-l", "sick"];
+    const CYCLE: CheckInStatus[] = ["submitted", "ontime", "late", "unset", "skip-l", "sick"];
     if (current === null) {
       setStatus(clientId, "submitted");
     } else {
@@ -3046,7 +3046,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const weekData = checkIns[weekKey] ?? {};
   const submittedCount = Object.values(weekData).filter(s => s === "submitted").length;
   const lateCount = Object.values(weekData).filter(s => s === "late").length;
-  const neverOrMissingCount = Object.values(weekData).filter(s => s === "never").length
+  const neverOrMissingCount = Object.values(weekData).filter(s => s === "unset").length
     + activeClients.filter(c => {
         const day = c.checkInDay;
         if (!day || !(day === "Monday" || day === "Tuesday" || day === "Wednesday" || day === "Thursday" || day === "Friday")) return false;
@@ -3129,8 +3129,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
         {[
           { icon: "✅", label: "Submitted", value: submittedCount, subcolor: "#34d399" },
-          { icon: "⚠️", label: "Late", value: lateCount, subcolor: "#fbbf24" },
-          { icon: "❌", label: "Missing", value: neverOrMissingCount, subcolor: "#f87171" },
+          { icon: "⚡", label: "On Time", value: (Object.values(weekData).filter(s => s === "ontime").length), subcolor: "#0abab5" },
+          { icon: "❌", label: "Unset", value: neverOrMissingCount, subcolor: "#f87171" },
           { icon: "⏸", label: "Paused", value: pausedClients.length, subcolor: "#9ca3af" },
         ].map(b => (
           <div key={b.label} style={{
@@ -3340,7 +3340,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 { key: "S", label: "✅ Submitted", status: "submitted" as CheckInStatus },
                 { key: "1", label: "⏱ On Time", status: "ontime" as CheckInStatus },
                 { key: "2", label: "⚠ Late", status: "late" as CheckInStatus },
-                { key: "3", label: "❌ Never", status: "never" as CheckInStatus },
+                { key: "3", label: "❌ Never", status: "unset" as CheckInStatus },
                 { key: "4", label: "⏭ Skip·L", status: "skip-l" as CheckInStatus },
                 { key: "5", label: "🤒 Sick", status: "sick" as CheckInStatus },
                 { key: "6", label: "⏭ Skip·L", status: "skip-l" as CheckInStatus },
@@ -3384,7 +3384,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             {[
               { key: "1", label: "On Time" },
               { key: "2", label: "Late" },
-              { key: "3", label: "Never" },
+              { key: "3", label: "Unset" },
               { key: "4", label: "Skip·L" },
               { key: "5", label: "Sick" },
               { key: "6", label: "Submitted" },
@@ -3519,7 +3519,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           const dayDateStr = `${dayDate.getDate()}`;
           const checkedIn = dayClients.filter(c => {
             const s = getStatus(c.id);
-            return s && s !== "never";
+            return s && s !== "unset";
           }).length;
           const remaining = dayClients.filter(c => getStatus(c.id) === null && c.status !== "paused").length;
           const totalClients = dayClients.length;
@@ -6038,8 +6038,9 @@ export default function Home() {
                   👤 View Profile
                 </button>
                 <button onClick={() => {
-                  setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
-                  setEditingId(selectedClient.id);
+                  setSelectedClient(client);
+                  setForm({ name: client.name, email: client.email ?? "", coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie", weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "", status: client.status, pausedUntil: client.pausedUntil ?? "", startDate: client.startDate, notes: client.notes ?? "", checkInDay: client.checkInDay ?? "" });
+                  setEditingId(client.id);
                   setActionPanel("edit");
                 }}
                   style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
