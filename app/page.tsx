@@ -6038,9 +6038,8 @@ export default function Home() {
                   👤 View Profile
                 </button>
                 <button onClick={() => {
-                  setSelectedClient(client);
-                  setForm({ name: client.name, email: client.email ?? "", coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie", weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "", status: client.status, pausedUntil: client.pausedUntil ?? "", startDate: client.startDate, notes: client.notes ?? "", checkInDay: client.checkInDay ?? "" });
-                  setEditingId(client.id);
+                  setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
+                  setEditingId(selectedClient.id);
                   setActionPanel("edit");
                 }}
                   style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
