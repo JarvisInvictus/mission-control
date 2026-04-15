@@ -2885,6 +2885,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   ];
   const [weekOffset, setWeekOffset] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
+  const [checkInLog, setCheckInLog] = useState<Record<string, string[]>>({});
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [checkInConfirmed, setCheckInConfirmed] = useState(false);
   const [hoveredClientId, setHoveredClientId] = useState<string | null>(null);
@@ -2907,6 +2908,19 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   useEffect(() => {
     localStorage.setItem("mc_checkins", JSON.stringify(checkIns));
   }, [checkIns]);
+
+  // Load check-in log from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mc_checkin_log");
+      if (stored) setCheckInLog(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist check-in log to localStorage
+  useEffect(() => {
+    localStorage.setItem("mc_checkin_log", JSON.stringify(checkInLog));
+  }, [checkInLog]);
 
   // Auto-advance to current week on mount
   useEffect(() => {
@@ -2977,9 +2991,17 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
 
       const key = e.key;
       if (key === "1") {
-        targets.forEach(id => setStatus(id, "ontime"));
+        targets.forEach(id => {
+          setStatus(id, "ontime");
+          const today = new Date().toISOString().split("T")[0];
+          setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
+        });
       } else if (key === "2") {
-        targets.forEach(id => setStatus(id, "late"));
+        targets.forEach(id => {
+          setStatus(id, "late");
+          const today = new Date().toISOString().split("T")[0];
+          setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
+        });
       } else if (key === "3") {
         targets.forEach(id => setStatus(id, "unset"));
       } else if (key === "4") {
@@ -3016,6 +3038,14 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       ...prev,
       [weekKey]: { ...prev[weekKey], [clientId]: status },
     }));
+    // Log ontime/late as real check-ins for the daily log
+    if (status === "ontime" || status === "late") {
+      const today = new Date().toISOString().split("T")[0];
+      setCheckInLog(prev => ({
+        ...prev,
+        [today]: [...(prev[today] ?? []).filter(id => id !== clientId), clientId],
+      }));
+    }
   }
 
   function cycleStatus(clientId: string, current: CheckInStatus | null) {
@@ -3122,8 +3152,83 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     );
   }
 
+  const [checkInLogOpen, setCheckInLogOpen] = useState(false);
+
   return (
     <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
+
+      {/* ── Check-in Log Panel ── */}
+      <div style={{ marginBottom: "16px" }}>
+        <button
+          onClick={() => setCheckInLogOpen(o => !o)}
+          style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            background: checkInLogOpen ? "rgba(10,186,181,0.12)" : "rgba(255,255,255,0.06)",
+            border: `1px solid ${checkInLogOpen ? "rgba(10,186,181,0.30)" : "rgba(255,255,255,0.10)"}`,
+            borderRadius: "12px", padding: "10px 16px",
+            color: checkInLogOpen ? Tiffany : "rgba(255,255,255,0.65)",
+            fontSize: "13px", fontFamily: "system-ui", cursor: "pointer",
+            fontWeight: 500, width: "100%", textAlign: "left",
+          }}
+        >
+          <span style={{ fontSize: "16px" }}>📊</span>
+          Check-in Log
+          {(() => {
+            const today = new Date().toISOString().split("T")[0];
+            const todayCount = (checkInLog[today] ?? []).length;
+            return todayCount > 0 ? (
+              <span style={{ marginLeft: "auto", background: TiffanySoft, color: Tiffany, borderRadius: "999px", padding: "1px 10px", fontSize: "12px", fontWeight: 600 }}>
+                {todayCount} today
+              </span>
+            ) : null;
+          })()}
+        </button>
+
+        {checkInLogOpen && (
+          <div style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "12px", padding: "14px 16px",
+            marginTop: "8px",
+          }}>
+            {(() => {
+              // Get last 14 days sorted newest first
+              const days = Array.from({ length: 14 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                return d.toISOString().split("T")[0];
+              });
+              const entries = days.map(day => ({
+                day,
+                label: day === new Date().toISOString().split("T")[0] ? "Today" :
+                       day === new Date(Date.now() - 86400000).toISOString().split("T")[0] ? "Yesterday" :
+                       new Date(day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }),
+                count: (checkInLog[day] ?? []).length,
+              }));
+              const withData = entries.filter(e => e.count > 0);
+              if (withData.length === 0) {
+                return <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>No check-ins logged yet. Mark clients as On Time or Late to start tracking.</p>;
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {withData.map(e => (
+                    <div key={e.day} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.60)" }}>{e.label}</span>
+                      <span style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: Tiffany }}>{e.count} checked in</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0 0" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>Total logged</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.70)" }}>
+                      {withData.reduce((sum, e) => sum + e.count, 0)} check-ins
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
 
       {/* ── Stats Bar ── */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
