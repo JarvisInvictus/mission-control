@@ -2993,13 +2993,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       if (key === "1") {
         targets.forEach(id => {
           setStatus(id, "ontime");
-          const today = new Date().toISOString().split("T")[0];
+          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
           setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
         });
       } else if (key === "2") {
         targets.forEach(id => {
           setStatus(id, "late");
-          const today = new Date().toISOString().split("T")[0];
+          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
           setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
         });
       } else if (key === "3") {
@@ -3040,7 +3040,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     }));
     // Log ontime/late as real check-ins for the daily log
     if (status === "ontime" || status === "late") {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
       setCheckInLog(prev => ({
         ...prev,
         [today]: [...(prev[today] ?? []).filter(id => id !== clientId), clientId],
@@ -3174,7 +3174,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           <span style={{ fontSize: "16px" }}>📊</span>
           Check-in Log
           {(() => {
-            const today = new Date().toISOString().split("T")[0];
+            const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
             const todayCount = (checkInLog[today] ?? []).length;
             return todayCount > 0 ? (
               <span style={{ marginLeft: "auto", background: TiffanySoft, color: Tiffany, borderRadius: "999px", padding: "1px 10px", fontSize: "12px", fontWeight: 600 }}>
@@ -3192,16 +3192,18 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             marginTop: "8px",
           }}>
             {(() => {
+              const todayStr = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
+              const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"); })();
               // Get last 14 days sorted newest first
               const days = Array.from({ length: 14 }, (_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
-                return d.toISOString().split("T")[0];
+                return d.toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
               });
               const entries = days.map(day => ({
                 day,
-                label: day === new Date().toISOString().split("T")[0] ? "Today" :
-                       day === new Date(Date.now() - 86400000).toISOString().split("T")[0] ? "Yesterday" :
+                label: day === todayStr ? "Today" :
+                       day === yesterdayStr ? "Yesterday" :
                        new Date(day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }),
                 count: (checkInLog[day] ?? []).length,
               }));
@@ -5770,7 +5772,7 @@ export default function Home() {
       name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
       paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
       weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
-      pausedUntil: "", startDate: new Date().toISOString().split("T")[0],
+      pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
       notes: "", checkInDay: "" as "" | Client["checkInDay"],
     });
     const [searchQuery, setSearchQuery] = useState("");
@@ -5815,7 +5817,7 @@ export default function Home() {
         const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
         if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
       }
-      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" });
+      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), notes: "", checkInDay: "" });
       setShowForm(false);
     };
 
@@ -5869,7 +5871,7 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toISOString().split("T")[0], notes: "", checkInDay: "" }); }}
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), notes: "", checkInDay: "" }); }}
             style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Client"}
           </button>
@@ -6158,7 +6160,7 @@ export default function Home() {
                       status: "active",
                       pauseStartDate: undefined,
                       pausedUntil: undefined,
-                      pauseHistory: [...history, { started: start, ended: new Date().toISOString().split("T")[0], weeks: weeksPaused }],
+                      pauseHistory: [...history, { started: start, ended: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), weeks: weeksPaused }],
                     });
                     setSelectedClient(null);
                   }}
@@ -6224,7 +6226,7 @@ export default function Home() {
                 <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
                   style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: new Date().toISOString().split("T")[0] }); setSelectedClient(null); }}
+                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-") }); setSelectedClient(null); }}
                     style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
                   <button onClick={() => setActionPanel("menu")}
                     style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
@@ -6256,7 +6258,7 @@ export default function Home() {
                     const notes = (document.getElementById("cancel-notes") as HTMLTextAreaElement)?.value;
                     await updateClient(selectedClient.id, {
                       status: "cancelled",
-                      cancelDate: new Date().toISOString().split("T")[0],
+                      cancelDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
                       cancelReason: reason || undefined,
                       cancelNotes: notes || undefined,
                       lastUpdated: new Date().toISOString(),
@@ -6722,7 +6724,7 @@ return (
                  weeklyCharge: 0,
                  spreadsheetUrl: "",
                  status: "active",
-                 startDate: new Date().toISOString().split("T")[0],
+                 startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
                  notes: `Converted from lead (source: ${lead.source})`,
                };
                fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newClient) })
