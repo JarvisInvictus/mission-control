@@ -169,7 +169,7 @@ const DAY_BORDER_COLORS: Record<string, string> = {
   Sunday:    "rgba(20, 184, 166, 0.50)",
 };
 
-const DAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DAY_ORDER = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 // ─── Status hook ─────────────────────────────────────────────────────────────
 
@@ -3070,7 +3070,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
 
   const activeClients = clients.filter(c => c.status === "active");
   const pausedClients = clients.filter(c => c.status === "paused");
-  const WEEK_DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday"] as const;
+  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"] as const;
 
   // Stats
   const weekData = checkIns[weekKey] ?? {};
@@ -5840,7 +5840,8 @@ export default function Home() {
 
     const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
       : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
-      : "grid grid-cols-1 lg:grid-cols-3 gap-4";
+      : dayGroups.length <= 4 ? "grid grid-cols-2 lg:grid-cols-4 gap-3"
+      : "grid grid-cols-2 lg:grid-cols-4 gap-3";
 
     return (
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
