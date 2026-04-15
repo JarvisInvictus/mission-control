@@ -3070,7 +3070,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
 
   const activeClients = clients.filter(c => c.status === "active");
   const pausedClients = clients.filter(c => c.status === "paused");
-  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"] as const;
+  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday"] as const;
 
   // Stats
   const weekData = checkIns[weekKey] ?? {};
