@@ -2917,6 +2917,34 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     } catch { /* ignore */ }
   }, []);
 
+  // Migrate UTC date keys → Melbourne date keys (run once)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mc_checkin_log");
+      if (!stored) return;
+      const log: Record<string, string[]> = JSON.parse(stored);
+      const migrated: Record<string, string[]> = {};
+      let changed = false;
+      for (const [key, clientIds] of Object.entries(log)) {
+        // Parse as UTC date and convert to Melbourne date
+        const utcDate = new Date(key + "T00:00:00Z");
+        if (isNaN(utcDate.getTime())) { migrated[key] = clientIds; continue; }
+        const melbourneDate = utcDate.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }).split("/").reverse().join("-");
+        if (migrated[melbourneDate]) {
+          // Merge and dedupe
+          migrated[melbourneDate] = [...new Set([...migrated[melbourneDate], ...clientIds])];
+        } else {
+          migrated[melbourneDate] = clientIds;
+        }
+        if (melbourneDate !== key) changed = true;
+      }
+      if (changed) {
+        setCheckInLog(migrated);
+        localStorage.setItem("mc_checkin_log", JSON.stringify(migrated));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   // Persist check-in log to localStorage
   useEffect(() => {
     localStorage.setItem("mc_checkin_log", JSON.stringify(checkInLog));
