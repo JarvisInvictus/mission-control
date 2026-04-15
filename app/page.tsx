@@ -3079,11 +3079,11 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const neverOrMissingCount = Object.values(weekData).filter(s => s === "unset").length
     + activeClients.filter(c => {
         const day = c.checkInDay;
-        if (!day || !(day === "Monday" || day === "Tuesday" || day === "Wednesday" || day === "Thursday" || day === "Friday")) return false;
+        if (!day || !(WEEK_DAYS as readonly string[]).includes(day)) return false;
         const status = getStatus(c.id);
         if (status) return false;
         const dayDate = new Date(week.start);
-        dayDate.setDate(week.start.getDate() + WEEK_DAYS.indexOf(day));
+        dayDate.setDate(week.start.getDate() + (WEEK_DAYS as readonly string[]).indexOf(day as string));
         return dayDate < new Date() && c.status === "active";
       }).length;
 
