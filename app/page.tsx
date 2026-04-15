@@ -3653,21 +3653,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 justifyContent: "space-between",
                 alignItems: "center",
               }}>
-                <span style={{
-                  fontFamily: "system-ui",
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.50)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  fontWeight: 600,
-                }}>
-                  {day.toUpperCase()}
-                </span>
-                <span style={{
-                  fontFamily: "system-ui",
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.30)",
-                }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
+                    {day.toUpperCase()}
+                  </span>
+                  <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.28)", letterSpacing: "0.04em" }}>Submission</span>
+                </div>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>
                   {dayDateStr}
                 </span>
               </div>
@@ -5954,7 +5946,10 @@ export default function Home() {
               padding: "16px",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase" }}>{day.toUpperCase()}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 600 }}>{day.toUpperCase()}</span>
+                  <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.28)", letterSpacing: "0.04em" }}>Submission</span>
+                </div>
                 <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
               </div>
               <div>
