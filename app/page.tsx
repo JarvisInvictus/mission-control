@@ -5903,6 +5903,10 @@ export default function Home() {
             style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Client"}
           </button>
+          <a href="https://docs.google.com/spreadsheets/d/1c3PuGmw3LddG_edWagTCoMIq8AhQqqwOBmHqjnuWKGM/edit?gid=1541591503#gid=1541591503" target="_blank" rel="noopener noreferrer"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "8px 18px", color: "rgba(255,255,255,0.75)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            📋 Fresh Sheet
+          </a>
         </div>
 
         {/* Stats row */}
