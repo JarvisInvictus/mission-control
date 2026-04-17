@@ -4209,25 +4209,43 @@ function RetentionTab({ clients }: { clients: Client[] }) {
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([key, data]) => {
         if (key === "2026-03") {
+          const started = data.started.length > 0 ? data.started : [];
+          const stillActive = started.filter(c => c.status === "active");
+          const dropped = data.dropped;
           return {
             key, label: "Mar 2026",
-            started: data.started, startedCount: data.started.length > 0 ? data.started.length : 6,
-            stillActive: data.started.filter(c => c.status === "active"), stillActiveCount: data.started.filter(c => c.status === "active").length,
-            dropped: data.dropped, droppedCount: data.dropped.length > 0 ? data.dropped.length : 4,
+            started, startedCount: started.length > 0 ? started.length : 6,
+            stillActive, stillActiveCount: started.length > 0 ? stillActive.length : 6,
+            dropped, droppedCount: dropped.length > 0 ? dropped.length : 4,
             retention: 100,
+            milzzyStarted: started.filter(c => c.coach === "Milzzy").length,
+            miggyStarted: started.filter(c => c.coach === "Miggy").length,
+            milzzyActive: stillActive.filter(c => c.coach === "Milzzy").length,
+            miggyActive: stillActive.filter(c => c.coach === "Miggy").length,
+            milzzyDropped: dropped.filter(c => c.coach === "Milzzy").length,
+            miggyDropped: dropped.filter(c => c.coach === "Miggy").length,
           };
         }
         const [year, month] = key.split("-");
         const monthName = new Date(parseInt(year), parseInt(month) - 1, 1)
           .toLocaleString("en-AU", { month: "short" });
-        const retention = data.started.length > 0
-          ? Math.round((data.started.filter(c => c.status === "active").length / data.started.length) * 100) : 0;
+        const started = data.started;
+        const stillActive = started.filter(c => c.status === "active");
+        const dropped = data.dropped;
+        const retention = started.length > 0
+          ? Math.round((stillActive.length / started.length) * 100) : 0;
         return {
           key, label: `${monthName} ${year}`,
-          started: data.started, startedCount: data.started.length,
-          stillActive: data.started.filter(c => c.status === "active"), stillActiveCount: data.started.filter(c => c.status === "active").length,
-          dropped: data.dropped, droppedCount: data.dropped.length,
+          started, startedCount: started.length,
+          stillActive, stillActiveCount: stillActive.length,
+          dropped, droppedCount: dropped.length,
           retention,
+          milzzyStarted: started.filter(c => c.coach === "Milzzy").length,
+          miggyStarted: started.filter(c => c.coach === "Miggy").length,
+          milzzyActive: stillActive.filter(c => c.coach === "Milzzy").length,
+          miggyActive: stillActive.filter(c => c.coach === "Miggy").length,
+          milzzyDropped: dropped.filter(c => c.coach === "Milzzy").length,
+          miggyDropped: dropped.filter(c => c.coach === "Miggy").length,
         };
       });
   }, [clients]);
@@ -4493,7 +4511,7 @@ function RetentionTab({ clients }: { clients: Client[] }) {
                     display: "grid",
                     gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 40px",
                     gap: "0",
-                    padding: "11px 20px",
+                    padding: "11px 20px 8px",
                     borderBottom: isExpanded ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(255,255,255,0.04)",
                     cursor: "pointer",
                     background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent",
@@ -4503,9 +4521,9 @@ function RetentionTab({ clients }: { clients: Client[] }) {
                   onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{c.label}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#60a5fa" }}>{c.startedCount}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#34d399" }}>{c.stillActiveCount}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#f87171" }}>{c.droppedCount}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#60a5fa" }}>{c.startedCount}<span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", display: "block", marginTop: "1px" }}>Mz:{c.milzzyStarted} Mg:{c.miggyStarted}</span></div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#34d399" }}>{c.stillActiveCount}<span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", display: "block", marginTop: "1px" }}>Mz:{c.milzzyActive} Mg:{c.miggyActive}</span></div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#f87171" }}>{c.droppedCount}<span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", display: "block", marginTop: "1px" }}>Mz:{c.milzzyDropped} Mg:{c.miggyDropped}</span></div>
                   <div>
                     <span style={{
                       background: `${retColor}18`,
@@ -5824,7 +5842,7 @@ export default function Home() {
     .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
 
   useEffect(() => {
-    if (activeTab !== "clients" && activeTab !== "dashboard") return;
+    if (activeTab !== "clients" && activeTab !== "dashboard" && activeTab !== "retention") return;
     fetch("/api/clients")
       .then(r => r.json())
       .then((data: Client[]) => setClients(data))
