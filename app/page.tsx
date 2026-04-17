@@ -4358,8 +4358,8 @@ function RetentionTab({ clients }: { clients: Client[] }) {
       {/* ── Stats bar ─────────────────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginBottom: "16px" }}>
         {[
-          { label: "Active Clients", value: 74, color: "#34d399" },
-          { label: "Churn Rate", value: "0%", color: "#34d399" },
+          { label: "Active Clients", value: activeClients.length, sub: `Mz: ${activeClients.filter(c=>c.coach==="Milzzy").length} · Mg: ${activeClients.filter(c=>c.coach==="Miggy").length}`, color: "#34d399" },
+          { label: "Churn Rate", value: `${churnRate}%`, color: churnRate <= 10 ? "#34d399" : churnRate <= 20 ? "#fbbf24" : "#f87171" },
           { label: "Avg Lifespan", value: `${avgLifespanWeeks}w`, color: "#60a5fa" },
           { label: "Pause→Cancel", value: `${pauseToCancelRate}%`, color: pauseToCancelRate > 30 ? "#f87171" : "#fbbf24" },
           { label: "Net This Month", value: `${netThisMonth >= 0 ? "+" : ""}${netThisMonth}`, color: netThisMonth >= 0 ? "#34d399" : "#f87171" },
@@ -4376,6 +4376,11 @@ function RetentionTab({ clients }: { clients: Client[] }) {
             <div style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 800, color: s.color }}>
               {s.value}
             </div>
+            {"sub" in s && s.sub && (
+              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginTop: "4px" }}>
+                {s.sub}
+              </div>
+            )}
           </div>
         ))}
       </div>
