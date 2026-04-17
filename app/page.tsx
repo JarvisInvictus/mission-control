@@ -6989,7 +6989,7 @@ return (
                name: lead.name,
                email: lead.email,
                source: lead.source,
-               convertedAt: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
+               convertedAt: (() => { const d = new Date(); const dd = String(d.getDate()).padStart(2,"0"); const mm = String(d.getMonth()+1).padStart(2,"0"); const yyyy = d.getFullYear(); return `${yyyy}-${mm}-${dd}`; })(),
                coach: lead.assignedTo,
                checkInDay: "",
                weeklyCharge: lead.assignedTo === "Miggy" ? 85 : 100,
