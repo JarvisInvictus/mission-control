@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { HeartbeatCard } from "@/components/HeartbeatCard";
 import { CronCard, type CronJob } from "@/components/CronCard";
@@ -117,6 +117,17 @@ export interface Lead {
   age?: number | null;
   bodyFat?: number | null;
   trainingDays?: number | null;
+}
+
+export interface PendingClient {
+  id: string;
+  name: string;
+  email: string;
+  source: string;
+  convertedAt: string; // Melbourne date string
+  coach: "Milzzy" | "Miggy";
+  checkInDay: "" | Client["checkInDay"];
+  weeklyCharge: number;
 }
 
 type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel";
@@ -505,6 +516,7 @@ function DashboardTab({ clients, onTabChange, onClientClick }: { clients: Client
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
 
   // Load check-in data from localStorage
@@ -4162,6 +4174,63 @@ function RetentionTab({ clients }: { clients: Client[] }) {
   });
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState(String(target));
+  const [expandedCohorts, setExpandedCohorts] = useState<Set<string>>(new Set());
+
+  const toggleCohort = (key: string) =>
+    setExpandedCohorts(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  // ── Cohort data (memoized so we have client arrays for expansion) ─────────
+  const cohortData = useMemo(() => {
+    const cohortMap: Record<string, { started: Client[]; dropped: Client[] }> = {};
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    clients.forEach(c => {
+      if (!c.startDate) return;
+      const d = new Date(c.startDate + "T00:00:00");
+      if (d.getFullYear() !== currentYear) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!cohortMap[key]) cohortMap[key] = { started: [], dropped: [] };
+      cohortMap[key].started.push(c);
+    });
+
+    clients.forEach(c => {
+      if (c.status !== "cancelled") return;
+      if (!c.lastUpdated) return;
+      const d = new Date(c.lastUpdated);
+      if (d.getFullYear() !== currentYear) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!cohortMap[key]) cohortMap[key] = { started: [], dropped: [] };
+      cohortMap[key].dropped.push(c);
+    });
+
+    return Object.entries(cohortMap)
+      .filter(([key]) => { const month = parseInt(key.split("-")[1], 10); return month >= 3; })
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, data]) => {
+        if (key === "2026-03") {
+          return {
+            key, label: "Mar 2026",
+            started: data.started, startedCount: data.started.length > 0 ? data.started.length : 6,
+            stillActive: data.started.filter(c => c.status === "active"), stillActiveCount: data.started.filter(c => c.status === "active").length,
+            dropped: data.dropped, droppedCount: data.dropped.length > 0 ? data.dropped.length : 4,
+            retention: 100,
+          };
+        }
+        const [year, month] = key.split("-");
+        const monthName = new Date(parseInt(year), parseInt(month) - 1, 1)
+          .toLocaleString("en-AU", { month: "short" });
+        const retention = data.started.length > 0
+          ? Math.round((data.started.filter(c => c.status === "active").length / data.started.length) * 100) : 0;
+        return {
+          key, label: `${monthName} ${year}`,
+          started: data.started, startedCount: data.started.length,
+          stillActive: data.started.filter(c => c.status === "active"), stillActiveCount: data.started.filter(c => c.status === "active").length,
+          dropped: data.dropped, droppedCount: data.dropped.length,
+          retention,
+        };
+      });
+  }, [clients]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
 
@@ -4378,103 +4447,65 @@ function RetentionTab({ clients }: { clients: Client[] }) {
         </div>
       </div>
 
-      {/* ── Cohort View ────────────────────────────────────────────────────── */}
-      {(() => {
-        // Group clients by month they started (cohort month)
-        const cohortMap: Record<string, { started: Client[]; stillActive: number; dropped: number }> = {};
-        const now = new Date();
-        const currentYear = now.getFullYear();
-
-        clients.forEach(c => {
-          if (!c.startDate) return;
-          const d = new Date(c.startDate + "T00:00:00");
-          if (d.getFullYear() !== currentYear) return;
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          if (!cohortMap[key]) cohortMap[key] = { started: [], stillActive: 0, dropped: 0 };
-          cohortMap[key].started.push(c);
-          if (c.status === "active") cohortMap[key].stillActive++;
-          if (c.status === "cancelled") cohortMap[key].dropped++;
-        });
-
-        const cohorts = Object.entries(cohortMap)
-          // Exclude January — tracking starts from March 2026
-          .filter(([key]) => {
-            const month = parseInt(key.split("-")[1], 10);
-            return month >= 3; // March onwards
-          })
-          .sort(([a], [b]) => b.localeCompare(a))
-          .map(([key, data]) => {
-            // March 2026: hardcoded — 4 dropped were not in the system; all 6 in-system clients are active
-            if (key === "2026-03") {
-              return {
-                key: "2026-03",
-                label: "Mar 2026",
-                started: 6,
-                stillActive: 6,
-                dropped: 4,
-                retention: 100,
-              };
-            }
-            const [year, month] = key.split("-");
-            const monthName = new Date(parseInt(year), parseInt(month) - 1, 1)
-              .toLocaleString("en-AU", { month: "short" });
-            const retention = data.started.length > 0
-              ? Math.round((data.stillActive / data.started.length) * 100) : 0;
-            return {
-              key,
-              label: `${monthName} ${year}`,
-              started: data.started.length,
-              stillActive: data.stillActive,
-              dropped: data.dropped,
-              retention,
-            };
-          });
-
-        if (cohorts.length === 0) return null;
-
-        return (
+      {/* ── Cohort View (expandable) ──────────────────────────────────────── */}
+      {cohortData.length > 0 && (
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "16px",
+          overflow: "hidden",
+          marginBottom: "16px",
+        }}>
           <div style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "16px",
-            overflow: "hidden",
-            marginBottom: "16px",
+            background: "rgba(255,255,255,0.03)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            padding: "14px 20px",
           }}>
-            <div style={{
-              background: "rgba(255,255,255,0.03)",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              padding: "14px 20px",
-            }}>
-              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Retention</div>
-              <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white" }}>2026 Cohort Analysis</div>
-            </div>
-            {/* Table header */}
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Retention</div>
+            <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white" }}>2026 Cohort Analysis</div>
+          </div>
+
+          {/* Table header */}
+          {!expandedCohorts.size && (
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr",
+              gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 40px",
               gap: "0",
               padding: "10px 20px",
               background: "rgba(255,255,255,0.02)",
               borderBottom: "1px solid rgba(255,255,255,0.05)",
             }}>
-              {["Month Joined", "Started", "Still Active", "Dropped", "Retention %"].map(h => (
+              {["Month Joined", "Started", "Still Active", "Dropped", "Retention %", ""].map(h => (
                 <div key={h} style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</div>
               ))}
             </div>
-            {cohorts.map(c => {
-              const retColor = c.retention >= 75 ? "#34d399" : c.retention >= 50 ? "#fbbf24" : c.retention > 0 ? "#f87171" : "rgba(255,255,255,0.30)";
-              return (
-                <div key={c.key} style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr",
-                  gap: "0",
-                  padding: "11px 20px",
-                  borderBottom: "1px solid rgba(255,255,255,0.04)",
-                }}>
+          )}
+
+          {cohortData.map(c => {
+            const retColor = c.retention >= 75 ? "#34d399" : c.retention >= 50 ? "#fbbf24" : c.retention > 0 ? "#f87171" : "rgba(255,255,255,0.30)";
+            const isExpanded = expandedCohorts.has(c.key);
+            return (
+              <div key={c.key}>
+                {/* Row */}
+                <div
+                  onClick={() => toggleCohort(c.key)}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 40px",
+                    gap: "0",
+                    padding: "11px 20px",
+                    borderBottom: isExpanded ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(255,255,255,0.04)",
+                    cursor: "pointer",
+                    background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"; }}
+                  onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                >
                   <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{c.label}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#60a5fa" }}>{c.started}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#34d399" }}>{c.stillActive}</div>
-                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#f87171" }}>{c.dropped}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#60a5fa" }}>{c.startedCount}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#34d399" }}>{c.stillActiveCount}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "#f87171" }}>{c.droppedCount}</div>
                   <div>
                     <span style={{
                       background: `${retColor}18`,
@@ -4489,12 +4520,61 @@ function RetentionTab({ clients }: { clients: Client[] }) {
                       {c.retention}%
                     </span>
                   </div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.35)", textAlign: "center" }}>
+                    {isExpanded ? "▲" : "▼"}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        );
-      })()}
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "0",
+                    background: "rgba(255,255,255,0.02)",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  }}>
+                    {/* Joined */}
+                    <div style={{ padding: "12px 20px", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "#34d399", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: "8px" }}>▲ Joined ({c.startedCount})</div>
+                      {c.started.length === 0 ? (
+                        <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No joiners this month</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          {c.started.map(client => (
+                            <div key={client.id} style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399", flexShrink: 0, display: "inline-block" }} />
+                              {client.name}
+                              <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", marginLeft: "auto" }}>{client.coach}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Dropped */}
+                    <div style={{ padding: "12px 20px" }}>
+                      <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "#f87171", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: "8px" }}>▼ Dropped ({c.droppedCount})</div>
+                      {c.dropped.length === 0 ? (
+                        <div style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No drop-offs this month</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          {c.dropped.map(client => (
+                            <div key={client.id} style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f87171", flexShrink: 0, display: "inline-block" }} />
+                              {client.name}
+                              <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", marginLeft: "auto" }}>{client.coach}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Pause Tracker ── ─────────────────────────────────────────────────── */}
       <div style={{
@@ -5729,6 +5809,15 @@ export default function Home() {
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit" | null>("menu");
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [pendingClients, setPendingClients] = useState<PendingClient[]>(() => {
+    try { return JSON.parse(localStorage.getItem("mc_pending_clients") ?? "[]"); }
+    catch { return []; }
+  });
+
+  // Sync pendingClients to localStorage
+  useEffect(() => {
+    try { localStorage.setItem("mc_pending_clients", JSON.stringify(pendingClients)); } catch { /* */ }
+  }, [pendingClients]);
 
   const totalRevenuePerWeek = clients
     .filter(c => c.status === "active")
@@ -5795,7 +5884,12 @@ export default function Home() {
   ];
 
   // ─── ClientsTab ──────────────────────────────────────────────────────────────
-  function ClientsTab({ onClientClick }: { onClientClick: (c: Client) => void }) {
+  function ClientsTab({ onClientClick, pendingClients, onActivateClient, onRemovePending }: {
+    onClientClick: (c: Client) => void;
+    pendingClients: PendingClient[];
+    onActivateClient: (pc: PendingClient) => void;
+    onRemovePending: (id: string) => void;
+  }) {
     const [form, setForm] = useState({
       name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
       paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
@@ -5864,6 +5958,64 @@ export default function Home() {
       : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
       : dayGroups.length <= 4 ? "grid grid-cols-2 lg:grid-cols-4 gap-3"
       : "grid grid-cols-2 lg:grid-cols-4 gap-3";
+
+    // ── Pending Client Row sub-component ──────────────────────────────────────
+    function PendingClientRow({ pc, onActivate, onRemove }: {
+      pc: PendingClient;
+      onActivate: (pc: PendingClient) => void;
+      onRemove: (id: string) => void;
+    }) {
+      const [coach, setCoach] = useState<"Milzzy"|"Miggy">(pc.coach);
+      const [checkInDay, setCheckInDay] = useState<""|Client["checkInDay"]>(pc.checkInDay);
+      const [weeklyCharge, setWeeklyCharge] = useState(pc.weeklyCharge);
+      const [expanded, setExpanded] = useState(false);
+      const isComplete = !!(coach && checkInDay && weeklyCharge > 0);
+
+      return (
+        <div style={{ borderBottom: "1px solid rgba(10,186,181,0.08)", padding: "14px 20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: expanded ? "12px" : "0" }}>
+            <div>
+              <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{pc.name}</div>
+              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pc.source} · Converted {pc.convertedAt}</div>
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {!isComplete && <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(251,191,36,0.70)", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 8px" }}>Incomplete</span>}
+              <button onClick={() => setExpanded(e => !e)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "6px 12px", color: "rgba(255,255,255,0.60)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>{expanded ? "Hide" : "Edit"}</button>
+              <button onClick={() => onRemove(pc.id)} style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "6px 10px", color: "#f87171", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>✕</button>
+            </div>
+          </div>
+          {expanded && (
+            <div style={{ background: "rgba(0,0,0,0.20)", borderRadius: "12px", padding: "14px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "10px", alignItems: "end" }}>
+                <div>
+                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
+                  <select value={coach} onChange={e => setCoach(e.target.value as "Milzzy"|"Miggy")} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
+                    <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label>
+                  <select value={checkInDay} onChange={e => setCheckInDay(e.target.value as ""|Client["checkInDay"])} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
+                    <option value="">— Select —</option>
+                    {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
+                  <input type="number" value={weeklyCharge} onChange={e => setWeeklyCharge(Number(e.target.value))} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
+                </div>
+                <button
+                  onClick={() => isComplete ? onActivate({ ...pc, coach, checkInDay, weeklyCharge }) : undefined}
+                  disabled={!isComplete}
+                  style={{ background: isComplete ? TiffanySoft : "rgba(255,255,255,0.04)", border: isComplete ? `1px solid ${TiffanyBorder}` : "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 18px", color: isComplete ? Tiffany : "rgba(255,255,255,0.20)", fontSize: "13px", cursor: isComplete ? "pointer" : "not-allowed", fontFamily: "system-ui", fontWeight: 600, opacity: isComplete ? 1 : 0.5 }}>
+                  Activate
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
 
     return (
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
@@ -6159,6 +6311,43 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── New Clients (pending activation) ─────────────────────── */}
+        {pendingClients.length > 0 && (
+          <div style={{
+            background: "rgba(10,186,181,0.06)",
+            border: "1px solid rgba(10,186,181,0.25)",
+            borderRadius: "16px",
+            overflow: "hidden",
+            marginTop: "12px",
+          }}>
+            <div style={{
+              background: "rgba(10,186,181,0.08)",
+              borderBottom: "1px solid rgba(10,186,181,0.15)",
+              padding: "14px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <div>
+                <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Leads</div>
+                <div style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "rgba(255,255,255,0.90)" }}>
+                  New Clients — {pendingClients.length}
+                </div>
+              </div>
+              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.60)" }}>Fill in details to activate</span>
+            </div>
+
+            {pendingClients.map(pc => (
+              <PendingClientRow
+                key={pc.id}
+                pc={pc}
+                onActivate={onActivateClient}
+                onRemove={onRemovePending}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Action Modal */}
         {selectedClient && (
           <GlassModal onClose={() => setSelectedClient(null)}>
@@ -6402,7 +6591,9 @@ export default function Home() {
       if (res.ok) {
         const updated: Lead = await res.json();
         setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
-        if (newStage === "signed") onConvertLead(lead);
+        if (newStage === "signed") {
+          onConvertLead(lead);
+        }
       }
     }
 
@@ -6736,7 +6927,30 @@ return (
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
-             activeTab === "clients" ? <ClientsTab onClientClick={setSelectedClient} /> :
+             activeTab === "clients" ? <ClientsTab
+                onClientClick={setSelectedClient}
+                pendingClients={pendingClients}
+                onActivateClient={async (pc) => {
+                  const newClient: Client = {
+                    id: pc.id,
+                    name: pc.name,
+                    email: pc.email,
+                    coach: pc.coach,
+                    paymentPlatform: "Newie",
+                    weeklyCharge: pc.weeklyCharge,
+                    spreadsheetUrl: "",
+                    status: "active",
+                    startDate: pc.convertedAt,
+                    notes: `Converted from lead (source: ${pc.source})`,
+                    checkInDay: pc.checkInDay as Client["checkInDay"],
+                  };
+                  await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newClient) });
+                  setClients(prev => [...prev, newClient]);
+                  setPendingClients(prev => prev.filter(p => p.id !== pc.id));
+                  addToast(`${pc.name} activated ✅`, "success");
+                }}
+                onRemovePending={(id) => setPendingClients(prev => prev.filter(p => p.id !== id))}
+              /> :
              activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
              activeTab === "referrals" ? <ReferralsTab /> :
              activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
@@ -6747,23 +6961,19 @@ return (
              activeTab === "pages" ? <PagesTab /> :
              activeTab === "Funnel" ? <FunnelTab /> :
 <LeadsTab onConvertLead={(lead) => {
-               const newClient: Client = {
-                 id: `lead-${lead.id}`,
-                 name: lead.name,
-                 email: lead.email,
-                 coach: lead.assignedTo,
-                 paymentPlatform: "Newie",
-                 weeklyCharge: 0,
-                 spreadsheetUrl: "",
-                 status: "active",
-                 startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
-                 notes: `Converted from lead (source: ${lead.source})`,
-               };
-               fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newClient) })
-                 .then(r => r.json())
-                 .then(created => { setClients(prev => [...prev, created]); addToast(`${lead.name} has been added to Clients ✅`, "success"); })
-                 .catch(() => addToast("Failed to add client", "error"));
-             }} />}
+             const newPending: PendingClient = {
+               id: `pending-${lead.id}`,
+               name: lead.name,
+               email: lead.email,
+               source: lead.source,
+               convertedAt: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
+               coach: lead.assignedTo,
+               checkInDay: "",
+               weeklyCharge: lead.assignedTo === "Miggy" ? 85 : 100,
+             };
+             setPendingClients(prev => [...prev, newPending]);
+             addToast(`${lead.name} moved to Signed — fill in details to activate`, "success");
+           }} />}
           </div>
         </main>
 
