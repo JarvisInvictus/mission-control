@@ -17,8 +17,5 @@ export async function GET(req: NextRequest) {
   url.searchParams.set("scope", SCOPES);
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
-  url.searchParams.set("state", Math.random().toString(36).slice(2));
-
-  const authUrl = url.toString();
-  return NextResponse.json({ authUrl, clientId: CLIENT_ID?.slice(0, 20) + "..." });
+  return NextResponse.redirect(url.toString());
 }
