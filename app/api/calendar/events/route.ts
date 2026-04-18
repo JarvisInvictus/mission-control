@@ -47,19 +47,18 @@ export async function GET(req: NextRequest) {
   const startParam = searchParams.get("start");
   const endParam = searchParams.get("end");
 
-  // Default to this week's Monday–Sunday
+  // Default to this week's Monday through Sunday of next week (14-day window)
   const today = new Date();
-  const startOfYear = new Date(today.getFullYear(), 0, 1);
   const dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
   const monday = new Date(today);
   monday.setDate(today.getDate() - dow);
   monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+  const nextSunday = new Date(monday);
+  nextSunday.setDate(monday.getDate() + 13); // Sunday of next week
+  nextSunday.setHours(23, 59, 59, 999);
 
   const start = startParam || monday.toISOString();
-  const end = endParam || sunday.toISOString();
+  const end = endParam || nextSunday.toISOString();
 
   const accessToken = await getAccessToken();
   if (!accessToken) {
