@@ -7,12 +7,8 @@ const TIFFANY = "#0abab5";
 const GREEN = "#34d399";
 const RED = "#f87171";
 const AMBER = "#fbbf24";
-
-interface RetentionChartsProps {
-  clients: Client[];
-}
-
-// ─── Monthly Signups vs Cancellations Bar Chart ─────────────────────────────────
+const BG = "rgba(255,255,255,0.04)";
+const BORDER = "rgba(255,255,255,0.08)";
 
 function getMonthLabel(month: number): string {
   return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month];
@@ -20,7 +16,6 @@ function getMonthLabel(month: number): string {
 
 function getMonthData(clients: Client[]) {
   const MONTHS = 12;
-  // 2026 months: 0=Jan ... 11=Dec
   const signups = new Array(MONTHS).fill(0);
   const cancellations = new Array(MONTHS).fill(0);
   const revenueGained = new Array(MONTHS).fill(0);
@@ -37,8 +32,9 @@ function getMonthData(clients: Client[]) {
 
   clients.forEach(c => {
     if (c.status !== "cancelled") return;
-    const lastUp = c.lastUpdated ? new Date(c.lastUpdated) : null;
-    if (!lastUp || lastUp.getFullYear() !== 2026) return;
+    if (!c.lastUpdated) return;
+    const lastUp = new Date(c.lastUpdated);
+    if (lastUp.getFullYear() !== 2026) return;
     const m = lastUp.getMonth();
     cancellations[m]++;
     revenueLost[m] += (c.weeklyCharge || 0) * 4;
@@ -52,377 +48,337 @@ function getMonthData(clients: Client[]) {
   return { signups, cancellations, net, runningNet, revenueGained, revenueLost };
 }
 
-export function RetentionCharts({ clients }: RetentionChartsProps) {
-  const { signups, cancellations, net, runningNet, revenueGained, revenueLost } = useMemo(
-    () => getMonthData(clients),
-    [clients]
-  );
+// ─── Pure CSS mini bar chart ─────────────────────────────────────────────────
 
-  // Only show March onwards (tracking starts March 2026)
-  const months = Array.from({ length: 10 }, (_, i) => getMonthLabel(i + 2));
-
-  // ── Chart 1: Signups vs Cancellations ────────────────────────────────────
-  const CHART_W = 600;
-  const CHART_H = 200;
-  const PAD_L = 40;
-  const PAD_R = 16;
-  const PAD_T = 20;
-  const PAD_B = 36;
-  const chartW = CHART_W - PAD_L - PAD_R;
-  const chartH = CHART_H - PAD_T - PAD_B;
-
-  // Only use March onwards for Y-axis scale (Jan/Feb are baseline, set to 0)
-  const displaySignups = signups.slice(2);
-  const displayCancellations = cancellations.slice(2);
-  const maxVal = Math.max(...displaySignups, ...displayCancellations, 1);
-  const maxNet = Math.max(...runningNet.slice(2).map(Math.abs), 1);
-
-  function barX(monthIdx: number, side: number): number {
-    // side 0 = signup (left), side 1 = cancel (right)
-    const groupW = chartW / 12;
-    const barW = groupW * 0.35;
-    const groupStart = PAD_L + monthIdx * groupW;
-    return side === 0
-      ? groupStart + groupW * 0.08
-      : groupStart + groupW * 0.08 + barW + groupW * 0.04;
-  }
-
-  function barW(): number {
-    return chartW / 12 * 0.35;
-  }
-
-  function barH(val: number): number {
-    return (val / maxVal) * chartH;
-  }
-
-  function barY(val: number): number {
-    return PAD_T + chartH - barH(val);
-  }
-
-  // Y axis ticks
-  const yTicks: { val: number; y: number }[] = [];
-  for (let t = 0; t <= 3; t++) {
-    const val = Math.round((maxVal / 3) * t);
-    const y = PAD_T + chartH - (val / maxVal) * chartH;
-    yTicks.push({ val, y });
-  }
-
-  // Net line Y scale (separate scale on right side)
-  function netY(val: number): number {
-    return PAD_T + chartH / 2 - (val / (maxNet * 1.2)) * (chartH / 2);
-  }
-
-  const netPoints = runningNet.map((n, i) => {
-    const groupW = chartW / 12;
-    const x = PAD_L + i * groupW + groupW / 2;
-    return `${x},${netY(n)}`;
-  }).join(" L ");
+function MiniBarChart({
+  data,
+  labels,
+  colors,
+  height = 120,
+}: {
+  data: number[][];  // array of series, each series array of values
+  labels: string[];
+  colors: string[];
+  height?: number;
+}) {
+  const allVals = data.flat();
+  const max = Math.max(...allVals, 1);
+  const barW = Math.max(12, Math.min(40, (100 / labels.length) - 4));
 
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
-      borderRadius: "16px",
-      padding: "20px 20px 16px",
-      marginBottom: "16px",
-    }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-        <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", margin: 0 }}>
-          Monthly Signups vs Cancellations — 2026
-        </p>
-        <div style={{ display: "flex", gap: "12px" }}>
-          {[
-            { color: GREEN, label: "Joined" },
-            { color: RED, label: "Cancelled" },
-          ].map(l => (
-            <div key={l.label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />
-              <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.45)" }}>{l.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ overflowX: "auto" }}>
-        <svg
-          viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-          style={{ width: "100%", minWidth: "280px", display: "block" }}
-          aria-label="Monthly signups vs cancellations 2026"
-        >
-          {/* Grid lines */}
-          {yTicks.map(({ val, y }) => (
-            <g key={val}>
-              <line x1={PAD_L} y1={y} x2={CHART_W - PAD_R} y2={y}
-                stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-              <text x={PAD_L - 4} y={y + 4} textAnchor="end"
-                style={{ fontFamily: "system-ui, monospace", fontSize: "8px", fill: "rgba(255,255,255,0.30)" }}>
-                {val}
-              </text>
-            </g>
-          ))}
-
-          {/* Zero line for net */}
-          <line
-            x1={PAD_L} y1={netY(0)}
-            x2={CHART_W - PAD_R} y2={netY(0)}
-            stroke="rgba(255,255,255,0.15)" strokeWidth="1"
-            strokeDasharray="3,3"
-          />
-
-          {/* Bars — months display starts at March (month index 2) */}
-          {months.map((_, i) => {
-            const dataIdx = i + 2; // March = index 2
-            const bw = barW();
-            const sH = barH(signups[dataIdx]);
-            const cH = barH(cancellations[dataIdx]);
-            return (
-              <g key={i}>
-                {/* Signup bar */}
-                <rect
-                  x={barX(i, 0)} y={barY(signups[dataIdx])}
-                  width={bw} height={sH}
-                  fill={GREEN} fillOpacity={0.85} rx={3}
-                />
-                {/* Cancel bar */}
-                <rect
-                  x={barX(i, 1)} y={barY(cancellations[dataIdx])}
-                  width={bw} height={cH}
-                  fill={RED} fillOpacity={0.85} rx={3}
-                />
-                {/* Net label above bars */}
-                {net[dataIdx] !== 0 && (
-                  <text
-                    x={barX(i, 0) + bw / 2 + bw / 2 + 2}
-                    y={netY(net[dataIdx]) - 3}
-                    textAnchor="middle"
-                    style={{ fontFamily: "system-ui, monospace", fontSize: "8px", fill: TIFFANY, fontWeight: 700 }}
-                  >
-                    {net[dataIdx] > 0 ? `+${net[dataIdx]}` : net[dataIdx]}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-
-          {/* Net line */}
-          <path
-            d={`M ${netPoints}`}
-            fill="none"
-            stroke={TIFFANY}
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-
-          {/* Net line dots — months start at March (month index 2) */}
-          {runningNet.slice(2).map((n, i) => {
-            const groupW = chartW / 10;
-            const x = PAD_L + i * groupW + groupW / 2;
-            const y = netY(n);
-            return (
-              <circle key={i} cx={x} cy={y} r={3} fill={TIFFANY} />
-            );
-          })}
-
-          {/* X axis */}
-          <line x1={PAD_L} y1={PAD_T + chartH} x2={CHART_W - PAD_R} y2={PAD_T + chartH}
-            stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
-
-          {/* X labels */}
-          {months.map((label, i) => {
-            const groupW = chartW / 12;
-            const x = PAD_L + i * groupW + groupW / 2;
-            return (
-              <text key={i} x={x} y={CHART_H - 8} textAnchor="middle"
-                style={{ fontFamily: "system-ui, monospace", fontSize: "8px", fill: "rgba(255,255,255,0.30)" }}>
-                {label}
-              </text>
-            );
-          })}
-        </svg>
-      </div>
-
-      {/* Running net legend */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-          <div style={{ width: 16, height: 2, background: TIFFANY, borderRadius: 1 }} />
-          <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)" }}>Running net</span>
-        </div>
-      </div>
-
-      {/* ── Chart 2: Revenue Impact ─────────────────────────────────────────── */}
-      <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.10em", margin: 0 }}>
-            Revenue Impact — 2026
-          </p>
-          <div style={{ display: "flex", gap: "12px" }}>
-            {[
-              { color: GREEN, label: "Revenue Gained" },
-              { color: RED, label: "Revenue Lost" },
-              { color: TIFFANY, label: "Net" },
-            ].map(l => (
-              <div key={l.label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />
-                <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.45)" }}>{l.label}</span>
-              </div>
-            ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      {/* Legend */}
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+        {colors.map((c, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.45)" }}>{data.length > 1 ? ["Joined", "Cancelled"][i] : labels[i]}</span>
           </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Revenue chart */}
-        <RevenueImpactChart
-          revenueGained={revenueGained}
-          revenueLost={revenueLost}
-          months={months}
-          chartW={CHART_W}
-          chartH={CHART_H}
-          padL={PAD_L}
-          padR={PAD_R}
-          padT={PAD_T}
-          padB={PAD_B}
-        />
+      {/* Bars */}
+      <div style={{
+        display: "flex",
+        alignItems: "flex-end",
+        gap: "6px",
+        height: height,
+        paddingBottom: "28px",
+        position: "relative",
+      }}>
+        {labels.map((label, i) => {
+          const vals = data.map(series => series[i] || 0);
+          const total = vals.reduce((a, b) => a + b, 0);
+          return (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", flex: 1, minWidth: 0 }}>
+              {/* Stacked bar */}
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                height: `${(total / max) * height}px`,
+                width: "100%",
+                maxWidth: `${barW}px`,
+                margin: "0 auto",
+                position: "relative",
+              }}>
+                {data.map((series, si) => {
+                  const val = series[i] || 0;
+                  if (val === 0) return null;
+                  const segH = (val / total) * 100;
+                  return (
+                    <div key={si} style={{
+                      width: "100%",
+                      height: `${segH}%`,
+                      background: colors[si],
+                      opacity: data.length === 1 ? 0.8 : si === 0 ? 0.85 : 0.75,
+                      borderRadius: "4px 4px 0 0",
+                      minHeight: val > 0 ? 4 : 0,
+                    }} />
+                  );
+                })}
+              </div>
+              {/* Value label */}
+              {total > 0 && (
+                <span style={{
+                  fontFamily: "system-ui, monospace",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "rgba(255,255,255,0.75)",
+                  position: "absolute",
+                  bottom: `${(total / max) * height + 4}px`,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  whiteSpace: "nowrap",
+                }}>
+                  {total}
+                </span>
+              )}
+              {/* Month label */}
+              <span style={{
+                fontFamily: "system-ui",
+                fontSize: "10px",
+                color: "rgba(255,255,255,0.30)",
+                position: "absolute",
+                bottom: 0,
+                whiteSpace: "nowrap",
+              }}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function RevenueImpactChart({
-  revenueGained,
-  revenueLost,
-  months,
-  chartW,
-  chartH,
-  padL,
-  padR,
-  padT,
-  padB,
-}: {
-  revenueGained: number[];
-  revenueLost: number[];
-  months: string[];
-  chartW: number;
-  chartH: number;
-  padL: number;
-  padR: number;
-  padT: number;
-  padB: number;
+// ─── Running Net sparkline ────────────────────────────────────────────────────
+
+function Sparkline({ values, color, height = 60, showDots = true }: {
+  values: number[];
+  color: string;
+  height?: number;
+  showDots?: boolean;
 }) {
-  const chartWInner = chartW - padL - padR;
-  const chartHInner = chartH - padT - padB;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 100; // percentage
 
-  // Only consider March onwards data (Jan/Feb are baseline, set to 0)
-  const maxRev = Math.max(...revenueGained.slice(2), ...revenueLost.slice(2), 1);
-
-  function yPos(val: number): number {
-    return padT + chartHInner - (val / maxRev) * chartHInner;
-  }
-
-  function xPos(i: number): number {
-    return padL + (i / (months.length - 1)) * chartWInner;
-  }
-
-  function pathFromVals(vals: number[]): string {
-    return vals.map((v, i) => `${i === 0 ? "M" : "L"} ${xPos(i)},${yPos(v)}`).join(" ");
-  }
-
-  const gainedPath = pathFromVals(revenueGained);
-  const lostPath = pathFromVals(revenueLost);
-  const netVals = revenueGained.map((g, i) => g - revenueLost[i]);
-  const netPath = pathFromVals(netVals);
-
-  // Area under gained line
-  const gainedArea = `${gainedPath} L ${xPos(months.length - 1)},${padT + chartHInner} L ${xPos(0)},${padT + chartHInner} Z`;
-
-  const yTicks: { val: number; y: number }[] = [];
-  for (let t = 0; t <= 3; t++) {
-    const val = Math.round((maxRev / 3) * t);
-    yTicks.push({ val, y: yPos(val) });
-  }
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = height - ((v - min) / range) * height;
+    return `${x}%,${y}%`;
+  });
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div style={{ position: "relative", height: `${height}px` }}>
       <svg
-        viewBox={`0 0 ${chartW} ${chartH}`}
-        style={{ width: "100%", minWidth: "280px", display: "block" }}
-        aria-label="Monthly revenue impact 2026"
+        viewBox={`0 0 ${W} ${height}`}
+        style={{ width: "100%", height: `${height}px`, position: "absolute", top: 0, left: 0 }}
+        preserveAspectRatio="none"
       >
+        {/* Area fill */}
         <defs>
-          <linearGradient id="gainedGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={GREEN} stopOpacity="0.15" />
-            <stop offset="100%" stopColor={GREEN} stopOpacity="0.02" />
+          <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.20" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-
-        {/* Grid */}
-        {yTicks.map(({ val, y }) => (
-          <g key={val}>
-            <line x1={padL} y1={y} x2={chartW - padR} y2={y}
-              stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-            <text x={padL - 4} y={y + 4} textAnchor="end"
-              style={{ fontFamily: "system-ui, monospace", fontSize: "8px", fill: "rgba(255,255,255,0.30)" }}>
-              {val >= 1000 ? `$${(val / 1000).toFixed(0)}k` : `$${val}`}
-            </text>
-          </g>
-        ))}
-
-        {/* Gained area */}
-        <path d={gainedArea} fill="url(#gainedGrad)" />
-
-        {/* Gained line */}
-        <path d={gainedPath} fill="none" stroke={GREEN} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Lost line */}
-        <path d={lostPath} fill="none" stroke={RED} strokeWidth="2" strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Net line */}
-        <path d={netPath} fill="none" stroke={TIFFANY} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Data points and net labels */}
-        {months.map((_, i) => {
-          const x = xPos(i);
-          const gY = yPos(revenueGained[i]);
-          const lY = yPos(revenueLost[i]);
-          const net = netVals[i];
-          const nY = yPos(net);
-          const showNetLabel = i % 2 === 0 || i === months.length - 1;
+        <polyline
+          points={points.join(" ")}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <polyline
+          points={[...points, `${W}%,${height}%`, `0%,${height}%`].join(" ")}
+          fill={`url(#sg-${color.replace('#','')})`}
+        />
+        {showDots && values.map((v, i) => {
+          const x = (i / (values.length - 1)) * W;
+          const y = height - ((v - min) / range) * height;
           return (
-            <g key={i}>
-              {/* Gained dot */}
-              <circle cx={x} cy={gY} r={3} fill={GREEN} />
-              {/* Lost dot */}
-              <circle cx={x} cy={lY} r={3} fill={RED} />
-              {/* Net dot + label */}
-              <circle cx={x} cy={nY} r={3} fill={TIFFANY} stroke={TIFFANY} strokeWidth="1.5" />
-              {showNetLabel && (
-                <text
-                  x={x} y={nY - 6}
-                  textAnchor="middle"
-                  style={{ fontFamily: "system-ui, monospace", fontSize: "7px", fill: TIFFANY, fontWeight: 700 }}
-                >
-                  {net >= 0 ? `+$${net >= 1000 ? (net/1000).toFixed(1)+"k" : net}` : `-$${Math.abs(net) >= 1000 ? (Math.abs(net)/1000).toFixed(1)+"k" : Math.abs(net)}`}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-        {/* X axis */}
-        <line x1={padL} y1={padT + chartHInner} x2={chartW - padR} y2={padT + chartHInner}
-          stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
-
-        {/* X labels */}
-        {months.map((label, i) => {
-          // Show every month
-          return (
-            <text key={i} x={xPos(i)} y={chartH - 8} textAnchor="middle"
-              style={{ fontFamily: "system-ui, monospace", fontSize: "8px", fill: "rgba(255,255,255,0.30)" }}>
-              {label}
-            </text>
+            <circle key={i} cx={`${x}%`} cy={`${y}%`} r="3" fill={color} />
           );
         })}
       </svg>
+      <div style={{
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        fontFamily: "system-ui, monospace",
+        fontSize: "11px",
+        fontWeight: 700,
+        color,
+      }}>
+        {values[values.length - 1] >= 0 ? `+${values[values.length - 1]}` : values[values.length - 1]}
+      </div>
+    </div>
+  );
+}
+
+// ─── Stat Pill ───────────────────────────────────────────────────────────────
+
+function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{
+      background: BG,
+      border: `1px solid ${BORDER}`,
+      borderRadius: "12px",
+      padding: "10px 16px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "4px",
+      minWidth: 0,
+    }}>
+      <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        {label}
+      </span>
+      <span style={{ fontFamily: "system-ui, monospace", fontSize: "18px", fontWeight: 800, color }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+export function RetentionCharts({ clients }: { clients: Client[] }) {
+  const { signups, cancellations, net, runningNet, revenueGained, revenueLost } = useMemo(
+    () => getMonthData(clients),
+    [clients]
+  );
+
+  // Show March–December (month index 2–11)
+  const MARCH_DEC = Array.from({ length: 10 }, (_, i) => i + 2);
+  const labels = MARCH_DEC.map(m => getMonthLabel(m));
+  const dispSignups = MARCH_DEC.map(m => signups[m]);
+  const dispCancellations = MARCH_DEC.map(m => cancellations[m]);
+  const dispNet = MARCH_DEC.map(m => net[m]);
+  const dispRunningNet = MARCH_DEC.map(m => runningNet[m]);
+  const dispRevGained = MARCH_DEC.map(m => revenueGained[m]);
+  const dispRevLost = MARCH_DEC.map(m => revenueLost[m]);
+
+  const totalJoined = dispSignups.reduce((a, b) => a + b, 0);
+  const totalCancelled = dispCancellations.reduce((a, b) => a + b, 0);
+  const totalNet = totalJoined - totalCancelled;
+  const currentNet = dispRunningNet[dispRunningNet.length - 1];
+  const totalRevGained = dispRevGained.reduce((a, b) => a + b, 0);
+  const totalRevLost = dispRevLost.reduce((a, b) => a + b, 0);
+
+  return (
+    <div style={{
+      background: BG,
+      border: `1px solid ${BORDER}`,
+      borderRadius: "16px",
+      padding: "20px",
+      marginBottom: "16px",
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+        <div>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: TIFFANY, textTransform: "uppercase", letterSpacing: "0.10em", margin: "0 0 4px" }}>2026</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "white", margin: 0 }}>Signups & Churn</p>
+        </div>
+        {/* Quick stats */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <StatPill label="Net" value={`${currentNet >= 0 ? "+" : ""}${currentNet}`} color={currentNet >= 0 ? GREEN : RED} />
+          <StatPill label="Joined" value={`${totalJoined}`} color={GREEN} />
+          <StatPill label="Churned" value={`${totalCancelled}`} color={RED} />
+        </div>
+      </div>
+
+      {/* Chart: stacked bars + running net sparkline */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: "20px", alignItems: "flex-end" }}>
+        {/* Stacked bar chart */}
+        <MiniBarChart
+          data={[dispSignups, dispCancellations]}
+          labels={labels}
+          colors={[GREEN, RED]}
+          height={130}
+        />
+
+        {/* Running net sparkline */}
+        <div style={{
+          background: "rgba(0,0,0,0.20)",
+          borderRadius: "12px",
+          padding: "12px",
+          height: "130px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+        }}>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Running Net</p>
+            <p style={{ fontFamily: "system-ui, monospace", fontSize: "22px", fontWeight: 800, color: TIFFANY, margin: 0 }}>
+              {currentNet >= 0 ? `+${currentNet}` : currentNet}
+            </p>
+          </div>
+          <Sparkline values={dispRunningNet} color={TIFFANY} height={55} />
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>Mar</span>
+            <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>Dec</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Revenue Section ───────────────────────────────────────────────── */}
+      <div style={{
+        marginTop: "20px",
+        paddingTop: "20px",
+        borderTop: `1px solid ${BORDER}`,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.10em", margin: "0 0 4px" }}>2026</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "white", margin: 0 }}>Revenue Impact</p>
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <StatPill label="Gained" value={`$${(totalRevGained / 1000).toFixed(1)}k`} color={GREEN} />
+            <StatPill label="Lost" value={`$${(totalRevLost / 1000).toFixed(1)}k`} color={RED} />
+            <StatPill label="Net" value={`$${((totalRevGained - totalRevLost) / 1000).toFixed(1)}k`} color={totalRevGained >= totalRevLost ? GREEN : RED} />
+          </div>
+        </div>
+
+        {/* Revenue bar chart */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: "20px", alignItems: "flex-end" }}>
+          <MiniBarChart
+            data={[dispRevGained, dispRevLost]}
+            labels={labels}
+            colors={[GREEN, RED]}
+            height={130}
+          />
+
+          {/* Monthly rev delta sparkline */}
+          <div style={{
+            background: "rgba(0,0,0,0.20)",
+            borderRadius: "12px",
+            padding: "12px",
+            height: "130px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.30)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Net Rev</p>
+              <p style={{ fontFamily: "system-ui, monospace", fontSize: "22px", fontWeight: 800, color: totalRevGained >= totalRevLost ? GREEN : RED, margin: 0 }}>
+                ${((totalRevGained - totalRevLost) / 1000).toFixed(1)}k
+              </p>
+            </div>
+            <Sparkline
+              values={MARCH_DEC.map(m => revenueGained[m] - revenueLost[m])}
+              color={totalRevGained >= totalRevLost ? GREEN : RED}
+              height={55}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>Mar</span>
+              <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>Dec</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
