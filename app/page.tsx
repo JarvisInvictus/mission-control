@@ -525,6 +525,18 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
     } catch { /* ignore */ }
   }, []);
 
+  // Re-sync check-ins when they change in the Check-ins tab
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const stored = localStorage.getItem("mc_checkins");
+        if (stored) setCheckIns(JSON.parse(stored));
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("checkins-updated", handler);
+    return () => window.removeEventListener("checkins-updated", handler);
+  }, []);
+
   // Helper to get week key for current week (same logic as CheckInsTab)
   function getDashboardWeekKey(offset = 0) {
     const now = new Date();
@@ -2858,7 +2870,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
 
   // Persist check-ins to localStorage
   useEffect(() => {
-    localStorage.setItem("mc_checkins", JSON.stringify(checkIns));
+    localStorage.setItem("mc_checkins", JSON.stringify(checkIns)); window.dispatchEvent(new Event("checkins-updated"));
   }, [checkIns]);
 
   // Load check-in log from localStorage
