@@ -613,78 +613,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
 
 
 
-
-  // ── Retention Alerts ──────────────────────────────────────────────────────────
-  function getRetentionAlerts() {
-    const today2 = new Date();
-    const alertsList: { type: string; color: string; message: string; client: Client }[] = [];
-
-    // Load check-in history
-    let checkIns: Record<string, Record<string, string>> = {};
-    try { const s = localStorage.getItem("mc_checkins"); if (s) checkIns = JSON.parse(s); } catch { /* */ }
-
-    for (const c of clients) {
-      // 1. Missing check-in (existing logic)
-      if (c.status === 'active' && c.checkInDay) {
-        const dayNum = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(c.checkInDay);
-        if (dayNum >= 1 && dayNum <= 5 && dayNum < today2.getDay()) {
-          alertsList.push({ type: 'missing', color: '#f87171', message: `${c.name} — check-in missing since ${c.checkInDay}`, client: c });
-        }
-      }
-
-      // 2. Upfront payment review
-      if (c.paymentPlatform === 'Upfront') {
-        alertsList.push({ type: 'payment', color: '#fbbf24', message: `${c.name} — Upfront payment review due`, client: c });
-      }
-
-      // 3. Week milestone (4 / 8 / 12 weeks) — only if startDate exists
-      if (c.startDate && c.status === 'active') {
-        const start = new Date(c.startDate);
-        const weeksElapsed = Math.floor((today2.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
-        if ([4, 8, 12].includes(weeksElapsed)) {
-          alertsList.push({ type: 'milestone', color: '#fbbf24', message: `${c.name} — approaching ${weeksElapsed} week mark`, client: c });
-        }
-      }
-
-      // 4. Paused 2+ weeks
-      if (c.status === 'paused') {
-        const pausedDate = c.pausedUntil ? new Date(c.pausedUntil) : new Date(c.startDate);
-        if (pausedDate) {
-          const weeksPaused = Math.floor((today2.getTime() - pausedDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-          if (weeksPaused >= 2) {
-            alertsList.push({ type: 'paused', color: '#fbbf24', message: `${c.name} — paused ${weeksPaused} weeks, follow up`, client: c });
-          }
-        }
-      }
-
-      // 5. No check-in for 2 consecutive weeks
-      if (c.status === 'active' && c.startDate) {
-        let missedWeeks = 0;
-        for (let w = 1; w <= 2; w++) {
-          const dow = today2.getDay() === 0 ? 6 : today2.getDay() - 1;
-          const currentMonday = new Date(today2);
-          currentMonday.setDate(today2.getDate() - dow);
-          const checkMonday = new Date(currentMonday);
-          checkMonday.setDate(currentMonday.getDate() - w * 7);
-          const year = checkMonday.getFullYear();
-          const startOfYear = new Date(year, 0, 1);
-          const week1Start = new Date(startOfYear);
-          week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
-          const weekNum = Math.floor((checkMonday.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-          const wKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
-          if (!checkIns[wKey]?.[c.id]) missedWeeks++;
-        }
-        if (missedWeeks >= 2) {
-          alertsList.push({ type: 'consecutive', color: '#f87171', message: `${c.name} — no check-in 2 weeks running`, client: c });
-        }
-      }
-    }
-
-    return alertsList;
-  }
-
-  const alerts = getRetentionAlerts();
-
   return (
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
 
@@ -1010,50 +938,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           <StatCard value={convRate !== null ? `${convRate}%` : "—"} label="Conv." color={convRate !== null ? "#34d399" : "rgba(255,255,255,0.50)"} />
         </div>
       </section>
-
-      {/* Retention Alerts */}
-      {alerts.length > 0 && (
-        <section style={{ marginBottom: "28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <p style={sectionHeaderStyle}>Needs Attention</p>
-            <span style={{ fontFamily: "system-ui", fontSize: "10px", background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "2px 10px" }}>
-              {alerts.length}
-            </span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {alerts.slice(0, 8).map((alert, i) => (
-              <div key={i} style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderLeft: `3px solid ${alert.color}`,
-                borderRadius: "12px",
-                padding: "12px 16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
-              onClick={() => onEditClient(alert.client)}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px", flexWrap: "wrap" }}>
-                    <span style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{alert.client.name}</span>
-                    <span style={{ fontFamily: "system-ui", fontSize: "10px", background: alert.client.coach === "Miggy" ? "rgba(168,85,247,0.15)" : "rgba(10,186,181,0.12)", color: alert.client.coach === "Miggy" ? "#c084fc" : "#0abab5", borderRadius: "999px", padding: "1px 8px", border: `1px solid ${alert.client.coach === "Miggy" ? "rgba(168,85,247,0.30)" : "rgba(10,186,181,0.25)"}` }}>{alert.client.coach}</span>
-                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)" }}>&#183;</span>
-                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)" }}>{alert.client.paymentPlatform}</span>
-                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: Tiffany }}>${alert.client.weeklyCharge || 0}/wk</span>
-                  </div>
-                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0 }}>{alert.message}</p>
-                </div>
-                <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.20)", flexShrink: 0 }}>&#9998; Edit</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
 
     </div>
