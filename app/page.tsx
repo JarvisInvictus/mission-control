@@ -518,6 +518,15 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
   const [calendarEvents, setCalendarEvents] = useState<{id: string; title: string; start: string; meetLink: string | null}[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
+  const [revenueData, setRevenueData] = useState<any>(null);
+
+  // Load revenue snapshot from API
+  useEffect(() => {
+    fetch('/api/revenue')
+      .then(r => r.json())
+      .then(d => setRevenueData(d))
+      .catch(() => setRevenueData(null));
+  }, []);
 
   // Load check-in data from API (server-synced)
   useEffect(() => {
@@ -1077,56 +1086,77 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           })}
         </div>
       
-      {/* Revenue vs Target */}
+      {/* ── Revenue Snapshot ── */}
       <section style={{ marginBottom: "28px" }}>
-        <p style={sectionHeaderStyle}>Revenue vs Target</p>
-        <div style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "16px",
-          padding: "20px 22px",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "10px", gap: "12px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>This Week</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: Tiffany, margin: 0 }}>${totalRevenuePerWeek.toLocaleString()}</p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Target</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "rgba(255,255,255,0.30)", margin: 0 }}>$8,500</p>
-            </div>
+        <p style={sectionHeaderStyle}>Revenue Snapshot</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+          {/* MTD */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>MTD Revenue</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: "0 0 2px" }}>
+              ${revenueData ? revenueData.mtdRevenue.toLocaleString() : "—"}
+            </p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
+              {revenueData ? `${revenueData.pctOfMonth}% of month · day ${revenueData.dayOfMonth}/${revenueData.daysInMonth}` : "loading..."}
+            </p>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "8px", overflow: "hidden" }}>
-            <div style={{
-              width: "${Math.min(100, Math.round((totalRevenuePerWeek / 8500) * 100))}%",
-              height: "100%",
-              background: totalRevenuePerWeek >= 8500
-                ? "linear-gradient(90deg, #0abab5, #34d399)"
-                : "linear-gradient(90deg, #f87171, #fbbf24)",
-              borderRadius: "999px",
-              transition: "width 0.6s ease",
-            }} />
+
+          {/* EOFM Projection */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>EOFM Projection</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: Tiffany, margin: "0 0 2px" }}>
+              ${revenueData ? revenueData.eofmProjection.toLocaleString() : "—"}
+            </p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
+              {revenueData ? `${revenueData.activeClients} clients x $${Math.round(revenueData.weeklyTotal / revenueData.activeClients)}/wk avg` : "loading..."}
+            </p>
           </div>
-          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: totalRevenuePerWeek >= 8500 ? "#34d399" : "#fbbf24", margin: "8px 0 0", textAlign: "right" }}>
-            ${totalRevenuePerWeek.toLocaleString()} of $8,500
-          </p>
+
+          {/* vs Last Month */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>vs Last Month</p>
+            {revenueData ? (
+              revenueData.lastMonthRevenue !== null ? (
+                (() => {
+                  const diff = revenueData.mtdRevenue - revenueData.lastMonthRevenue;
+                  const pct = Math.round((diff / revenueData.lastMonthRevenue) * 100);
+                  const isUp = diff >= 0;
+                  return (
+                    <>
+                      <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: isUp ? "#34d399" : "#f87171", margin: "0 0 2px" }}>
+                        {isUp ? "+" : ""}${Math.abs(diff).toLocaleString()}
+                      </p>
+                      <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
+                        {isUp ? "+" : ""}{pct}% vs {revenueData.lastMonthLabel}
+                      </p>
+                    </>
+                  );
+                })()
+              ) : (
+                <>
+                  <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.40)", margin: "0 0 2px" }}>No data</p>
+                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: 0 }}>Record last month to compare</p>
+                </>
+              )
+            ) : (
+              <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.30)", margin: 0 }}>loading...</p>
+            )}
+          </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "12px" }}>
+        {/* Week-by-week bar strip */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Monthly Revenue</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${Math.round(totalRevenuePerWeek * 52 / 12).toLocaleString()}</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>weekly x 4.33</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>This Week</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${totalRevenuePerWeek.toLocaleString()}</p>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Monthly (run rate)</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${revenueData ? revenueData.monthlyRate.toLocaleString() : "—"}</p>
           </div>
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
             <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Annual Run Rate</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${Math.round(totalRevenuePerWeek * 52).toLocaleString()}</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>yearly</p>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Avg per Client</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${activeCount > 0 ? Math.round(totalRevenuePerWeek / activeCount) : 0}</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{activeCount} active</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${revenueData ? Math.round(revenueData.monthlyRate * 12).toLocaleString() : "—"}</p>
           </div>
         </div>
       </section>
