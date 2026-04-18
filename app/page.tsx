@@ -689,7 +689,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
             const wKey = getDashboardWeekKey();
             const wData = checkIns[wKey] ?? {};
             const totalActive = clients.filter(c => c.status === "active").length;
-            const checked = clients.filter(c => c.status === "active" && (wData[c.id] === "submitted" || wData[c.id] === "late")).length;
+            const checked = clients.filter(c => c.status === "active" && (wData[c.id] === "ontime" || wData[c.id] === "submitted" || wData[c.id] === "late")).length;
             const pct = totalActive > 0 ? Math.round((checked / totalActive) * 100) : 0;
             return (
               <>
