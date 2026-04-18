@@ -3244,7 +3244,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                 day,
                 label: day === todayStr ? "Today" :
                        day === yesterdayStr ? "Yesterday" :
-                       new Date(day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }),
+                       (function(d) { const [y,m,day] = d.split("-"); return new Date(Number(y), Number(m)-1, Number(day)).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }); })(day),
                 count: (checkInLog[day] ?? []).length,
               }));
               const withData = entries.filter(e => e.count > 0);
