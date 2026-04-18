@@ -688,6 +688,69 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   return (
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
 
+      {/* ── Today Strip ── */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(10,186,181,0.12) 0%, rgba(168,85,247,0.08) 100%)",
+        border: "1px solid rgba(10,186,181,0.25)",
+        borderRadius: "18px",
+        padding: "18px 22px",
+        marginBottom: "24px",
+        display: "flex",
+        alignItems: "center",
+        gap: "24px",
+        flexWrap: "wrap",
+      }}>
+        <div>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 4px" }}>Today</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: 0, lineHeight: 1 }}>
+            {new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+        <div style={{ width: "1px", height: "36px", background: "rgba(255,255,255,0.10)" }} />
+        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Checking in</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "#0abab5", margin: 0 }}>
+              {(() => {
+                const todayDay = new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long" });
+                return clients.filter(cc => cc.status === "active" && cc.checkInDay === todayDay).length;
+              })()} clients
+            </p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>On track</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "#34d399", margin: 0 }}>
+              {(() => {
+                const todayDay = new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long" });
+                const wKey = getDashboardWeekKey();
+                const wData = checkIns[wKey] ?? {};
+                return clients.filter(cc => cc.status === "active" && cc.checkInDay === todayDay && wData[cc.id] === "submitted").length;
+              })()} &#10003;
+            </p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Late</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "#fbbf24", margin: 0 }}>
+              {(() => {
+                const todayDay = new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long" });
+                const wKey = getDashboardWeekKey();
+                const wData = checkIns[wKey] ?? {};
+                return clients.filter(cc => cc.status === "active" && cc.checkInDay === todayDay && wData[cc.id] === "late").length;
+              })()} &#9888;
+            </p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Tasks pending</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: "rgba(255,255,255,0.70)", margin: 0 }}>
+              {(() => {
+                const todayDay = new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long" });
+                return weekTasks.filter(t => t.day === todayDay && !t.done).length;
+              })()} pending
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* ── Weekly To-Do List ── */}
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>This Week</p>
@@ -882,24 +945,59 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           })}
         </div>
       
-      {/* Revenue Projections */}
-      <div style={{ marginTop: '20px' }}>
-        <p style={{ fontFamily: 'system-ui', fontSize: '11px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
-          Revenue Projections
-        </p>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          {[
-            { label: '30 Days', value: Math.round(totalRevenuePerWeek * 52 / 12), suffix: '' },
-            { label: '60 Days', value: Math.round(totalRevenuePerWeek * 52 / 12 * 1.97), suffix: '' },
-            { label: '90 Days', value: Math.round(totalRevenuePerWeek * 52 / 12 * 2.91), suffix: '' },
-          ].map(p => (
-            <div key={p.label} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '12px', padding: '12px 20px', flex: 1, minWidth: '100px', textAlign: 'center' }}>
-              <p style={{ fontFamily: 'system-ui', fontSize: '18px', fontWeight: 700, color: '#0abab5', margin: 0 }}>${p.value.toLocaleString()}</p>
-              <p style={{ fontFamily: 'system-ui', fontSize: '10px', color: 'rgba(255,255,255,0.35)', margin: '4px 0 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.label}</p>
+      {/* Revenue vs Target */}
+      <section style={{ marginBottom: "28px" }}>
+        <p style={sectionHeaderStyle}>Revenue vs Target</p>
+        <div style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "16px",
+          padding: "20px 22px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "10px", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>This Week</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: Tiffany, margin: 0 }}>${totalRevenuePerWeek.toLocaleString()}</p>
             </div>
-          ))}
+            <div style={{ textAlign: "right" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Target</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "rgba(255,255,255,0.30)", margin: 0 }}>$8,500</p>
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "8px", overflow: "hidden" }}>
+            <div style={{
+              width: "${Math.min(100, Math.round((totalRevenuePerWeek / 8500) * 100))}%",
+              height: "100%",
+              background: totalRevenuePerWeek >= 8500
+                ? "linear-gradient(90deg, #0abab5, #34d399)"
+                : "linear-gradient(90deg, #f87171, #fbbf24)",
+              borderRadius: "999px",
+              transition: "width 0.6s ease",
+            }} />
+          </div>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: totalRevenuePerWeek >= 8500 ? "#34d399" : "#fbbf24", margin: "8px 0 0", textAlign: "right" }}>
+            ${totalRevenuePerWeek.toLocaleString()} of $8,500
+          </p>
         </div>
-      </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "12px" }}>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Monthly Revenue</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${Math.round(totalRevenuePerWeek * 52 / 12).toLocaleString()}</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>weekly x 4.33</p>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Annual Run Rate</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${Math.round(totalRevenuePerWeek * 52).toLocaleString()}</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>yearly</p>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Avg per Client</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${activeCount > 0 ? Math.round(totalRevenuePerWeek / activeCount) : 0}</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{activeCount} active</p>
+          </div>
+        </div>
+      </section>
 </section>
 
       {/* ── Business Stats ── */}
@@ -913,20 +1011,50 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
         </div>
       </section>
 
-      {/* ALERTS */}
-      {(alerts.length > 0) && (
-        <div style={{ marginTop: '24px' }}>
-          <p style={{ fontFamily: 'system-ui', fontSize: '11px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>ALERTS</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {alerts.slice(0, 5).map((alert, i) => (
-              <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${alert.color}`, borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.80)', cursor: 'pointer' }} onClick={() => onClientClick(alert.client)}>{alert.message}</span>
-                <button onClick={() => onClientClick(alert.client)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.30)', cursor: 'pointer', fontSize: '12px', fontFamily: 'system-ui' }}>View →</button>
+      {/* Retention Alerts */}
+      {alerts.length > 0 && (
+        <section style={{ marginBottom: "28px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <p style={sectionHeaderStyle}>Needs Attention</p>
+            <span style={{ fontFamily: "system-ui", fontSize: "10px", background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.30)", borderRadius: "999px", padding: "2px 10px" }}>
+              {alerts.length}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {alerts.slice(0, 8).map((alert, i) => (
+              <div key={i} style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderLeft: `3px solid ${alert.color}`,
+                borderRadius: "12px",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+              onClick={() => onEditClient(alert.client)}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px", flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{alert.client.name}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", background: alert.client.coach === "Miggy" ? "rgba(168,85,247,0.15)" : "rgba(10,186,181,0.12)", color: alert.client.coach === "Miggy" ? "#c084fc" : "#0abab5", borderRadius: "999px", padding: "1px 8px", border: `1px solid ${alert.client.coach === "Miggy" ? "rgba(168,85,247,0.30)" : "rgba(10,186,181,0.25)"}` }}>{alert.client.coach}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)" }}>&#183;</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)" }}>{alert.client.paymentPlatform}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: Tiffany }}>${alert.client.weeklyCharge || 0}/wk</span>
+                  </div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0 }}>{alert.message}</p>
+                </div>
+                <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.20)", flexShrink: 0 }}>&#9998; Edit</span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
+
 
     </div>
   );
