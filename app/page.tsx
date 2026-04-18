@@ -517,21 +517,27 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
 
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
 
-  // Load check-in data from localStorage
+  // Load check-in data from API (server-synced)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("mc_checkins");
-      if (stored) setCheckIns(JSON.parse(stored));
-    } catch { /* ignore */ }
+    const wKey = getDashboardWeekKey();
+    fetch("/api/checkins?weekKey=" + wKey)
+      .then(r => r.json())
+      .then(data => {
+        setCheckIns(prev => ({ ...prev, [wKey]: data as Record<string, CheckInStatus> }));
+      })
+      .catch(() => { /* ignore */ });
   }, []);
 
   // Re-sync check-ins when they change in the Check-ins tab
   useEffect(() => {
     const handler = () => {
-      try {
-        const stored = localStorage.getItem("mc_checkins");
-        if (stored) setCheckIns(JSON.parse(stored));
-      } catch { /* ignore */ }
+      const wKey = getDashboardWeekKey();
+      fetch("/api/checkins?weekKey=" + wKey)
+        .then(r => r.json())
+        .then(data => {
+          setCheckIns(prev => ({ ...prev, [wKey]: data as Record<string, CheckInStatus> }));
+        })
+        .catch(() => { /* ignore */ });
     };
     window.addEventListener("checkins-updated", handler);
     return () => window.removeEventListener("checkins-updated", handler);
@@ -2868,10 +2874,43 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     } catch { /* ignore */ }
   }, []);
 
-  // Persist check-ins to localStorage
+  // Persist check-ins: localStorage + Redis API
   useEffect(() => {
-    localStorage.setItem("mc_checkins", JSON.stringify(checkIns)); window.dispatchEvent(new Event("checkins-updated"));
+    localStorage.setItem("mc_checkins", JSON.stringify(checkIns));
+    window.dispatchEvent(new Event("checkins-updated"));
+    // Sync each week to Redis API
+    Object.entries(checkIns).forEach(([weekKey, weekData]) => {
+      if (weekData && typeof weekData === "object") {
+        Object.entries(weekData).forEach(([clientId, status]) => {
+          if (status && typeof status === "string") {
+            fetch("/api/clients/" + clientId + "/checkin", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ weekKey, status }),
+            }).catch(() => { /* ignore */ });
+          }
+        });
+      }
+    });
   }, [checkIns]);
+
+  // Load check-ins from API on mount (then merge with localStorage for resilience)
+  useEffect(() => {
+    const weekKey = getWeekKey(week.start);
+    Promise.all([
+      fetch("/api/checkins?weekKey=" + weekKey).then(r => r.json()).catch(() => ({})),
+      new Promise(resolve => {
+        try {
+          const stored = localStorage.getItem("mc_checkins");
+          resolve(stored ? JSON.parse(stored) : {});
+        } catch { resolve({}); }
+      })
+    ]).then(([apiData, localData]) => {
+      // Merge: API wins for current week, localStorage fills gaps
+      const merged: CheckInStore = { ...(localData as Record<string, any>), [weekKey]: Object.assign({}, (localData as Record<string, any>)[weekKey] || {}, apiData as Record<string, CheckInStatus>) };
+      setCheckIns(merged);
+    });
+  }, []);
 
   // Load check-in log from localStorage
   useEffect(() => {
@@ -6390,6 +6429,7 @@ export default function Home() {
                       const next = { ...checkIns, [weekKey]: { ...checkIns[weekKey], [selectedClient.id]: "ontime" } };
                       localStorage.setItem("mc_checkins", JSON.stringify(next));
                       window.dispatchEvent(new Event("checkins-updated"));
+                      fetch("/api/clients/" + selectedClient.id + "/checkin", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekKey, status: "ontime" }) }).catch(() => {});
                     } catch { /* ignore */ }
                   }}
                   style={{
