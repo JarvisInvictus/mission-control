@@ -6389,6 +6389,7 @@ export default function Home() {
                       const checkIns = stored ? JSON.parse(stored) : {};
                       const next = { ...checkIns, [weekKey]: { ...checkIns[weekKey], [selectedClient.id]: "ontime" } };
                       localStorage.setItem("mc_checkins", JSON.stringify(next));
+                      window.dispatchEvent(new Event("checkins-updated"));
                     } catch { /* ignore */ }
                   }}
                   style={{
