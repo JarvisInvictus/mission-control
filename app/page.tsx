@@ -1089,6 +1089,35 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
       {/* ── Revenue Snapshot ── */}
       <section style={{ marginBottom: "28px" }}>
         <p style={sectionHeaderStyle}>Revenue Snapshot</p>
+
+        {/* Weekly progress bar — this week vs $8,500 target */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 20px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "8px", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>This Week</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: Tiffany, margin: 0 }}>${totalRevenuePerWeek.toLocaleString()}</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Target</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "rgba(255,255,255,0.30)", margin: 0 }}>$8,500</p>
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "8px", overflow: "hidden" }}>
+            <div style={{
+              width: Math.min(100, Math.round((totalRevenuePerWeek / 8500) * 100)) + "%",
+              height: "100%",
+              background: totalRevenuePerWeek >= 8500
+                ? "linear-gradient(90deg, #0abab5, #34d399)"
+                : "linear-gradient(90deg, #f87171, #fbbf24)",
+              borderRadius: "999px",
+              transition: "width 0.6s ease",
+            }} />
+          </div>
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: totalRevenuePerWeek >= 8500 ? "#34d399" : "#fbbf24", margin: "8px 0 0", textAlign: "right" }}>
+            ${totalRevenuePerWeek.toLocaleString()} of $8,500
+          </p>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
           {/* MTD */}
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
