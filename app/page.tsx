@@ -679,6 +679,90 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
         </div>
       </div>
 
+      {/* ── Weekly Summary Strip ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+
+        {/* ── Check-in Rate ── */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "14px 16px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Check-in Rate</p>
+          {(() => {
+            const wKey = getDashboardWeekKey();
+            const wData = checkIns[wKey] ?? {};
+            const totalActive = clients.filter(c => c.status === "active").length;
+            const checked = clients.filter(c => c.status === "active" && (wData[c.id] === "submitted" || wData[c.id] === "late")).length;
+            const pct = totalActive > 0 ? Math.round((checked / totalActive) * 100) : 0;
+            return (
+              <>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginBottom: "8px" }}>
+                  <span style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: pct >= 75 ? "#34d399" : pct >= 50 ? "#fbbf24" : "#f87171" }}>{pct}%</span>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{checked}/{totalActive} clients</span>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "5px", overflow: "hidden" }}>
+                  <div style={{ width: pct + "%", height: "100%", background: pct >= 75 ? "#34d399" : pct >= 50 ? "#fbbf24" : "#f87171", borderRadius: "999px", transition: "width 0.4s ease" }} />
+                </div>
+              </>
+            );
+          })()}
+        </div>
+
+        {/* ── Leads to Follow Up ── */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "14px 16px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Leads In Pipeline</p>
+          {(() => {
+            const todo = leads.filter(l => l.stage === "new-lead" || l.stage === "book-consult");
+            const inConsult = leads.filter(l => l.stage === "consult-call");
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)" }}>Awaiting response</span>
+                  <span style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "#fbbf24" }}>{todo.length}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)" }}>In consult</span>
+                  <span style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "#a855f7" }}>{inConsult.length}</span>
+                </div>
+                {todo.length === 0 && inConsult.length === 0 && (
+                  <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No active leads</p>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* ── Client Milestones ── */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "14px 16px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Milestones This Week</p>
+          {(() => {
+            const today2 = new Date();
+            const milestones: { name: string; weeks: number }[] = [];
+            for (const c of clients) {
+              if (c.status !== "active" || !c.startDate) continue;
+              const start = new Date(c.startDate);
+              const daysElapsed = Math.floor((today2.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+              const thisWeekMarks = [4, 8, 12].filter(m => {
+                const daysTo = (m * 7) - daysElapsed;
+                return daysTo >= 0 && daysTo < 7;
+              });
+              for (const m of thisWeekMarks) milestones.push({ name: c.name, weeks: m });
+            }
+            if (milestones.length === 0) {
+              return <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No milestones this week</p>;
+            }
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                {milestones.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.70)", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", fontWeight: 600, color: Tiffany, background: "rgba(10,186,181,0.10)", border: "1px solid rgba(10,186,181,0.20)", borderRadius: "999px", padding: "1px 8px" }}>{m.weeks}wk</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* ── Weekly To-Do List ── */}
       {/* ── Weekly To-Do List ── */}
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>This Week</p>
