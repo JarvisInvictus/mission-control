@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 
 export const dynamic = "force-dynamic";
