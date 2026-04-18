@@ -507,7 +507,7 @@ function Sidebar({
 
 // ─── Dashboard Tab ───────────────────────────────────────────────────────────
 
-function DashboardTab({ clients, onTabChange, onClientClick }: { clients: Client[]; onTabChange: (tab: Tab) => void; onClientClick: (c: Client) => void }) {
+function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { clients: Client[]; onTabChange: (tab: Tab) => void; onClientClick: (c: Client) => void; onEditClient: (c: Client) => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
@@ -6946,7 +6946,7 @@ return (
               </svg>
             </button>
 
-            {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} onClientClick={setSelectedClient} /> :
+            {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} onClientClick={setSelectedClient} onEditClient={(c) => { setSelectedClient(c); setActionPanel("edit"); }} /> :
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
