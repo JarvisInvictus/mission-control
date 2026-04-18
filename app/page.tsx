@@ -798,10 +798,10 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
       </div>
 
 
-      {/* ── Google Calendar — Consultations This Week ── */}
+      {/* ── Google Calendar — Consultations (2 Weeks) ── */}
       <section style={{ marginBottom: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <p style={sectionHeaderStyle}>Consultations This Week</p>
+          <p style={sectionHeaderStyle}>Consultations (2 Weeks)</p>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             {calendarEvents.length > 0 && (
               <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? "s" : ""}</span>
@@ -819,13 +819,20 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
             <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: "0 0 8px" }}>Connect your Google Calendar to see consultations here</p>
             <a href="/api/auth/google" style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, color: "#4285f4", textDecoration: "none" }}>Authorize Google Calendar →</a>
           </div>
-        ) : calendarEvents.length === 0 ? (
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "20px", textAlign: "center" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: 0 }}>No events scheduled this week</p>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px" }}>
-            {calendarEvents.map(ev => {
+        ) : (() => {
+            const now = new Date();
+            const dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+            const thisMonday = new Date(now);
+            thisMonday.setDate(now.getDate() - dow);
+            thisMonday.setHours(0, 0, 0, 0);
+            const nextSunday = new Date(thisMonday);
+            nextSunday.setDate(thisMonday.getDate() + 13);
+            nextSunday.setHours(23, 59, 59, 999);
+            const thisWeekEvents = calendarEvents.filter(ev => {
+              const d = new Date(ev.start);
+              return d >= thisMonday && d <= nextSunday;
+            });
+            const eventCard = (ev: {id: string; title: string; start: string; meetLink: string | null}) => {
               const startDate = new Date(ev.start);
               const dayName = startDate.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short" });
               const timeStr = startDate.toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit" });
@@ -842,9 +849,37 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
                   )}
                 </div>
               );
-            })}
-          </div>
-        )}
+            };
+            if (thisWeekEvents.length === 0) return (
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "20px", textAlign: "center" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: 0 }}>No events scheduled this week</p>
+              </div>
+            );
+            const midPoint = new Date(thisMonday);
+            midPoint.setDate(thisMonday.getDate() + 7);
+            const thisWeek = thisWeekEvents.filter(ev => new Date(ev.start) < midPoint);
+            const nextWeek = thisWeekEvents.filter(ev => new Date(ev.start) >= midPoint);
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {thisWeek.length > 0 && (
+                  <div>
+                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>This Week</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px" }}>
+                      {thisWeek.map(ev => eventCard(ev))}
+                    </div>
+                  </div>
+                )}
+                {nextWeek.length > 0 && (
+                  <div>
+                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Next Week</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px" }}>
+                      {nextWeek.map(ev => eventCard(ev))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </section>
 
       {/* ── Weekly To-Do List ── */}
