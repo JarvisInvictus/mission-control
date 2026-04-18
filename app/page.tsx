@@ -511,8 +511,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
-  const [project, setProject] = useState<Project>({ title: "", steps: [] });
-  const [editingTitle, setEditingTitle] = useState(false);
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -557,17 +555,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   useEffect(() => {
     localStorage.setItem("dashboard_tasks", JSON.stringify(tasks));
   }, [tasks]);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("dashboard_project");
-      if (stored) setProject(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("dashboard_project", JSON.stringify(project));
-  }, [project]);
 
   const today = new Date();
   const currentDayIndex = (today.getDay() + 6) % 7;
@@ -621,30 +608,11 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const conversions = leads.filter(l => l.stage === "signed").length;
   const convRate = totalLeads > 0 ? Math.round((conversions / totalLeads) * 100) : null;
 
-  function addStep() {
-    setProject((prev) => ({
-      ...prev,
-      steps: [...prev.steps, { id: Date.now().toString(), text: "", done: false }],
-    }));
-  }
 
-  function updateStepText(id: string, text: string) {
-    setProject((prev) => ({ ...prev, steps: prev.steps.map((s) => (s.id === id ? { ...s, text } : s)) }));
-  }
 
-  function toggleStep(id: string) {
-    setProject((prev) => ({ ...prev, steps: prev.steps.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) }));
-  }
 
-  function deleteStep(id: string) {
-    setProject((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== id) }));
-  }
 
-  function clearProject() { setProject({ title: "", steps: [] }); }
 
-  const checkedSteps = project.steps.filter((s) => s.done).length;
-  const totalSteps = project.steps.length;
-  const progressPct = totalSteps > 0 ? Math.round((checkedSteps / totalSteps) * 100) : 0;
 
   // ── Retention Alerts ──────────────────────────────────────────────────────────
   function getRetentionAlerts() {
@@ -960,130 +928,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
         </div>
       )}
 
-      {/* ── Project Focus ── */}
-      <section>
-        <p style={sectionHeaderStyle}>Project Focus</p>
-        <div style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "18px", padding: "20px" }}>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px" }}>
-            {editingTitle ? (
-              <input
-                value={project.title}
-                onChange={(e) => setProject((prev) => ({ ...prev, title: e.target.value }))}
-                onBlur={() => setEditingTitle(false)}
-                onKeyDown={(e) => e.key === "Enter" && setEditingTitle(false)}
-                autoFocus
-                placeholder="Project title..."
-                style={{
-                  background: "rgba(255,255,255,0.07)",
-                  border: `1px solid ${TiffanyBorder}`,
-                  borderRadius: "8px",
-                  color: "white",
-                  padding: "6px 12px",
-                  fontSize: "16px",
-                  fontFamily: "system-ui",
-                  fontWeight: 700,
-                  outline: "none",
-                  flex: 1,
-                }}
-              />
-            ) : (
-              <h3
-                onClick={() => setEditingTitle(true)}
-                style={{
-                  fontFamily: "system-ui", fontSize: "16px", fontWeight: 700,
-                  color: project.title ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.30)",
-                  cursor: "pointer", flex: 1,
-                  borderBottom: project.title ? "1px dashed rgba(255,255,255,0.15)" : "none",
-                  paddingBottom: "2px",
-                }}
-              >
-                {project.title || "Untitled project"}
-              </h3>
-            )}
-            <button
-              onClick={clearProject}
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", padding: "5px 12px", color: "rgba(255,255,255,0.35)", fontSize: "11px", cursor: "pointer", fontFamily: "system-ui", flexShrink: 0 }}
-            >
-              Clear
-            </button>
-          </div>
-
-          {totalSteps > 0 && (
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "6px", overflow: "hidden" }}>
-                <div style={{ width: `${progressPct}%`, height: "100%", background: `${Tiffany}80`, borderRadius: "999px", transition: "width 0.35s ease" }} />
-              </div>
-              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", marginTop: "4px" }}>
-                {checkedSteps} of {totalSteps} steps complete
-              </p>
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {project.steps.map((step) => (
-              <div key={step.id} style={{ display: "flex", alignItems: "center", gap: "10px", opacity: step.done ? 0.50 : 1 }}>
-                <input
-                  type="checkbox"
-                  checked={step.done}
-                  onChange={() => toggleStep(step.id)}
-                  style={{ accentColor: Tiffany, cursor: "pointer", flexShrink: 0 }}
-                />
-                <input
-                  value={step.text}
-                  onChange={(e) => updateStepText(step.id, e.target.value)}
-                  placeholder="Step description..."
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    borderBottom: "1px dashed rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.80)",
-                    fontSize: "13px",
-                    fontFamily: "system-ui",
-                    outline: "none",
-                    flex: 1,
-                    padding: "2px 0",
-                    textDecoration: step.done ? "line-through" : "none",
-                  }}
-                />
-                <button
-                  onClick={() => deleteStep(step.id)}
-                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.20)", cursor: "pointer", fontSize: "13px", padding: "2px 4px", flexShrink: 0 }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={addStep}
-            style={{
-              background: "transparent",
-              border: "1px dashed rgba(255,255,255,0.15)",
-              borderRadius: "10px",
-              padding: "8px 16px",
-              color: "rgba(255,255,255,0.30)",
-              fontSize: "13px",
-              cursor: "pointer",
-              fontFamily: "system-ui",
-              width: "100%",
-              marginTop: "12px",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.30)";
-              (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.50)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.15)";
-              (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)";
-            }}
-          >
-            + Add step
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
