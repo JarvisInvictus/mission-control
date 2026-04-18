@@ -551,7 +551,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
     week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
     const currentWeekStart = new Date(week1Start);
     currentWeekStart.setDate(week1Start.getDate() + offset * 7);
-    const weekNum = Math.floor((currentWeekStart.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    const weekNum = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
     return `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
   }
 
