@@ -516,6 +516,8 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [leads, setLeads] = useState<Lead[]>([]);
 
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
+  const [calendarEvents, setCalendarEvents] = useState<{id: string; title: string; start: string; meetLink: string | null}[]>([]);
+  const [googleConnected, setGoogleConnected] = useState(false);
 
   // Load check-in data from API (server-synced)
   useEffect(() => {
@@ -543,7 +545,22 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
     return () => window.removeEventListener("checkins-updated", handler);
   }, []);
 
-  // Helper to get week key for current week (same logic as CheckInsTab)
+  // Load Google Calendar events
+  useEffect(() => {
+    fetch("/api/calendar/events")
+      .then(r => r.json())
+      .then(data => {
+        if (data.error === "not_authorized") {
+          setGoogleConnected(false);
+        } else {
+          setGoogleConnected(true);
+          setCalendarEvents(data.events || []);
+        }
+      })
+      .catch(() => setGoogleConnected(false));
+  }, []);
+
+  // Helper// Helper to get week key for current week (same logic as CheckInsTab)
   function getDashboardWeekKey(offset = 0) {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -779,6 +796,56 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           })()}
         </div>
       </div>
+
+
+      {/* ── Google Calendar — Consultations This Week ── */}
+      <section style={{ marginBottom: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <p style={sectionHeaderStyle}>Consultations This Week</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {calendarEvents.length > 0 && (
+              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? "s" : ""}</span>
+            )}
+            {!googleConnected && (
+              <a href="/api/auth/google" style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "#ffffff", background: "rgba(66,133,244,0.80)", borderRadius: "8px", padding: "5px 12px", textDecoration: "none" }}>
+                Connect Google Calendar
+              </a>
+            )}
+          </div>
+        </div>
+
+        {!googleConnected ? (
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "20px", textAlign: "center" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: "0 0 8px" }}>Connect your Google Calendar to see consultations here</p>
+            <a href="/api/auth/google" style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, color: "#4285f4", textDecoration: "none" }}>Authorize Google Calendar →</a>
+          </div>
+        ) : calendarEvents.length === 0 ? (
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "20px", textAlign: "center" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: 0 }}>No events scheduled this week</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px" }}>
+            {calendarEvents.map(ev => {
+              const startDate = new Date(ev.start);
+              const dayName = startDate.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short" });
+              const timeStr = startDate.toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit" });
+              const dateStr = startDate.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" });
+              return (
+                <div key={ev.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "12px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "#ffffff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</p>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "#0abab5", background: "rgba(10,186,181,0.10)", border: "1px solid rgba(10,186,181,0.20)", borderRadius: "999px", padding: "2px 8px" }}>{dayName} {dateStr}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.50)" }}>{timeStr}</span>
+                  </div>
+                  {ev.meetLink && (
+                    <a href={ev.meetLink} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "#4285f4", textDecoration: "none" }}>Join Meet ↗</a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* ── Weekly To-Do List ── */}
       {/* ── Weekly To-Do List ── */}
