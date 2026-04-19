@@ -963,7 +963,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
                   >
                     {(() => {
                       const wKey = getDashboardWeekKey();
-                      const dayClients = clients.filter(c => c.checkInDay === day);
+                      const dayClients = clients.filter(c => c.checkInDay === day).sort((a,b) => a.name.localeCompare(b.name));
                       const dayOffset = dayIdx;
                       const dayDate = new Date(mondayOfWeek);
                       dayDate.setDate(mondayOfWeek.getDate() + dayOffset);
@@ -3771,7 +3771,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
               c.lastUpdated &&
               new Date(c.lastUpdated) >= weekStart
             ).map(c => ({ ...c, _forceCancelled: true }));
-            dayClients = [...dayClients, ...cancelledThisWeek];
+            dayClients = [...dayClients, ...cancelledThisWeek].sort((a,b) => a.name.localeCompare(b.name));
           }
 
           // Save raw count before filter — used to decide column visibility
