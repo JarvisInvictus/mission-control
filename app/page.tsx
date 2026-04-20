@@ -3451,44 +3451,107 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         ))}
       </div>
 
-      {/* ── Status Filter Bar (multi-select toggles) ── */}
+      {/* ── Status counts for this week ── */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
-        {FILTER_OPTIONS.map(opt => {
-          const isAll = opt.key === "all";
-          const isActive = isAll ? activeFilters.size === 0 : activeFilters.has(opt.key);
-          return (
-            <button
-              key={opt.key}
-              onClick={() => {
-                if (isAll) {
-                  setActiveFilters(new Set());
-                } else {
-                  setActiveFilters(prev => {
-                    const next = new Set(prev);
-                    if (next.has(opt.key)) next.delete(opt.key);
-                    else next.add(opt.key);
-                    return next;
-                  });
-                }
-              }}
-              style={{
-                background: isActive ? TiffanySoft : "rgba(255,255,255,0.06)",
-                border: `1px solid ${isActive ? TiffanyBorder : "rgba(255,255,255,0.10)"}`,
-                borderRadius: "999px",
-                padding: "3px 12px",
-                fontSize: "11px",
-                fontFamily: "system-ui",
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? Tiffany : "rgba(255,255,255,0.55)",
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+        {(() => {
+          const wKey = getWeekKey(week.start);
+          const wData = checkIns[wKey] ?? {};
+          const activeClients = clients.filter(cl => cl.status === "active");
+          const allCount = activeClients.length;
+          const remainingCount = activeClients.filter(cl => !wData[cl.id] && cl.status !== "paused").length;
+          const submittedCount = activeClients.filter(cl => wData[cl.id] === "submitted").length;
+          const ontimeCount = activeClients.filter(cl => wData[cl.id] === "ontime").length;
+          const lateCount = activeClients.filter(cl => wData[cl.id] === "late").length;
+          const unsetCount = activeClients.filter(cl => wData[cl.id] === "unset").length;
+          const skipLCount = activeClients.filter(cl => wData[cl.id] === "skip-l").length;
+          const sickCount = activeClients.filter(cl => wData[cl.id] === "sick").length;
+          const pausedCount = activeClients.filter(cl => cl.status === "paused").length;
+          const cancelledCount = clients.filter(cl => cl.status === "cancelled").length;
+
+          const STATUS_COUNTS: Record<string, number> = {
+            all: allCount,
+            remaining: remainingCount,
+            submitted: submittedCount,
+            ontime: ontimeCount,
+            late: lateCount,
+            unset: unsetCount,
+            "skip-l": skipLCount,
+            sick: sickCount,
+            paused: pausedCount,
+            cancelled: cancelledCount,
+          };
+
+          return FILTER_OPTIONS.map(opt => {
+            const isAll = opt.key === "all";
+            const isActive = isAll ? activeFilters.size === 0 : activeFilters.has(opt.key);
+            const count = STATUS_COUNTS[opt.key] ?? 0;
+            const label = isAll ? `All (${count})` : `${opt.label} (${count})`;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => {
+                  if (isAll) {
+                    setActiveFilters(new Set());
+                  } else {
+                    setActiveFilters(prev => {
+                      const next = new Set(prev);
+                      if (next.has(opt.key)) next.delete(opt.key);
+                      else next.add(opt.key);
+                      return next;
+                    });
+                  }
+                }}
+                style={{
+                  background: isActive ? TiffanySoft : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${isActive ? TiffanyBorder : "rgba(255,255,255,0.10)"}`,
+                  borderRadius: "999px",
+                  padding: "3px 12px",
+                  fontSize: "11px",
+                  fontFamily: "system-ui",
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? Tiffany : "rgba(255,255,255,0.55)",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {label}
+              </button>
+            );
+          });
+        })()}
       </div>
+      {/* Remaining this week banner */}
+      {(() => {
+        const wKey = getWeekKey(week.start);
+        const wData = checkIns[wKey] ?? {};
+        const activeClients = clients.filter(cl => cl.status === "active");
+        const remaining = activeClients.filter(cl => !wData[cl.id]).length;
+        return (
+          <div style={{
+            background: remaining > 0 ? "rgba(251,191,36,0.08)" : "rgba(52,211,153,0.08)",
+            border: `1px solid ${remaining > 0 ? "rgba(251,191,36,0.25)" : "rgba(52,211,153,0.25)"}`,
+            borderRadius: "12px",
+            padding: "10px 16px",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}>
+            <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)", fontWeight: 500 }}>
+              Remaining this week
+            </span>
+            <span style={{
+              fontFamily: "system-ui",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: remaining > 0 ? "#fbbf24" : "#34d399",
+            }}>
+              {remaining}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Selected client hint */}
       {selectedClientId && (() => {
