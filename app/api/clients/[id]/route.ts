@@ -31,11 +31,16 @@ export async function PATCH(
   const allowedFields = [
     "name", "email", "coach", "paymentPlatform", "weeklyCharge",
     "spreadsheetUrl", "status", "pausedUntil", "startDate", "notes",
-    "checkInDay",
+    "checkInDay", "lastUpdated",
   ];
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {
     if (body[field] !== undefined) updates[field] = body[field];
+  }
+
+  // Always set lastUpdated when status changes
+  if (updates.status) {
+    updates.lastUpdated = new Date().toISOString();
   }
 
   // Validate coach if provided
