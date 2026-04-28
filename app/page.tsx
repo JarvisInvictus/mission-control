@@ -2610,49 +2610,54 @@ function TasksTab() {
                   ))}
                 </div>
 
-                {/* Add task */}
-                {isAdding ? (
-                  <div style={{ marginTop: "8px" }}>
-                    <input
-                      autoFocus
-                      value={newTaskText}
-                      onChange={e => setNewTaskText(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") addTask(author, day);
-                        if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); }
-                      }}
-                      placeholder="Task name..."
-                      style={{
-                        width: "100%", background: "rgba(255,255,255,0.06)",
-                        border: "1px solid " + accentBorder, borderRadius: "10px",
-                        color: "#fff", padding: "8px 12px", fontSize: "12px",
-                        outline: "none", fontFamily: "system-ui",
-                        boxShadow: "0 0 0 3px " + accentSoft,
-                      }}
-                    />
+                {/* Add task — always visible input */}
+                <div style={{ marginTop: "8px" }}>
+                  <input
+                    ref={el => { if (el && isAdding) setTimeout(() => { el.focus(); }, 0); }}
+                    value={newTaskText}
+                    onChange={e => setNewTaskText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") addTask(author, day);
+                      if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); }
+                    }}
+                    placeholder={isAdding ? "Task name..." : "Click + Add task to create"}
+                    disabled={!isAdding}
+                    style={{
+                      width: "100%", background: isAdding ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
+                      border: "1px solid " + (isAdding ? accentBorder : "rgba(255,255,255,0.05)"),
+                      borderRadius: "10px",
+                      color: "#fff", padding: "8px 12px", fontSize: "12px",
+                      outline: "none", fontFamily: "system-ui",
+                      boxShadow: isAdding ? "0 0 0 3px " + accentSoft : "none",
+                      transition: "all 0.2s",
+                      cursor: isAdding ? "text" : "default",
+                    }}
+                  />
+                  {isAdding && (
                     <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
                       <button type="button" onClick={() => addTask(author, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
                       <button type="button" onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
                     </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setAddingToDay(author + "-" + day)}
-                    style={{
-                      marginTop: "8px", width: "100%",
-                      background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.10)",
-                      borderRadius: "10px",
-                      color: "rgba(255,255,255,0.28)",
-                      padding: "7px", fontSize: "12px",
-                      cursor: "pointer", fontFamily: "system-ui",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = accentBorder; e.currentTarget.style.color = accentColor; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.color = "rgba(255,255,255,0.28)"; }}
-                    type="button"
-                  >+ Add task</button>
-                )}
+                  )}
+                  {!isAdding && (
+                    <button
+                      type="button"
+                      onClick={() => { setAddingToDay(author + "-" + day); setNewTaskText(""); }}
+                      style={{
+                        marginTop: "4px", width: "100%",
+                        background: "transparent",
+                        border: "1px dashed rgba(255,255,255,0.10)",
+                        borderRadius: "10px",
+                        color: "rgba(255,255,255,0.28)",
+                        padding: "6px", fontSize: "12px",
+                        cursor: "pointer", fontFamily: "system-ui",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = accentBorder; e.currentTarget.style.color = accentColor; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.color = "rgba(255,255,255,0.28)"; }}
+                    >+ Add task</button>
+                  )}
+                </div>
               </div>
             );
           })}
