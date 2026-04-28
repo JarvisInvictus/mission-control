@@ -1,27 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Redis } from "@upstash/redis";
+import fetch from "node-fetch";
 
-export const runtime = "nodejs";
+const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL!;
+const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
+
+function redisGet(key: string): Promise<unknown> {
+  return fetch(`${REDIS_REST_URL}/get/${key}`, {
+    headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}` },
+  }).then(r => r.json()).then(d => d.result);
+}
+
+function redisSet(key: string, value: string): Promise<void> {
+  return fetch(`${REDIS_REST_URL}/set/${key}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  }).then(r => r.json()).then(d => d.result);
+}
+
 export const dynamic = "force-dynamic";
-
-const redis = Redis.fromEnv();
-
-function getTasks(): Record<string, unknown>[] {
-  const raw = redis.get("jarvis:tasks");
-  if (!raw) return [];
-  if (typeof raw === "string") return JSON.parse(raw);
-  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
-  return [];
-}
-
-function setTasks(tasks: Record<string, unknown>[]) {
-  redis.set("jarvis:tasks", JSON.stringify(tasks));
-}
 
 export async function GET() {
   try {
-    const tasks = getTasks();
-    return NextResponse.json(tasks);
+    const raw = await redisGet("jarvis:tasks");
+    if (!raw) return NextResponse.json([]);
+    return NextResponse.json(typeof raw === "string" ? JSON.parse(raw) : raw);
   } catch (err) {
     console.error("GET /api/tasks error:", err);
     return NextResponse.json([]);
@@ -34,10 +37,11 @@ export async function POST(req: NextRequest) {
   if (!text || !day) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
   try {
-    const tasks = getTasks();
+    const raw = await redisGet("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
     const newTask = { id: Date.now().toString(), text, day, done: false, author: author || "Milzzy" };
     tasks.push(newTask);
-    setTasks(tasks);
+    await redisSet("jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(newTask);
   } catch (err) {
     console.error("POST /api/tasks error:", err);
@@ -51,11 +55,12 @@ export async function PATCH(req: NextRequest) {
   if (id === undefined) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   try {
-    const tasks = getTasks();
+    const raw = await redisGet("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
     const idx = tasks.findIndex((t: any) => t.id === id);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
     (tasks[idx] as any).done = done;
-    setTasks(tasks);
+    await redisSet("jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(tasks[idx]);
   } catch (err) {
     console.error("PATCH /api/tasks error:", err);
@@ -69,9 +74,10 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   try {
-    const tasks = getTasks();
+    const raw = await redisGet("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
     const filtered = tasks.filter((t: any) => t.id !== id);
-    setTasks(filtered);
+    await redisSet("jarvis:tasks", JSON.stringify(filtered));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE /api/tasks error:", err);
