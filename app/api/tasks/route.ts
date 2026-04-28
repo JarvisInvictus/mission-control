@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import fetch from "node-fetch";
 
 const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL!;
 const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
 
-function redisGet(key: string): Promise<unknown> {
-  return fetch(`${REDIS_REST_URL}/get/${key}`, {
+async function redisGet(key: string): Promise<unknown> {
+  const res = await fetch(`${REDIS_REST_URL}/get/${key}`, {
     headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}` },
-  }).then(r => r.json()).then(d => d.result);
+  });
+  const data = await res.json();
+  return data.result;
 }
 
-function redisSet(key: string, value: string): Promise<void> {
-  return fetch(`${REDIS_REST_URL}/set/${key}`, {
+async function redisSet(key: string, value: string): Promise<void> {
+  await fetch(`${REDIS_REST_URL}/set/${key}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify(value),
-  }).then(r => r.json()).then(d => d.result);
+  });
 }
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
+    const tasks: Record<string, unknown>[] = raw
+      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
+      : [];
     const newTask = { id: Date.now().toString(), text, day, done: false, author: author || "Milzzy" };
     tasks.push(newTask);
     await redisSet("jarvis:tasks", JSON.stringify(tasks));
@@ -56,7 +59,9 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
+    const tasks: Record<string, unknown>[] = raw
+      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
+      : [];
     const idx = tasks.findIndex((t: any) => t.id === id);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
     (tasks[idx] as any).done = done;
@@ -75,7 +80,9 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw as any) : [];
+    const tasks: Record<string, unknown>[] = raw
+      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
+      : [];
     const filtered = tasks.filter((t: any) => t.id !== id);
     await redisSet("jarvis:tasks", JSON.stringify(filtered));
     return NextResponse.json({ success: true });
