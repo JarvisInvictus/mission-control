@@ -19,6 +19,24 @@ async function upstashSet(key: string, value: string): Promise<void> {
   });
 }
 
+// Debug: check raw Redis response
+export async function PUT(req: NextRequest) {
+  const res = await fetch(`${REDIS_REST_URL}/get/${encodeURIComponent("jarvis:tasks")}`, {
+    headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
+  });
+  const text = await res.text();
+  console.error("UPSTASH_RAW:", text);
+  try {
+    const data = JSON.parse(text);
+    const raw = data.result;
+    console.error("RESULT_TYPE:", typeof raw, "IS_ARRAY:", Array.isArray(raw));
+    console.error("RESULT_VALUE:", String(raw).slice(0, 80));
+    return NextResponse.json({ received: text.slice(0, 100), rawType: typeof raw, isArray: Array.isArray(raw) });
+  } catch(e) {
+    return NextResponse.json({ error: String(e), raw: text.slice(0, 100) });
+  }
+}
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
