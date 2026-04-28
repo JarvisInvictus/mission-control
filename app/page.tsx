@@ -2486,17 +2486,23 @@ function TasksTab() {
   }, []);
 
   const addTask = async (author: string, day: string) => {
-    if (!newTaskText.trim()) return;
+    const textToAdd = newTaskText.trim();
+    if (!textToAdd) return;
+    // Clear input immediately before async call
+    setNewTaskText("");
+    setAddingToDay(null);
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: newTaskText.trim(), day, author })
+      body: JSON.stringify({ text: textToAdd, day, author })
     });
     if (res.ok) {
       const task = await res.json();
       setTasks(prev => [...prev, task]);
-      setNewTaskText("");
-      setAddingToDay(null);
+    } else {
+      // Restore state on failure so user can retry
+      setNewTaskText(textToAdd);
+      setAddingToDay(author + "-" + day);
     }
   };
 
@@ -2625,8 +2631,8 @@ function TasksTab() {
                       }}
                     />
                     <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                      <button onClick={() => addTask(author, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
-                      <button onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
+                      <button type="button" onClick={() => addTask(author, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
+                      <button type="button" onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
                     </div>
                   </div>
                 ) : (
@@ -2644,6 +2650,7 @@ function TasksTab() {
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = accentBorder; e.currentTarget.style.color = accentColor; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.color = "rgba(255,255,255,0.28)"; }}
+                    type="button"
                   >+ Add task</button>
                 )}
               </div>
