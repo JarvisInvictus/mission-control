@@ -2613,7 +2613,7 @@ function TasksTab() {
                 {/* Add task — always visible input */}
                 <div style={{ marginTop: "8px" }}>
                   <input
-                    ref={el => { if (el && isAdding) setTimeout(() => { el.focus(); }, 0); }}
+                    autoFocus={isAdding}
                     value={newTaskText}
                     onChange={e => setNewTaskText(e.target.value)}
                     onKeyDown={e => {
