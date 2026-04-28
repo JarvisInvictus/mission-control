@@ -8,9 +8,11 @@ const redis = Redis.fromEnv();
 
 export async function GET() {
   try {
-    const tasks = await redis.get("jarvis:tasks");
-    return NextResponse.json(tasks ? JSON.parse(tasks as string) : []);
-  } catch {
+    const raw = await redis.get<string>("jarvis:tasks");
+    if (!raw) return NextResponse.json([]);
+    return NextResponse.json(JSON.parse(raw));
+  } catch (err) {
+    console.error("GET /api/tasks error:", err);
     return NextResponse.json([]);
   }
 }
@@ -21,14 +23,15 @@ export async function POST(req: NextRequest) {
   if (!text || !day) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
   try {
-    const raw = await redis.get("jarvis:tasks");
-    const tasks: unknown[] = raw ? JSON.parse(raw as string) : [];
+    const raw = await redis.get<string>("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? JSON.parse(raw) : [];
     const newTask = { id: Date.now().toString(), text, day, done: false, author: author || "Milzzy" };
     tasks.push(newTask);
     await redis.set("jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(newTask);
-  } catch {
-    return NextResponse.json({ error: "Failed to save" }, { status: 500 });
+  } catch (err) {
+    console.error("POST /api/tasks error:", err);
+    return NextResponse.json({ error: "Failed to save", detail: String(err) }, { status: 500 });
   }
 }
 
@@ -38,14 +41,15 @@ export async function PATCH(req: NextRequest) {
   if (id === undefined) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   try {
-    const raw = await redis.get("jarvis:tasks");
-    const tasks: unknown[] = raw ? JSON.parse(raw as string) : [];
+    const raw = await redis.get<string>("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? JSON.parse(raw) : [];
     const idx = tasks.findIndex((t: any) => t.id === id);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
     (tasks[idx] as any).done = done;
     await redis.set("jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(tasks[idx]);
-  } catch {
+  } catch (err) {
+    console.error("PATCH /api/tasks error:", err);
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });
   }
 }
@@ -56,12 +60,13 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   try {
-    const raw = await redis.get("jarvis:tasks");
-    const tasks: unknown[] = raw ? JSON.parse(raw as string) : [];
+    const raw = await redis.get<string>("jarvis:tasks");
+    const tasks: Record<string, unknown>[] = raw ? JSON.parse(raw) : [];
     const filtered = tasks.filter((t: any) => t.id !== id);
     await redis.set("jarvis:tasks", JSON.stringify(filtered));
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("DELETE /api/tasks error:", err);
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }
