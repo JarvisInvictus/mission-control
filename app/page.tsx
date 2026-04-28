@@ -3055,11 +3055,11 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     });
   }, [checkIns]);
 
-  // Load check-ins from API on mount (then merge with localStorage for resilience)
+  // Load check-ins from API whenever week changes (then merge with localStorage for resilience)
   useEffect(() => {
-    const weekKey = getWeekKey(week.start);
+    const wKey = getWeekKey(week.start);
     Promise.all([
-      fetch("/api/checkins?weekKey=" + weekKey).then(r => r.json()).catch(() => ({})),
+      fetch("/api/checkins?weekKey=" + wKey).then(r => r.json()).catch(() => ({})),
       new Promise(resolve => {
         try {
           const stored = localStorage.getItem("mc_checkins");
@@ -3067,11 +3067,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         } catch { resolve({}); }
       })
     ]).then(([apiData, localData]) => {
-      // Merge: API wins for current week, localStorage fills gaps
-      const merged: CheckInStore = { ...(localData as Record<string, any>), [weekKey]: Object.assign({}, (localData as Record<string, any>)[weekKey] || {}, apiData as Record<string, CheckInStatus>) };
+      // Merge: preserve localStorage data for all weeks, API only fills the current week
+      const local = localData as Record<string, any>;
+      const merged: CheckInStore = { ...local };
+      merged[wKey] = Object.assign({}, local[wKey] || {}, apiData as Record<string, CheckInStatus>);
       setCheckIns(merged);
     });
-  }, []);
+  }, [weekOffset]);
 
   // Load check-in log from localStorage
   useEffect(() => {
