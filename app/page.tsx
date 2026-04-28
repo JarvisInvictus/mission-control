@@ -2472,11 +2472,13 @@ function AIStudio({
 
 
 // ─── Tasks Tab ─────────────────────────────────────────────────────────────────
+// ─── Tasks Tab ──────────────────────────────────────────────────────────────────
 function TasksTab() {
   const [tasks, setTasks] = useState<Array<{ id: string; text: string; day: string; done: boolean; author: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [addingToDay, setAddingToDay] = useState<string | null>(null);
+  const [addingToDay, setAddingToDay] = useState<string | null>(null); // "Milzzy-Sunday" format
   const [newTaskText, setNewTaskText] = useState("");
+  const [newTaskAuthor, setNewTaskAuthor] = useState<string>("Milzzy");
 
   useEffect(() => {
     fetch("/api/tasks")
@@ -2485,12 +2487,13 @@ function TasksTab() {
       .catch(() => setLoading(false));
   }, []);
 
-  const addTask = async (day: string) => {
-    if (!newTaskText.trim()) return;
+  const addTask = async () => {
+    if (!newTaskText.trim() || !addingToDay) return;
+    const [author, day] = addingToDay.split("-");
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: newTaskText.trim(), day, author: "Milzzy" })
+      body: JSON.stringify({ text: newTaskText.trim(), day, author })
     });
     if (res.ok) {
       const task = await res.json();
@@ -2510,15 +2513,56 @@ function TasksTab() {
     await fetch("/api/tasks?id=" + id, { method: "DELETE" });
   };
 
+  const milzzyTasks = tasks.filter(t => t.author === "Milzzy");
+  const miggyTasks = tasks.filter(t => t.author === "Miggy");
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter(t => t.done).length;
 
+  const renderDayColumn = (day: string, authorFilter: string[], sideLabel: string, accentColor: string, accentSoft: string, accentBorder: string) => {
+    const dayTasks = tasks.filter(t => t.day === day && authorFilter.includes(t.author));
+    const doneCount = dayTasks.filter(t => t.done).length;
+    const dayKey = authorFilter.join("-") + "-" + day;
+    const isAdding = addingToDay === dayKey;
+
+    return (
+      <div key={dayKey} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "12px", minHeight: "120px", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <span style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.45)", fontWeight: 700 }}>{day.slice(0, 3).toUpperCase()}</span>
+          {dayTasks.length > 0 && <span style={{ fontSize: "10px", color: accentColor, fontWeight: 600 }}>{doneCount}/{dayTasks.length}</span>}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+          {dayTasks.map(task => (
+            <div key={task.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 8px", background: task.done ? "rgba(52,211,153,0.05)" : "rgba(255,255,255,0.03)", border: "1px solid " + (task.done ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.06)"), borderRadius: "8px" }}>
+              <button onClick={() => toggleTask(task.id, !task.done)} style={{ width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0, border: task.done ? "2px solid " + accentColor : "2px solid rgba(255,255,255,0.20)", background: task.done ? accentColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+                {task.done && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#0a0a0f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </button>
+              <span style={{ flex: 1, fontSize: "12px", color: task.done ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.75)", textDecoration: task.done ? "line-through" : "none", lineHeight: 1.3 }}>{task.text}</span>
+              <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.18)", cursor: "pointer", fontSize: "14px", padding: "0 1px", lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+        {isAdding ? (
+          <div style={{ marginTop: "6px" }}>
+            <input autoFocus value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addTask(); if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); } }} placeholder="Task name..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid " + accentBorder, borderRadius: "8px", color: "#fff", padding: "5px 8px", fontSize: "11px", outline: "none", boxShadow: "0 0 0 2px " + accentSoft }} />
+            <div style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
+              <button onClick={addTask} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "6px", color: "#0a0a0f", padding: "4px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>Add</button>
+              <button onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "6px", color: "rgba(255,255,255,0.45)", padding: "4px", fontSize: "11px", cursor: "pointer" }}>×</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAddingToDay(dayKey)} style={{ marginTop: "6px", width: "100%", background: "transparent", border: "1px dashed rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.25)", padding: "4px", fontSize: "11px", cursor: "pointer" }}>+ Add</button>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ padding: "24px 28px", maxWidth: "1100px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+    <div style={{ padding: "24px 28px", maxWidth: "1400px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <p style={{ ...sectionHeaderStyle, margin: 0 }}>Tasks</p>
-          <p style={{ color: "rgba(255,255,255,0.40)", fontSize: "12px", margin: "4px 0 0" }}>{doneTasks} of {totalTasks} completed</p>
+          <p style={{ ...sectionHeaderStyle, margin: 0 }}>Team Tasks</p>
+          <p style={{ color: "rgba(255,255,255,0.40)", fontSize: "12px", margin: "4px 0 0" }}>{doneTasks} of {totalTasks} completed across all coaches</p>
         </div>
         {totalTasks > 0 && (
           <div style={{ background: TiffanySoft, border: "1px solid " + TiffanyBorder, borderRadius: "999px", padding: "4px 14px" }}>
@@ -2526,59 +2570,40 @@ function TasksTab() {
           </div>
         )}
       </div>
-      {totalTasks > 0 && (
-        <div style={{ height: "4px", background: "rgba(255,255,255,0.06)", borderRadius: "999px", marginBottom: "24px", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${(doneTasks / totalTasks) * 100}%`, background: Tiffany, borderRadius: "999px", transition: "width 0.4s ease" }} />
-        </div>
-      )}
+
       {loading ? (
         <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", padding: "40px", textAlign: "center" }}>Loading...</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
-          {DAY_ORDER.map(day => {
-            const dayTasks = tasks.filter(t => t.day === day);
-            const doneCount = dayTasks.filter(t => t.done).length;
-            return (
-              <div key={day} style={{ background: "rgba(255,255,255,0.025)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", paddingBottom: "10px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>{day.toUpperCase()}</span>
-                    {dayTasks.length > 0 && <span style={{ background: "rgba(10,186,181,0.15)", color: Tiffany, fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "999px" }}>{doneCount}/{dayTasks.length}</span>}
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", minHeight: "40px" }}>
-                  {dayTasks.map(task => (
-                    <div key={task.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "10px 12px", background: task.done ? "rgba(52,211,153,0.04)" : "rgba(255,255,255,0.03)", border: "1px solid " + (task.done ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.06)"), borderRadius: "12px" }}>
-                      <button onClick={() => toggleTask(task.id, !task.done)} style={{ width: "20px", height: "20px", borderRadius: "6px", flexShrink: 0, marginTop: "1px", border: task.done ? "2px solid " + Tiffany : "2px solid rgba(255,255,255,0.20)", background: task.done ? Tiffany : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-                        {task.done && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#0a0a0f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                      </button>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: "13px", display: "block", color: task.done ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.80)", textDecoration: task.done ? "line-through" : "none" }}>{task.text}</span>
-                        <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", marginTop: "2px", display: "block" }}>by {task.author}</span>
-                      </div>
-                      <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.18)", cursor: "pointer", fontSize: "16px", padding: "2px 4px" }}>×</button>
-                    </div>
-                  ))}
-                </div>
-                {addingToDay === day ? (
-                  <div style={{ marginTop: "10px" }}>
-                    <input autoFocus value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addTask(day); if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); } }} placeholder="Task name..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid " + TiffanyBorder, borderRadius: "10px", color: "#fff", padding: "9px 12px", fontSize: "12px", outline: "none", fontFamily: "system-ui", boxShadow: "0 0 0 3px " + TiffanySoft }} />
-                    <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                      <button onClick={() => addTask(day)} style={{ flex: 1, background: Tiffany, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
-                      <button onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.50)", padding: "7px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingToDay(day)} style={{ marginTop: "10px", width: "100%", background: "transparent", border: "1px dashed rgba(255,255,255,0.12)", borderRadius: "10px", color: "rgba(255,255,255,0.30)", padding: "8px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>+ Add task</button>
-                )}
-              </div>
-            );
-          })}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+          {/* Milzzy column */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: Tiffany }} />
+              <span style={{ fontSize: "14px", fontWeight: 700, color: Tiffany }}>Milzzy</span>
+              <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>({milzzyTasks.length} tasks)</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+              {DAY_ORDER.map(day => renderDayColumn(day, ["Milzzy"], "Milzzy", Tiffany, TiffanySoft, TiffanyBorder))}
+            </div>
+          </div>
+
+          {/* Miggy column */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#a855f7" }} />
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#a855f7" }}>Miggy</span>
+              <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>({miggyTasks.length} tasks)</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+              {DAY_ORDER.map(day => renderDayColumn(day, ["Miggy"], "Miggy", "#a855f7", "rgba(168,85,247,0.12)", "rgba(168,85,247,0.35)"))}
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
 function TeamTab() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
