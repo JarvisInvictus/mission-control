@@ -2487,7 +2487,7 @@ function TasksTab() {
       .catch(() => setLoading(false));
   }, []);
 
-  const addTask = async (author: string, day: string) => {
+  const addTask = async (columnCoach: string, day: string) => {
     const textToAdd = newTaskText.trim();
     if (!textToAdd) return;
     // Clear input immediately before async call
@@ -2496,7 +2496,9 @@ function TasksTab() {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: textToAdd, day, author })
+      // Store as author = the column coach (which column it lives in)
+      // newTaskAuthor is just the picker label shown on the task
+      body: JSON.stringify({ text: textToAdd, day, author: columnCoach })
     });
     if (res.ok) {
       const task = await res.json();
@@ -2504,7 +2506,7 @@ function TasksTab() {
     } else {
       // Restore state on failure so user can retry
       setNewTaskText(textToAdd);
-      setAddingToDay(author + "-" + day);
+      setAddingToDay(columnCoach + "-" + day);
     }
   };
 
@@ -2602,6 +2604,7 @@ function TasksTab() {
                         textDecoration: task.done ? "line-through" : "none",
                         transition: "color 0.15s",
                       }}>{task.text}</span>
+                      <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", whiteSpace: "nowrap", marginLeft: "4px" }}>by {task.author}</span>
                       <button
                         onClick={() => deleteTask(task.id)}
                         style={{ background: "none", border: "none", color: "rgba(255,255,255,0.18)", cursor: "pointer", fontSize: "16px", padding: "2px", borderRadius: "4px", lineHeight: 1, transition: "color 0.15s" }}
@@ -2647,7 +2650,7 @@ function TasksTab() {
                     value={newTaskText}
                     onChange={e => setNewTaskText(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === "Enter") addTask(newTaskAuthor, day);
+                      if (e.key === "Enter") addTask(author, day);
                       if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); }
                     }}
                     placeholder={isAdding ? "Task name..." : "Click + Add task to create"}
@@ -2665,7 +2668,7 @@ function TasksTab() {
                   />
                   {isAdding && (
                     <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                      <button type="button" onClick={() => addTask(newTaskAuthor, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add task</button>
+                      <button type="button" onClick={() => addTask(author, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add task</button>
                       <button type="button" onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
                     </div>
                   )}
