@@ -19,13 +19,21 @@ async function redisSet(key: string, value: string): Promise<void> {
   });
 }
 
+function parseTasks(raw: unknown): Record<string, unknown>[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+  return [];
+}
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const raw = await redisGet("jarvis:tasks");
-    if (!raw) return NextResponse.json([]);
-    return NextResponse.json(typeof raw === "string" ? JSON.parse(raw) : raw);
+    return NextResponse.json(parseTasks(raw));
   } catch (err) {
     console.error("GET /api/tasks error:", err);
     return NextResponse.json([]);
@@ -39,9 +47,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw
-      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
-      : [];
+    const tasks = parseTasks(raw);
     const newTask = { id: Date.now().toString(), text, day, done: false, author: author || "Milzzy" };
     tasks.push(newTask);
     await redisSet("jarvis:tasks", JSON.stringify(tasks));
@@ -59,9 +65,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw
-      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
-      : [];
+    const tasks = parseTasks(raw);
     const idx = tasks.findIndex((t: any) => t.id === id);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
     (tasks[idx] as any).done = done;
@@ -80,9 +84,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const raw = await redisGet("jarvis:tasks");
-    const tasks: Record<string, unknown>[] = raw
-      ? (typeof raw === "string" ? JSON.parse(raw) : (raw as any))
-      : [];
+    const tasks = parseTasks(raw);
     const filtered = tasks.filter((t: any) => t.id !== id);
     await redisSet("jarvis:tasks", JSON.stringify(filtered));
     return NextResponse.json({ success: true });
