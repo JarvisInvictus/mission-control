@@ -6091,6 +6091,12 @@ function PagesTab() {
       status: "Live",
     },
     {
+      name: "Invictus Miggy Dashboard",
+      description: "Coach Miggy's client check-ins, tasks, content and admin hub",
+      url: "https://invictus-miggy.vercel.app",
+      status: "Live",
+    },
+    {
       name: "Consult Notes",
       description: "Presenter script and guidance for Sonta's consult calls",
       url: "https://invictus-consult.vercel.app/notes",
