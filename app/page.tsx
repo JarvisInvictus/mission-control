@@ -130,7 +130,7 @@ export interface PendingClient {
   weeklyCharge: number;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -299,6 +299,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     team: "Team",
     clients: "Clients",
     checkins: "Check-Ins",
+    tasks: "Tasks",
     finance: "Finance",
     leads: "Leads",
     retention: "Retention",
@@ -2469,6 +2470,115 @@ function AIStudio({
 
 // ─── Team Tab ─────────────────────────────────────────────────────────────────
 
+
+// ─── Tasks Tab ─────────────────────────────────────────────────────────────────
+function TasksTab() {
+  const [tasks, setTasks] = useState<Array<{ id: string; text: string; day: string; done: boolean; author: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [addingToDay, setAddingToDay] = useState<string | null>(null);
+  const [newTaskText, setNewTaskText] = useState("");
+
+  useEffect(() => {
+    fetch("/api/tasks")
+      .then(r => r.json())
+      .then((data) => { setTasks(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const addTask = async (day: string) => {
+    if (!newTaskText.trim()) return;
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: newTaskText.trim(), day, author: "Milzzy" })
+    });
+    if (res.ok) {
+      const task = await res.json();
+      setTasks(prev => [...prev, task]);
+      setNewTaskText("");
+      setAddingToDay(null);
+    }
+  };
+
+  const toggleTask = async (id: string, done: boolean) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, done } : t));
+    await fetch("/api/tasks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, done }) });
+  };
+
+  const deleteTask = async (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    await fetch("/api/tasks?id=" + id, { method: "DELETE" });
+  };
+
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter(t => t.done).length;
+
+  return (
+    <div style={{ padding: "24px 28px", maxWidth: "1100px", margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+        <div>
+          <p style={{ ...sectionHeaderStyle, margin: 0 }}>Tasks</p>
+          <p style={{ color: "rgba(255,255,255,0.40)", fontSize: "12px", margin: "4px 0 0" }}>{doneTasks} of {totalTasks} completed</p>
+        </div>
+        {totalTasks > 0 && (
+          <div style={{ background: TiffanySoft, border: "1px solid " + TiffanyBorder, borderRadius: "999px", padding: "4px 14px" }}>
+            <span style={{ fontSize: "12px", color: Tiffany, fontWeight: 600 }}>{Math.round((doneTasks / totalTasks) * 100)}%</span>
+          </div>
+        )}
+      </div>
+      {totalTasks > 0 && (
+        <div style={{ height: "4px", background: "rgba(255,255,255,0.06)", borderRadius: "999px", marginBottom: "24px", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${(doneTasks / totalTasks) * 100}%`, background: Tiffany, borderRadius: "999px", transition: "width 0.4s ease" }} />
+        </div>
+      )}
+      {loading ? (
+        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", padding: "40px", textAlign: "center" }}>Loading...</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
+          {DAY_ORDER.map(day => {
+            const dayTasks = tasks.filter(t => t.day === day);
+            const doneCount = dayTasks.filter(t => t.done).length;
+            return (
+              <div key={day} style={{ background: "rgba(255,255,255,0.025)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", paddingBottom: "10px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>{day.toUpperCase()}</span>
+                    {dayTasks.length > 0 && <span style={{ background: "rgba(10,186,181,0.15)", color: Tiffany, fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "999px" }}>{doneCount}/{dayTasks.length}</span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", minHeight: "40px" }}>
+                  {dayTasks.map(task => (
+                    <div key={task.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "10px 12px", background: task.done ? "rgba(52,211,153,0.04)" : "rgba(255,255,255,0.03)", border: "1px solid " + (task.done ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.06)"), borderRadius: "12px" }}>
+                      <button onClick={() => toggleTask(task.id, !task.done)} style={{ width: "20px", height: "20px", borderRadius: "6px", flexShrink: 0, marginTop: "1px", border: task.done ? "2px solid " + Tiffany : "2px solid rgba(255,255,255,0.20)", background: task.done ? Tiffany : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+                        {task.done && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#0a0a0f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: "13px", display: "block", color: task.done ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.80)", textDecoration: task.done ? "line-through" : "none" }}>{task.text}</span>
+                        <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", marginTop: "2px", display: "block" }}>by {task.author}</span>
+                      </div>
+                      <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.18)", cursor: "pointer", fontSize: "16px", padding: "2px 4px" }}>×</button>
+                    </div>
+                  ))}
+                </div>
+                {addingToDay === day ? (
+                  <div style={{ marginTop: "10px" }}>
+                    <input autoFocus value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addTask(day); if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); } }} placeholder="Task name..." style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid " + TiffanyBorder, borderRadius: "10px", color: "#fff", padding: "9px 12px", fontSize: "12px", outline: "none", fontFamily: "system-ui", boxShadow: "0 0 0 3px " + TiffanySoft }} />
+                    <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                      <button onClick={() => addTask(day)} style={{ flex: 1, background: Tiffany, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
+                      <button onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.50)", padding: "7px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingToDay(day)} style={{ marginTop: "10px", width: "100%", background: "transparent", border: "1px dashed rgba(255,255,255,0.12)", borderRadius: "10px", color: "rgba(255,255,255,0.30)", padding: "8px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>+ Add task</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 function TeamTab() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
@@ -6097,6 +6207,7 @@ export default function Home() {
         { id: "dashboard", label: "Dashboard" },
         { id: "clients", label: "Clients" },
         { id: "checkins", label: "Check-Ins" },
+        { id: "tasks", label: "Tasks" },
         { id: "leads", label: "Leads" },
         { id: "finance", label: "Finance" },
         { id: "retention", label: "Retention" },
@@ -7169,6 +7280,7 @@ return (
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
+             activeTab === "tasks" ? <TasksTab /> :
              activeTab === "clients" ? <ClientsTab
                 onClientClick={setSelectedClient}
                 pendingClients={pendingClients}
