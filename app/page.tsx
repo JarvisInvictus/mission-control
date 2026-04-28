@@ -512,6 +512,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
+  const [newTaskAuthor, setNewTaskAuthor] = useState<string>("Milzzy");
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -2477,6 +2478,7 @@ function TasksTab() {
   const [loading, setLoading] = useState(true);
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
+  const [newTaskAuthor, setNewTaskAuthor] = useState<string>("Milzzy");
 
   useEffect(() => {
     fetch("/api/tasks")
@@ -2612,12 +2614,40 @@ function TasksTab() {
 
                 {/* Add task — always visible input */}
                 <div style={{ marginTop: "8px" }}>
+                  {isAdding && (
+                    <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskAuthor("Milzzy")}
+                        style={{
+                          flex: 1, padding: "4px 8px", fontSize: "11px", fontWeight: 700,
+                          borderRadius: "8px", border: "1px solid",
+                          borderColor: newTaskAuthor === "Milzzy" ? TiffanyBorder : "rgba(255,255,255,0.08)",
+                          background: newTaskAuthor === "Milzzy" ? TiffanySoft : "transparent",
+                          color: newTaskAuthor === "Milzzy" ? Tiffany : "rgba(255,255,255,0.35)",
+                          cursor: "pointer", fontFamily: "system-ui", transition: "all 0.15s",
+                        }}
+                      >Milzzy</button>
+                      <button
+                        type="button"
+                        onClick={() => setNewTaskAuthor("Miggy")}
+                        style={{
+                          flex: 1, padding: "4px 8px", fontSize: "11px", fontWeight: 700,
+                          borderRadius: "8px", border: "1px solid",
+                          borderColor: newTaskAuthor === "Miggy" ? "rgba(168,85,247,0.35)" : "rgba(255,255,255,0.08)",
+                          background: newTaskAuthor === "Miggy" ? "rgba(168,85,247,0.12)" : "transparent",
+                          color: newTaskAuthor === "Miggy" ? "#a855f7" : "rgba(255,255,255,0.35)",
+                          cursor: "pointer", fontFamily: "system-ui", transition: "all 0.15s",
+                        }}
+                      >Miggy</button>
+                    </div>
+                  )}
                   <input
                     autoFocus={isAdding}
                     value={newTaskText}
                     onChange={e => setNewTaskText(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === "Enter") addTask(author, day);
+                      if (e.key === "Enter") addTask(newTaskAuthor, day);
                       if (e.key === "Escape") { setAddingToDay(null); setNewTaskText(""); }
                     }}
                     placeholder={isAdding ? "Task name..." : "Click + Add task to create"}
@@ -2635,14 +2665,14 @@ function TasksTab() {
                   />
                   {isAdding && (
                     <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                      <button type="button" onClick={() => addTask(author, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add</button>
+                      <button type="button" onClick={() => addTask(newTaskAuthor, day)} style={{ flex: 1, background: accentColor, border: "none", borderRadius: "8px", color: "#0a0a0f", padding: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "system-ui" }}>Add task</button>
                       <button type="button" onClick={() => { setAddingToDay(null); setNewTaskText(""); }} style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "rgba(255,255,255,0.45)", padding: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
                     </div>
                   )}
                   {!isAdding && (
                     <button
                       type="button"
-                      onClick={() => { setAddingToDay(author + "-" + day); setNewTaskText(""); }}
+                      onClick={() => { setAddingToDay(author + "-" + day); setNewTaskText(""); setNewTaskAuthor(author); }}
                       style={{
                         marginTop: "4px", width: "100%",
                         background: "transparent",
