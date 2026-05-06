@@ -6566,13 +6566,14 @@ export default function Home() {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginBottom: "20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "20px" }}>
           {[
             { label: "Total Active", value: activeClients.length, color: "#34d399" },
             { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: Tiffany },
             { label: "Miggy", value: miggyClients.filter(c=>c.status==="active").length, color: "#a855f7" },
             { label: "Paused", value: pausedClients.length, color: "#fbbf24" },
             { label: "Rev / Wk", value: `$${clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.weeklyCharge||0),0).toLocaleString()}`, color: "#0abab5" },
+            { label: "Rev / Annual", value: `$${(clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.weeklyCharge||0),0) * 52).toLocaleString()}`, color: Tiffany },
           ].map(s => (
             <div key={s.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
               <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
