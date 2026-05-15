@@ -12,6 +12,7 @@ import { RetentionCharts } from "@/components/RetentionCharts";
 import { ClientProfilePanel } from "@/components/ClientProfilePanel";
 import { MemoryTab } from "@/components/MemoryTab";
 import FunnelTab from "@/components/FunnelTab";
+import { ContentTab } from "@/components/ContentTab";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { RevenueTrend } from "@/components/RevenueTrend";
 
@@ -3084,7 +3085,7 @@ function TranscriptsPanel({
 
 // ─── Content Tab ─────────────────────────────────────────────────────────────
 
-function ContentTab() {
+function ContentTab_Legacy() {
   const [contentSubTab, setContentSubTab] = useState<"calendar" | "ai-studio" | "transcripts">("calendar");
   const [aiTranscript, setAiTranscript] = useState<string>("");
   const [calendarCards, setCalendarCards] = useState<CalendarCard[]>([]);
