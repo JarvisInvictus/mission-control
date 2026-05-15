@@ -2,19 +2,23 @@
 
 import { useState, useEffect, useRef } from "react";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 type PostType = "Carousel" | "Infograph" | "Reel" | "Story";
+type Coach = "Milzzy" | "Miggy";
 
 interface ContentCard {
   id: string;
   title: string;
   description: string;
   postType: PostType;
+  coach: Coach;
   column: "ideas" | "created" | "posted";
   createdAt: string;
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 const POST_TYPES: PostType[] = ["Carousel", "Infograph", "Reel", "Story"];
+const COACHES: Coach[] = ["Milzzy", "Miggy"];
 
 const POST_EMOJI: Record<PostType, string> = {
   Carousel: "🎠",
@@ -29,7 +33,12 @@ const COLUMNS: { id: "ideas" | "created" | "posted"; label: string; color: strin
   { id: "posted", label: "Posted", color: "#34d399" },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const COACH_COLORS: Record<Coach, string> = {
+  Milzzy: "#0abab5",
+  Miggy: "#a855f7",
+};
+
+// ─── Storage helpers ──────────────────────────────────────────────────────────
 async function loadCards(): Promise<ContentCard[]> {
   try {
     const res = await fetch("/api/content");
@@ -42,18 +51,21 @@ async function loadCards(): Promise<ContentCard[]> {
 }
 
 async function saveCards(cards: ContentCard[]): Promise<void> {
-  await fetch("/api/content", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cards }),
-  });
+  try {
+    await fetch("/api/content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cards }),
+    });
+  } catch { /* ignore */ }
 }
 
-// ─── Add Card Form ──────────────────────────────────────────────────────────
+// ─── Add Card Form ────────────────────────────────────────────────────────────
 function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [postType, setPostType] = useState<PostType>("Reel");
+  const [coach, setCoach] = useState<Coach>("Milzzy");
   const [show, setShow] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -68,12 +80,14 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
       title: title.trim(),
       description: description.trim(),
       postType,
+      coach,
       column: "ideas",
       createdAt: new Date().toISOString(),
     });
     setTitle("");
     setDescription("");
     setPostType("Reel");
+    setCoach("Milzzy");
     setShow(false);
   };
 
@@ -107,7 +121,7 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
       padding: "14px",
       display: "flex",
       flexDirection: "column",
-      gap: "8px",
+      gap: "10px",
     }}>
       <input
         ref={inputRef}
@@ -125,6 +139,7 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           fontFamily: "system-ui",
           outline: "none",
           width: "100%",
+          boxSizing: "border-box",
         }}
       />
       <textarea
@@ -143,8 +158,35 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           outline: "none",
           width: "100%",
           resize: "none",
+          boxSizing: "border-box",
         }}
       />
+
+      {/* Coach selector */}
+      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginRight: "4px" }}>Coach</span>
+        {COACHES.map(c => (
+          <button
+            key={c}
+            onClick={() => setCoach(c)}
+            style={{
+              padding: "4px 10px",
+              borderRadius: "8px",
+              border: `1px solid ${coach === c ? COACH_COLORS[c] : "rgba(255,255,255,0.12)"}`,
+              background: coach === c ? `${COACH_COLORS[c]}18` : "transparent",
+              color: coach === c ? COACH_COLORS[c] : "rgba(255,255,255,0.5)",
+              fontSize: "11px",
+              cursor: "pointer",
+              fontFamily: "system-ui",
+              fontWeight: coach === c ? 600 : 400,
+            }}
+          >
+            {c === "Milzzy" ? "💪" : "🏃"} {c}
+          </button>
+        ))}
+      </div>
+
+      {/* Post type selector */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
         {POST_TYPES.map(pt => (
           <button
@@ -165,6 +207,7 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           </button>
         ))}
       </div>
+
       <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
         <button onClick={handleSubmit} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "none", background: "#0abab5", color: "#fff", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>Add</button>
         <button onClick={() => { setShow(false); setTitle(""); setDescription(""); }} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
@@ -173,7 +216,7 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
   );
 }
 
-// ─── Content Card ────────────────────────────────────────────────────────────
+// ─── Content Card ─────────────────────────────────────────────────────────────
 function ContentCardItem({
   card,
   onDelete,
@@ -181,6 +224,8 @@ function ContentCardItem({
   card: ContentCard;
   onDelete: (id: string) => void;
 }) {
+  const coachColor = COACH_COLORS[card.coach];
+
   return (
     <div
       draggable
@@ -198,16 +243,20 @@ function ContentCardItem({
         padding: "12px",
         cursor: "grab",
         userSelect: "none",
-        position: "relative",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-        <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "6px", background: "rgba(10,186,181,0.15)", color: "#0abab5", fontFamily: "system-ui", fontWeight: 600 }}>
-          {POST_EMOJI[card.postType]} {card.postType}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "10px", padding: "2px 7px", borderRadius: "6px", background: `${coachColor}18`, color: coachColor, fontFamily: "system-ui", fontWeight: 600, border: `1px solid ${coachColor}33` }}>
+            {card.coach === "Milzzy" ? "💪" : "🏃"} {card.coach}
+          </span>
+          <span style={{ fontSize: "10px", padding: "2px 7px", borderRadius: "6px", background: "rgba(10,186,181,0.15)", color: "#0abab5", fontFamily: "system-ui", fontWeight: 600 }}>
+            {POST_EMOJI[card.postType]} {card.postType}
+          </span>
+        </div>
         <button
           onClick={() => onDelete(card.id)}
-          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "14px", lineHeight: 1, padding: "0 2px" }}
+          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "14px", lineHeight: 1, padding: "0 2px", flexShrink: 0 }}
           title="Delete"
         >
           ×
@@ -221,7 +270,7 @@ function ContentCardItem({
   );
 }
 
-// ─── Column ──────────────────────────────────────────────────────────────────
+// ─── Column ────────────────────────────────────────────────────────────────────
 function Column({
   col,
   cards,
@@ -236,14 +285,7 @@ function Column({
   const [dragOver, setDragOver] = useState(false);
 
   return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
       {/* Column header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", padding: "0 2px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -289,7 +331,7 @@ function Column({
   );
 }
 
-// ─── Main Content Tab ────────────────────────────────────────────────────────
+// ─── Main Content Tab ─────────────────────────────────────────────────────────
 export function ContentTab() {
   const [cards, setCards] = useState<ContentCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,11 +372,9 @@ export function ContentTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {/* Header + Add Form */}
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <AddCardForm onAdd={handleAdd} />
-        </div>
+      {/* Add Form */}
+      <div>
+        <AddCardForm onAdd={handleAdd} />
       </div>
 
       {/* Board */}
