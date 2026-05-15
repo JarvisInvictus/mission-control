@@ -60,69 +60,44 @@ async function saveCards(cards: ContentCard[]): Promise<void> {
   } catch { /* ignore */ }
 }
 
-// ─── Add Card Form ────────────────────────────────────────────────────────────
-function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [postType, setPostType] = useState<PostType>("Reel");
-  const [coach, setCoach] = useState<Coach>("Milzzy");
-  const [show, setShow] = useState(false);
+// ─── Add/Edit Card Form ───────────────────────────────────────────────────────
+function CardForm({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial?: ContentCard;
+  onSave: (data: Omit<ContentCard, "id" | "createdAt">) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [postType, setPostType] = useState<PostType>(initial?.postType ?? "Reel");
+  const [coach, setCoach] = useState<Coach>(initial?.coach ?? "Milzzy");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (show) inputRef.current?.focus();
-  }, [show]);
+    inputRef.current?.focus();
+  }, []);
 
   const handleSubmit = () => {
     if (!title.trim()) return;
-    onAdd({
-      id: `content_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      title: title.trim(),
-      description: description.trim(),
-      postType,
-      coach,
-      column: "ideas",
-      createdAt: new Date().toISOString(),
-    });
-    setTitle("");
-    setDescription("");
-    setPostType("Reel");
-    setCoach("Milzzy");
-    setShow(false);
+    onSave({ title: title.trim(), description: description.trim(), postType, coach, column: initial?.column ?? "ideas" });
   };
-
-  if (!show) {
-    return (
-      <button
-        onClick={() => setShow(true)}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: "10px",
-          border: "1px dashed rgba(255,255,255,0.15)",
-          background: "transparent",
-          color: "rgba(255,255,255,0.4)",
-          fontSize: "13px",
-          cursor: "pointer",
-          fontFamily: "system-ui",
-          transition: "all 0.2s",
-        }}
-      >
-        + Add Idea
-      </button>
-    );
-  }
 
   return (
     <div style={{
-      background: "rgba(255,255,255,0.05)",
-      border: "1px solid rgba(10,186,181,0.3)",
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(10,186,181,0.35)",
       borderRadius: "12px",
       padding: "14px",
       display: "flex",
       flexDirection: "column",
       gap: "10px",
     }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, color: "#0abab5" }}>{initial ? "✏️ Edit Card" : "+ New Card"}</span>
+      </div>
       <input
         ref={inputRef}
         value={title}
@@ -161,10 +136,9 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           boxSizing: "border-box",
         }}
       />
-
       {/* Coach selector */}
       <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-        <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginRight: "4px" }}>Coach</span>
+        <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginRight: "4px" }}>Coach</span>
         {COACHES.map(c => (
           <button
             key={c}
@@ -185,7 +159,6 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           </button>
         ))}
       </div>
-
       {/* Post type selector */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
         {POST_TYPES.map(pt => (
@@ -207,10 +180,13 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
           </button>
         ))}
       </div>
-
       <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
-        <button onClick={handleSubmit} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "none", background: "#0abab5", color: "#fff", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>Add</button>
-        <button onClick={() => { setShow(false); setTitle(""); setDescription(""); }} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>
+        <button onClick={handleSubmit} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "none", background: "#0abab5", color: "#fff", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+          {initial ? "Save" : "Add"}
+        </button>
+        <button onClick={onCancel} style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -220,9 +196,11 @@ function AddCardForm({ onAdd }: { onAdd: (c: ContentCard) => void }) {
 function ContentCardItem({
   card,
   onDelete,
+  onEdit,
 }: {
   card: ContentCard;
   onDelete: (id: string) => void;
+  onEdit: (card: ContentCard) => void;
 }) {
   const coachColor = COACH_COLORS[card.coach];
 
@@ -254,13 +232,26 @@ function ContentCardItem({
             {POST_EMOJI[card.postType]} {card.postType}
           </span>
         </div>
-        <button
-          onClick={() => onDelete(card.id)}
-          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "14px", lineHeight: 1, padding: "0 2px", flexShrink: 0 }}
-          title="Delete"
-        >
-          ×
-        </button>
+        <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(card); }}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", cursor: "pointer", fontSize: "12px", lineHeight: 1, padding: "2px 3px", borderRadius: "4px" }}
+            title="Edit"
+            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "#0abab5"}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"}
+          >
+            ✏️
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(card.id); }}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "14px", lineHeight: 1, padding: "2px 3px", borderRadius: "4px" }}
+            title="Delete"
+            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = "#ff6b6b"}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.3)"}
+          >
+            ×
+          </button>
+        </div>
       </div>
       <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "#fff", margin: "0 0 4px", lineHeight: 1.4 }}>{card.title}</p>
       {card.description && (
@@ -275,11 +266,13 @@ function Column({
   col,
   cards,
   onDelete,
+  onEdit,
   onDrop,
 }: {
   col: (typeof COLUMNS)[number];
   cards: ContentCard[];
   onDelete: (id: string) => void;
+  onEdit: (card: ContentCard) => void;
   onDrop: (cardId: string) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -319,7 +312,7 @@ function Column({
         }}
       >
         {cards.map(card => (
-          <ContentCardItem key={card.id} card={card} onDelete={onDelete} />
+          <ContentCardItem key={card.id} card={card} onDelete={onDelete} onEdit={onEdit} />
         ))}
         {cards.length === 0 && !dragOver && (
           <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.2)", textAlign: "center", padding: "20px 0", fontStyle: "italic" }}>
@@ -335,15 +328,31 @@ function Column({
 export function ContentTab() {
   const [cards, setCards] = useState<ContentCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingCard, setEditingCard] = useState<ContentCard | null>(null);
 
   useEffect(() => {
     loadCards().then(c => { setCards(c); setLoading(false); });
   }, []);
 
-  const handleAdd = (card: ContentCard) => {
+  const handleAdd = (data: Omit<ContentCard, "id" | "createdAt">) => {
+    const card: ContentCard = {
+      ...data,
+      id: `content_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
     const next = [...cards, card];
     setCards(next);
     saveCards(next);
+    setShowAddForm(false);
+  };
+
+  const handleEdit = (data: Omit<ContentCard, "id" | "createdAt">) => {
+    if (!editingCard) return;
+    const next = cards.map(c => c.id === editingCard.id ? { ...c, ...data } : c);
+    setCards(next);
+    saveCards(next);
+    setEditingCard(null);
   };
 
   const handleDelete = (id: string) => {
@@ -372,16 +381,50 @@ export function ContentTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {/* Add Form */}
-      <div>
-        <AddCardForm onAdd={handleAdd} />
-      </div>
+      {/* Add / Edit form */}
+      {(showAddForm || editingCard) && (
+        <CardForm
+          key={editingCard?.id ?? "new"}
+          initial={editingCard ?? undefined}
+          onSave={editingCard ? handleEdit : handleAdd}
+          onCancel={() => { setShowAddForm(false); setEditingCard(null); }}
+        />
+      )}
+
+      {/* Add button */}
+      {!showAddForm && !editingCard && (
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            width: "100%",
+            padding: "10px 14px",
+            borderRadius: "10px",
+            border: "1px dashed rgba(255,255,255,0.15)",
+            background: "transparent",
+            color: "rgba(255,255,255,0.4)",
+            fontSize: "13px",
+            cursor: "pointer",
+            fontFamily: "system-ui",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(10,186,181,0.4)";
+            (e.currentTarget as HTMLButtonElement).style.color = "#0abab5";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.15)";
+            (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.4)";
+          }}
+        >
+          + Add Idea
+        </button>
+      )}
 
       {/* Board */}
       <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-        <Column col={COLUMNS[0]} cards={ideasCards} onDelete={handleDelete} onDrop={id => handleMove(id, "ideas")} />
-        <Column col={COLUMNS[1]} cards={createdCards} onDelete={handleDelete} onDrop={id => handleMove(id, "created")} />
-        <Column col={COLUMNS[2]} cards={postedCards} onDelete={handleDelete} onDrop={id => handleMove(id, "posted")} />
+        <Column col={COLUMNS[0]} cards={ideasCards} onDelete={handleDelete} onEdit={setEditingCard} onDrop={id => handleMove(id, "ideas")} />
+        <Column col={COLUMNS[1]} cards={createdCards} onDelete={handleDelete} onEdit={setEditingCard} onDrop={id => handleMove(id, "created")} />
+        <Column col={COLUMNS[2]} cards={postedCards} onDelete={handleDelete} onEdit={setEditingCard} onDrop={id => handleMove(id, "posted")} />
       </div>
     </div>
   );
