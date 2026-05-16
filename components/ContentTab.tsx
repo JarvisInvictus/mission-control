@@ -233,19 +233,25 @@ function CardForm({
 }
 
 // ─── Content Card Item ─────────────────────────────────────────────────────────
+const POST_TYPE_COLORS: Record<PostType, { bg: string; border: string; label: string }> = {
+  Carousel:   { bg: "rgba(59,130,246,0.08)",   border: "rgba(59,130,246,0.25)",   label: "#3b82f6" },
+  Infograph:  { bg: "rgba(168,85,247,0.08)",   border: "rgba(168,85,247,0.25)",   label: "#a855f7" },
+  Reel:       { bg: "rgba(245,158,11,0.08)",   border: "rgba(245,158,11,0.25)",   label: "#f59e0b" },
+  Story:      { bg: "rgba(20,184,166,0.08)",   border: "rgba(20,184,166,0.25)",   label: "#14b8a6" },
+};
+
 function ContentCardItem({
   card,
   onDelete,
   onEdit,
-  dragHandle,
 }: {
   card: ContentCard;
   onDelete: (id: string) => void;
   onEdit: (card: ContentCard) => void;
-  dragHandle: string;
 }) {
   const [hovered, setHovered] = useState(false);
   const coachColor = COACH_COLORS[card.coach];
+  const ptColors = POST_TYPE_COLORS[card.postType] ?? POST_TYPE_COLORS.Reel;
 
   return (
     <div
@@ -260,8 +266,10 @@ function ContentCardItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: hovered ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.04)",
-        border: `1px solid ${hovered ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)"}`,
+        background: hovered
+          ? `rgba(${parseInt(ptColors.label.slice(1,3),16)},${parseInt(ptColors.label.slice(3,5),16)},${parseInt(ptColors.label.slice(5,7),16)},0.12)`
+          : ptColors.bg,
+        border: `1px solid ${hovered ? ptColors.border.replace("0.25","0.35") : ptColors.border}`,
         borderRadius: "14px",
         padding: "12px",
         cursor: "grab",
@@ -277,7 +285,7 @@ function ContentCardItem({
           <span style={{ fontSize: "10px", padding: "2px 7px", borderRadius: "6px", background: `${coachColor}18`, color: coachColor, fontFamily: "system-ui", fontWeight: 700, border: `1px solid ${coachColor}33` }}>
             {card.coach === "Milzzy" ? "💪" : "🏃"} {card.coach}
           </span>
-          <span style={{ fontSize: "10px", padding: "2px 7px", borderRadius: "6px", background: "rgba(10,186,181,0.12)", color: "#0abab5", fontFamily: "system-ui", fontWeight: 600, border: "1px solid rgba(10,186,181,0.2)" }}>
+          <span style={{ fontSize: "10px", padding: "2px 7px", borderRadius: "6px", background: `${ptColors.label}18`, color: ptColors.label, fontFamily: "system-ui", fontWeight: 600, border: `1px solid ${ptColors.label}33` }}>
             {POST_EMOJI[card.postType]} {card.postType}
           </span>
         </div>
