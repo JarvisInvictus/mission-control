@@ -346,8 +346,8 @@ function Column({
         </div>
         {/* Coach breakdown */}
         <div style={{ display: "flex", gap: "6px" }}>
-          <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "#0abab5", background: "rgba(10,186,181,0.1)", padding: "2px 7px", borderRadius: "20px", border: "1px solid rgba(10,186,181,0.15)" }}>💪 {milzzyCount}</span>
-          <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "#a855f7", background: "rgba(168,85,247,0.1)", padding: "2px 7px", borderRadius: "20px", border: "1px solid rgba(168,85,247,0.15)" }}>🏃 {miggyCount}</span>
+          <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "#0abab5", background: "rgba(10,186,181,0.1)", padding: "2px 8px", borderRadius: "20px", border: "1px solid rgba(10,186,181,0.15)" }}>Milzzy {milzzyCount}</span>
+          <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "#a855f7", background: "rgba(168,85,247,0.1)", padding: "2px 8px", borderRadius: "20px", border: "1px solid rgba(168,85,247,0.15)" }}>Miggy {miggyCount}</span>
         </div>
       </div>
 
