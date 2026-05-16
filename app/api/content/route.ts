@@ -2,27 +2,29 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL!;
-const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
+const UPSTASH_REDIS_REST_URL = process.env.KV_REST_API_URL!;
+const UPSTASH_REDIS_REST_TOKEN = process.env.KV_REST_API_TOKEN!;
 
 async function redisGet(key: string): Promise<unknown> {
   const res = await fetch(
-    `${REDIS_REST_URL}/get/${encodeURIComponent(key)}`,
-    { headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}` } }
+    `${UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`,
+    { headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` } }
   );
+  if (!res.ok) throw new Error(`Redis GET failed: ${res.status}`);
   const data = (await res.json()) as { result: unknown };
   return data.result;
 }
 
 async function redisSet(key: string, value: string): Promise<void> {
-  await fetch(
-    `${REDIS_REST_URL}/set/${encodeURIComponent(key)}`,
+  const res = await fetch(
+    `${UPSTASH_REDIS_REST_URL}/set/${encodeURIComponent(key)}`,
     {
       method: "POST",
-      headers: { Authorization: `Bearer ${REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify(value),
     }
   );
+  if (!res.ok) throw new Error(`Redis SET failed: ${res.status}`);
 }
 
 export async function GET() {
@@ -32,8 +34,7 @@ export async function GET() {
     if (typeof raw === "string") {
       try {
         const parsed = JSON.parse(raw);
-        if (typeof parsed === "string") return NextResponse.json({ cards: JSON.parse(parsed) });
-        return NextResponse.json({ cards: parsed });
+        return NextResponse.json({ cards: typeof parsed === "string" ? JSON.parse(parsed) : parsed });
       } catch {
         return NextResponse.json({ cards: [] });
       }
