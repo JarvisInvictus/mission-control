@@ -383,7 +383,7 @@ function Column({
         }}
       >
         {cards.map(card => (
-          <ContentCardItem key={card.id} card={card} onDelete={onDelete} onEdit={onEdit} dragHandle="" />
+          <ContentCardItem key={card.id} card={card} onDelete={onDelete} onEdit={onEdit} />
         ))}
         {cards.length === 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: "8px", opacity: 0.4 }}>
