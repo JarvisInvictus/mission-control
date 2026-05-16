@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL!;
 const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
 
