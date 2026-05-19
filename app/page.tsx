@@ -7105,11 +7105,13 @@ export default function Home() {
       }
     }
 
-    const totalLeads = leads.length;
+    // Only coaching leads (not Macro Calculator)
+    const coachingLeads = leads.filter(l => l.source !== "Macro Calculator");
+    const totalLeads = coachingLeads.length;
     const now = new Date();
-    const thisMonth = leads.filter(l => { const d = new Date(l.createdAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
-    const signedCount = leads.filter(l => l.stage === "signed").length;
-    const lostCount = leads.filter(l => l.stage === "lost").length;
+    const thisMonth = coachingLeads.filter(l => { const d = new Date(l.createdAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
+    const signedCount = coachingLeads.filter(l => l.stage === "signed").length;
+    const lostCount = coachingLeads.filter(l => l.stage === "lost").length;
     const conversionRate = totalLeads > 0 ? Math.round((signedCount / totalLeads) * 100) : 0;
 
     function daysAgo(iso: string): number {
@@ -7152,7 +7154,7 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
 
           {COLUMNS.map(col => {
-            const colLeads = leads.filter(l => col.stageKeys.includes(l.stage));
+            const colLeads = coachingLeads.filter(l => col.stageKeys.includes(l.stage));
             const isDragOver = dragOverStage === col.key;
 
             return (
