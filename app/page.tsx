@@ -3333,12 +3333,25 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     });
   }, [weekOffset]);
 
-  // Load check-in log from localStorage
+  // Load check-in log from Redis API (then merge with localStorage for resilience)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("mc_checkin_log");
-      if (stored) setCheckInLog(JSON.parse(stored));
-    } catch { /* ignore */ }
+    Promise.all([
+      fetch("/api/checkins/log").then(r => r.json()).catch(() => ({ log: {} })),
+      new Promise<Record<string, string[]>>(resolve => {
+        try {
+          const stored = localStorage.getItem("mc_checkin_log");
+          resolve(stored ? JSON.parse(stored) : {});
+        } catch { resolve({}); }
+      })
+    ]).then(([apiData, localData]) => {
+      // Merge: localStorage for all dates, API fills gaps
+      const merged = { ...localData };
+      const apiLog = (apiData as any).log || {};
+      for (const [date, ids] of Object.entries(apiLog)) {
+        merged[date] = [...new Set([...(merged[date] ?? []), ...(ids as string[])])];
+      }
+      setCheckInLog(merged);
+    });
   }, []);
 
   // Migrate UTC date keys → Melbourne date keys (run once)
@@ -3369,10 +3382,37 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     } catch { /* ignore */ }
   }, []);
 
-  // Persist check-in log to localStorage
+  // Persist check-in log to localStorage + Redis API
   useEffect(() => {
     localStorage.setItem("mc_checkin_log", JSON.stringify(checkInLog));
+    // Sync to Redis so it's shared across all devices/browsers
+    fetch("/api/checkins/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ log: checkInLog }),
+    }).catch(() => { /* ignore */ });
   }, [checkInLog]);
+
+  // Load check-in log from Redis API (then merge with localStorage for resilience)
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/checkins/log").then(r => r.json()).catch(() => ({ log: {} })),
+      new Promise<Record<string, string[]>>(resolve => {
+        try {
+          const stored = localStorage.getItem("mc_checkin_log");
+          resolve(stored ? JSON.parse(stored) : {});
+        } catch { resolve({}); }
+      })
+    ]).then(([apiData, localData]) => {
+      // Merge: localStorage for all dates, API fills gaps
+      const merged = { ...localData };
+      const apiLog = (apiData as any).log || {};
+      for (const [date, ids] of Object.entries(apiLog)) {
+        merged[date] = [...new Set([...(merged[date] ?? []), ...(ids as string[])])];
+      }
+      setCheckInLog(merged);
+    });
+  }, []);
 
   // Auto-advance to current week on mount
   useEffect(() => {
