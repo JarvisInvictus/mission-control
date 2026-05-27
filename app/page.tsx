@@ -102,7 +102,7 @@ export interface Lead {
   phone: string;
   instagram?: string;
   source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
-  stage: "new-lead" | "book-consult" | "consult-call" | "signed" | "lost";
+  stage: "new-lead" | "book-consult" | "consult-call" | "signed" | "lost" | "no-show";
   stageHistory: { stage: string; date: string }[];
   notes: string;
   assignedTo: "Milzzy" | "Miggy";
@@ -7091,15 +7091,17 @@ export default function Home() {
       { key: "consult-call",   label: "Consultation Call", color: "rgba(139,92,246,0.7)" },
       { key: "signed",        label: "Signed",            color: "#34d399" },
       { key: "lost",          label: "Lost",             color: "rgba(248,113,113,0.6)" },
+      { key: "no-show",       label: "No Shows",          color: "rgba(249,115,22,0.6)" },
     ] as const;
 
-    type BoardKey = "new-lead" | "book-consult" | "consult-call" | "signed" | "lost";
+    type BoardKey = "new-lead" | "book-consult" | "consult-call" | "signed" | "lost" | "no-show";
     const COLUMNS: { key: BoardKey; label: string; stageKeys: string[]; color: string }[] = [
       { key: "new-lead",      label: "New Lead",          stageKeys: ["new-lead"],                    color: Tiffany },
       { key: "book-consult",  label: "Book Consult Call",  stageKeys: ["book-consult"],                color: "rgba(139,92,246,0.7)" },
       { key: "consult-call",   label: "Consultation Call",  stageKeys: ["consult-call"],                color: "rgba(139,92,246,0.7)" },
       { key: "signed",         label: "Signed",             stageKeys: ["signed"],                       color: "#34d399" },
       { key: "lost",           label: "Lost",               stageKeys: ["lost"],                         color: "rgba(248,113,113,0.6)" },
+      { key: "no-show",        label: "No Shows",            stageKeys: ["no-show"],                      color: "rgba(249,115,22,0.6)" },
     ];
 
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -7118,6 +7120,7 @@ export default function Home() {
       if (lead.stage === "consult-call")  return "consult-call";
       if (lead.stage === "signed")         return "signed";
       if (lead.stage === "lost")           return "lost";
+      if (lead.stage === "no-show")        return "no-show";
       return "new-lead";
     };
 
@@ -7128,6 +7131,7 @@ export default function Home() {
         "consult-call":  "consult-call",
         "signed":        "signed",
         "lost":          "lost",
+        "no-show":       "no-show",
       };
       const newStage = stageMap[newBoardKey];
       if (lead.stage === newStage) return;
