@@ -7195,7 +7195,7 @@ export default function Home() {
         </div>
 
         {/* Kanban Board */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px" }}>
 
           {COLUMNS.map(col => {
             const colLeads = coachingLeads.filter(l => col.stageKeys.includes(l.stage));
