@@ -3351,6 +3351,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         merged[date] = [...new Set([...(merged[date] ?? []), ...(ids as string[])])];
       }
       setCheckInLog(merged);
+      // DEBUG check-in log load
+      console.log("[CheckIn] API:", Object.keys(apiLog).length, "entries | LocalStorage:", Object.keys(localData).length, "entries | Merged:", Object.keys(merged).length);
     });
   }, []);
 
@@ -3389,7 +3391,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     fetch("/api/checkins/log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ log: checkInLog }),
+      body: JSON.stringify(checkInLog),
     }).catch(() => { /* ignore */ });
   }, [checkInLog]);
 
