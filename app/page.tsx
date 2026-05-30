@@ -27,7 +27,7 @@ const GlassBlur = "blur(20px)";
 
 // ─── useWindowSize hook ──────────────────────────────────────────────────────
 function useWindowSize() {
-  const [width, setWidth] = useState(1200);
+  const [width, setWidth] = useState(0);
   useEffect(() => {
     function update() { setWidth(window.innerWidth); }
     update();
