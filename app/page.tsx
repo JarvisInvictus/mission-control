@@ -4001,13 +4001,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             {/* Keyboard shortcut row */}
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               {[
-                { key: "S", label: "✅ Submitted", status: "submitted" as CheckInStatus },
-                { key: "1", label: "⏱ On Time", status: "ontime" as CheckInStatus },
-                { key: "2", label: "⚠ Late", status: "late" as CheckInStatus },
-                { key: "3", label: "❌ Never", status: "not-submitted" as CheckInStatus },
-                { key: "4", label: "⏭ Skip·L", status: "skip" as CheckInStatus },
-                { key: "5", label: "🤒 Sick", status: "sick" as CheckInStatus },
-                { key: "6", label: "⏭ Skip·L", status: "skip" as CheckInStatus },
+                { key: "1", label: "On Time", status: "ontime" as CheckInStatus },
+                { key: "2", label: "Submitted", status: "submitted" as CheckInStatus },
+                { key: "3", label: "Late", status: "late" as CheckInStatus },
+                { key: "4", label: "Not Submitted", status: "not-submitted" as CheckInStatus },
+                { key: "5", label: "Sick", status: "sick" as CheckInStatus },
+                { key: "6", label: "Pause/Holiday", status: "paused" as CheckInStatus },
+                { key: "7", label: "Skip", status: "skip" as CheckInStatus },
                 { key: "0/Esc", label: "Clear", status: null },
               ].map(h => (
                 <span key={h.key} style={{
@@ -4047,12 +4047,12 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {[
               { key: "1", label: "On Time" },
-              { key: "2", label: "Late" },
-              { key: "3", label: "Unset" },
-              { key: "4", label: "Skip·L" },
+              { key: "2", label: "Submitted" },
+              { key: "3", label: "Late" },
+              { key: "4", label: "Not Submitted" },
               { key: "5", label: "Sick" },
-              { key: "6", label: "Submitted" },
-              { key: "7", label: "Skip·L" },
+              { key: "6", label: "Pause/Holiday" },
+              { key: "7", label: "Skip" },
               { key: "0", label: "Clear" },
             ].map(h => (
               <span key={h.key} style={{
