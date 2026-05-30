@@ -3285,13 +3285,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const weekKey = getWeekKey(week.start);
   const weekLabel = `Week of ${week.start.getDate()} ${MONTHS[week.start.getMonth()]} ${week.start.getFullYear()}`;
 
-  // Load check-ins from localStorage
+  // Load check-ins from localStorage (re-run when week changes so history always reflects correct week)
   useEffect(() => {
     try {
       const stored = localStorage.getItem("mc_checkins");
       if (stored) setCheckIns(JSON.parse(stored));
     } catch { /* ignore */ }
-  }, []);
+  }, [weekOffset]);
 
   // Persist check-ins: localStorage + Redis API
   useEffect(() => {
