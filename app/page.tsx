@@ -3336,7 +3336,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   // Load check-in log from Redis API (then merge with localStorage for resilience)
   useEffect(() => {
     Promise.all([
-      fetch("/api/checkins/log").then(r => r.json()).catch(() => ({ log: {} })),
+      fetch("/api/checkins/log?_t=" + Date.now()).then(r => r.json()).catch(() => ({ log: {} })),
       new Promise<Record<string, string[]>>(resolve => {
         try {
           const stored = localStorage.getItem("mc_checkin_log");
@@ -3398,7 +3398,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   // Load check-in log from Redis API (then merge with localStorage for resilience)
   useEffect(() => {
     Promise.all([
-      fetch("/api/checkins/log").then(r => r.json()).catch(() => ({ log: {} })),
+      fetch("/api/checkins/log?_t=" + Date.now()).then(r => r.json()).catch(() => ({ log: {} })),
       new Promise<Record<string, string[]>>(resolve => {
         try {
           const stored = localStorage.getItem("mc_checkin_log");
