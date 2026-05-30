@@ -3252,13 +3252,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   const windowWidth = useWindowSize();
   const isMobile = windowWidth < 768;
   const CI_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-    ontime:   { label: "On Time",   color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
-    submitted: { label: "Submitted", color: "#34d399", bg: "rgba(52,211,153,0.12)" },
-    late:     { label: "Late",     color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
-    unset:    { label: "Unset",    color: "#f87171", bg: "rgba(248,113,113,0.12)" },
-    "skip": { label: "Skip·L",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    sick:     { label: "Sick",     color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
-    paused:   { label: "Paused",   color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
+    ontime:          { label: "On Time",        color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
+    submitted:       { label: "Submitted",     color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+    late:            { label: "Late",          color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+    "not-submitted": { label: "Not Submitted",  color: "#f87171", bg: "rgba(248,113,113,0.12)" },
+    sick:            { label: "Sick",          color: "#60a5fa", bg: "rgba(96,165,250,0.12)" },
+    paused:          { label: "Pause/Holiday",  color: "#9ca3af", bg: "rgba(156,163,175,0.12)" },
+    skip:            { label: "Skip",          color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
   };
   const FILTER_OPTIONS = [
     { key: "all",      label: "All" },
