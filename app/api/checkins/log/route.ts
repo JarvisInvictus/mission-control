@@ -65,6 +65,10 @@ export async function POST(req: Request) {
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
       return NextResponse.json({ error: "invalid" }, { status: 400 });
     }
+    // Guard: if body is empty object, skip save to prevent cold-start wipes
+    if (Object.keys(body).length === 0) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
     await redisSet("jarvis:checkin_log", JSON.stringify(body));
     return NextResponse.json({ ok: true });
   } catch (err) {
