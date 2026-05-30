@@ -3492,18 +3492,22 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         });
       } else if (key === "2") {
         targets.forEach(id => {
-          setStatus(id, "late");
+          setStatus(id, "submitted");
           const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
           setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
         });
       } else if (key === "3") {
-        targets.forEach(id => setStatus(id, "not-submitted"));
+        targets.forEach(id => {
+          setStatus(id, "late");
+          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
+          setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
+        });
       } else if (key === "4") {
-        targets.forEach(id => setStatus(id, "skip"));
+        targets.forEach(id => setStatus(id, "not-submitted"));
       } else if (key === "5") {
         targets.forEach(id => setStatus(id, "sick"));
       } else if (key === "6") {
-        targets.forEach(id => setStatus(id, "submitted"));
+        targets.forEach(id => setStatus(id, "paused"));
       } else if (key === "7") {
         targets.forEach(id => setStatus(id, "skip"));
       } else if (key === "0") {
