@@ -4275,6 +4275,15 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                         flexDirection: "column",
                         gap: "5px",
                         transition: "all 0.15s",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => {
+                        setSelectedClients(prev => {
+                          const next = new Set(prev);
+                          if (next.has(client.id)) next.delete(client.id);
+                          else next.add(client.id);
+                          return next;
+                        });
                       }}
                       onMouseEnter={() => setHoveredClientId(client.id)}
                       onMouseLeave={() => setHoveredClientId(null)}>
@@ -4305,7 +4314,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
                                 whiteSpace: "nowrap",
                                 cursor: "pointer",
                               }}
-                              onClick={() => { setSelectedClientId(client.id); onClientClick(client); }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedClientId(client.id); onClientClick(client); }}
                               title="View profile"
                             >
                               {client.name}
