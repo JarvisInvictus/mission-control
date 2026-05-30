@@ -9,7 +9,9 @@ const UPSTASH_REDIS_REST_TOKEN = "gQAAAAAAATqMAAIncDFjYjI1NGY2ZDIyMmQ0OWM1OGJhZj
 const CACHE_BUST = { "Cache-Control": "no-store, max-age=0", "Pragma": "no-cache" };
 
 async function redisGet(key: string): Promise<unknown> {
-  const res = await fetch(`${UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`, {
+  // Append ?&k=<timestamp> to bust any upstream caching at Vercel/Upstash edge
+  const ts = Date.now();
+  const res = await fetch(`${UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}?k=${ts}`, {
     headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
     cache: "no-store",
   });
@@ -30,6 +32,7 @@ async function redisSet(key: string, value: string): Promise<void> {
 export async function GET() {
   try {
     const raw = await redisGet("jarvis:checkin_log");
+    console.log("[checkins/log] Upstash raw:", typeof raw, ", preview:", typeof raw === "string" ? (raw as string).slice(0, 100) : String(raw).slice(0, 100));
     if (!raw) return NextResponse.json({ log: {} }, { headers: CACHE_BUST });
     if (typeof raw === "string") {
       try {
