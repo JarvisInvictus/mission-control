@@ -7236,7 +7236,7 @@ export default function Home() {
                 {/* Drop zone */}
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOverStage(col.key); }}
-                  onDragLeave={() => setDragOverStage(null)}
+                  onDragLeave={() => { if (dragOverStage === col.key) setDragOverStage(null); }}
                   onDrop={e => {
                     e.preventDefault();
                     const id = e.dataTransfer.getData("leadId");
@@ -7273,7 +7273,7 @@ export default function Home() {
                             e.dataTransfer.setData("leadId", lead.id);
                             setDraggingId(lead.id);
                           }}
-                          onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
+                          onDragEnd={e => { e.stopPropagation(); setDraggingId(null); setDragOverStage(null); }}
                           onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
                           onMouseEnter={e => {
                             const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".delete-btn");
