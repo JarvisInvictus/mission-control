@@ -13,7 +13,9 @@ import { ClientProfilePanel } from "@/components/ClientProfilePanel";
 import { MemoryTab } from "@/components/MemoryTab";
 import FunnelTab from "@/components/FunnelTab";
 import { ContentTab } from "@/components/ContentTab";
+import { GymTab } from "@/components/GymTab";
 import { Toast, type ToastMessage } from "@/components/Toast";
+import FloatingPomodoro from "@/components/FloatingPomodoro";
 import { RevenueTrend } from "@/components/RevenueTrend";
 
 // ─── Design System Constants ─────────────────────────────────────────────────
@@ -131,7 +133,7 @@ export interface PendingClient {
   weeklyCharge: number;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks";
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks" | "gym";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -310,6 +312,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     projects: "Projects",
     pages: "Pages",
     Funnel: "Funnel",
+    gym: "Gym",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -645,11 +648,23 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const activeCount = activeClients.length;
   const thisMonth = new Date().toISOString().slice(0, 7);
   const newThisMonthRaw = clients.filter(c => c.startDate && c.startDate.startsWith(thisMonth)).length;
-  const totalClients = clients.length;
+  const totalClients = clients.filter((c) => c.status !== "cancelled").length;
   // If newThisMonth equals total clients, all were imported on same day — show — instead
   const newThisMonth = (newThisMonthRaw === totalClients && totalClients > 0) ? null : newThisMonthRaw;
   const totalRevenuePerWeek = clients
-    .filter(c => c.status === "active")
+    .filter(c => c.status !== "cancelled")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const milzzyRevenuePerWeek = clients
+    .filter(c => c.status !== "cancelled" && c.coach === "Milzzy")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const miggyRevenuePerWeek = clients
+    .filter(c => c.status !== "cancelled" && c.coach === "Miggy")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const milzzyPausedRev = clients
+    .filter(c => c.status === "paused" && c.coach === "Milzzy")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const miggyPausedRev = clients
+    .filter(c => c.status === "paused" && c.coach === "Miggy")
     .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
   const totalLeads = leads.length;
   const conversions = leads.filter(l => l.stage === "signed").length;
@@ -777,8 +792,8 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
         </div>
 
         {/* ── Client Milestones ── */}
-        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "14px 16px" }}>
-          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Milestones This Week</p>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "8px 12px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 5px" }}>Milestones This Week</p>
           {(() => {
             const today2 = new Date();
             const milestones: { name: string; weeks: number }[] = [];
@@ -793,14 +808,14 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
               for (const m of thisWeekMarks) milestones.push({ name: c.name, weeks: m });
             }
             if (milestones.length === 0) {
-              return <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No milestones this week</p>;
+              return <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.20)", fontStyle: "italic", margin: 0 }}>None this week</p>;
             }
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px", maxHeight: "120px", overflowY: "auto" }}>
                 {milestones.map((m, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.70)", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
-                    <span style={{ fontFamily: "system-ui", fontSize: "10px", fontWeight: 600, color: Tiffany, background: "rgba(10,186,181,0.10)", border: "1px solid rgba(10,186,181,0.20)", borderRadius: "999px", padding: "1px 8px" }}>{m.weeks}wk</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.60)", maxWidth: "100px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+                    <span style={{ fontFamily: "system-ui", fontSize: "9px", fontWeight: 600, color: Tiffany, background: "rgba(10,186,181,0.10)", border: "1px solid rgba(10,186,181,0.20)", borderRadius: "999px", padding: "1px 6px", flexShrink: 0 }}>{m.weeks}wk</span>
                   </div>
                 ))}
               </div>
@@ -808,7 +823,6 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           })()}
         </div>
       </div>
-
 
       {/* ── Google Calendar — Consultations (2 Weeks) ── */}
       <section style={{ marginBottom: "24px" }}>
@@ -1099,6 +1113,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
             <div>
               <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>This Week</p>
               <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: Tiffany, margin: 0 }}>${totalRevenuePerWeek.toLocaleString()}</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "#0abab5", margin: "2px 0 0" }}>Mz ${milzzyRevenuePerWeek.toLocaleString()}${milzzyPausedRev > 0 ? ` (${milzzyPausedRev} paused)` : ""} · Mg $${miggyRevenuePerWeek.toLocaleString()}${miggyPausedRev > 0 ? ` (${miggyPausedRev} paused)` : ""}</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Target</p>
@@ -1198,7 +1213,7 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
       <section style={{ marginBottom: "32px" }}>
         <p style={sectionHeaderStyle}>Business Stats</p>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <StatCard value={activeCount} label="Clients" color="#34d399" />
+          <StatCard value={totalClients} label="Clients" color="#34d399" />
           <StatCard value={`$${totalRevenuePerWeek.toLocaleString()}`} label="Rev / wk" color={Tiffany} />
           <StatCard value={newThisMonth !== null ? `+${newThisMonth}` : "—"} label="New this mo" color="#a855f7" />
           <StatCard value={convRate !== null ? `${convRate}%` : "—"} label="Conv." color={convRate !== null ? "#34d399" : "rgba(255,255,255,0.50)"} />
@@ -3218,7 +3233,15 @@ const STATUS_META: Record<CheckInStatus, { label: string; color: string; bg: str
   skip:            { label: "Skip",          color: "#f59e0b",   bg: "rgba(245,158,11,0.12)",             order: 6 },
 };
 
-const STATUS_CYCLE: CheckInStatus[] = ["ontime", "submitted", "late", "not-submitted", "skip", "sick"];
+const STATUS_CYCLE: CheckInStatus[] = ["ontime", "late", "not-submitted", "skip", "sick"];
+
+// Normalize date string to YYYY-MM-DD (zero-padded) for consistent Redis/localStorage keys
+function normDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function getWeekKey(date: Date): string {
   const year = date.getFullYear();
@@ -3248,9 +3271,13 @@ function getWeekDates(offset: number) {
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientClick: (c: Client) => void }) {
+function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]; onClientClick: (c: Client) => void; pomCheckIn: number }) {
+  const myClients = clients.filter(c => c.coach === "Milzzy");
   const windowWidth = useWindowSize();
   const isMobile = windowWidth < 768;
+
+
+
   const CI_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
     ontime:          { label: "On Time",        color: "#0abab5", bg: "rgba(10,186,181,0.12)" },
     submitted:       { label: "Submitted",     color: "#34d399", bg: "rgba(52,211,153,0.12)" },
@@ -3487,20 +3514,17 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       if (key === "1") {
         targets.forEach(id => {
           setStatus(id, "ontime");
-          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
+          const today = normDate(new Date());
           setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
+          window.dispatchEvent(new CustomEvent("pomodoro:checkin", { detail: { clientId: id } }));
         });
       } else if (key === "2") {
         targets.forEach(id => {
           setStatus(id, "submitted");
-          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
-          setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
         });
       } else if (key === "3") {
         targets.forEach(id => {
           setStatus(id, "late");
-          const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
-          setCheckInLog(prev => ({ ...prev, [today]: [...(prev[today] ?? []).filter(i => i !== id), id] }));
         });
       } else if (key === "4") {
         targets.forEach(id => setStatus(id, "not-submitted"));
@@ -3536,9 +3560,9 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       ...prev,
       [weekKey]: { ...prev[weekKey], [clientId]: status },
     }));
-    // Log ontime/late as real check-ins for the daily log
-    if (status === "ontime" || status === "late") {
-      const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
+    // Log ontime as real check-ins for the daily log (Milzzy only)
+    if (myClients.some(c => c.id === clientId) && status === "ontime") {
+      const today = normDate(new Date());
       setCheckInLog(prev => ({
         ...prev,
         [today]: [...(prev[today] ?? []).filter(id => id !== clientId), clientId],
@@ -3547,13 +3571,13 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
   }
 
   function cycleStatus(clientId: string, current: CheckInStatus | null) {
-    const CYCLE: CheckInStatus[] = ["submitted", "ontime", "late", "not-submitted", "skip", "sick"];
+    const CYCLE: CheckInStatus[] = ["not-submitted", "ontime", "submitted", "late", "skip", "sick"];
     if (current === null) {
-      setStatus(clientId, "submitted");
+      setStatus(clientId, "not-submitted");
     } else {
       const idx = CYCLE.indexOf(current);
       const next = CYCLE[(idx + 1) % CYCLE.length];
-      if (next === "submitted" && current === "sick") {
+      if (next === "not-submitted" && current === "sick") {
         // clear: remove the status entry (cycle back to unset)
         setCheckIns(prev => {
           const weekKeyClients = prev[weekKey] ?? {};
@@ -3566,8 +3590,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
     }
   }
 
-  const activeClients = clients.filter(c => c.status === "active");
-  const pausedClients = clients.filter(c => c.status === "paused");
+  const activeClients = myClients.filter(c => c.status === "active");
+  const pausedClients = myClients.filter(c => c.status === "paused");
   const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday"] as const;
 
   // Stats
@@ -3672,7 +3696,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           <span style={{ fontSize: "16px" }}>📊</span>
           Check-in Log
           {(() => {
-            const today = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
+            const today = normDate(new Date());
             const todayCount = (checkInLog[today] ?? []).length;
             return todayCount > 0 ? (
               <span style={{ marginLeft: "auto", background: TiffanySoft, color: Tiffany, borderRadius: "999px", padding: "1px 10px", fontSize: "12px", fontWeight: 600 }}>
@@ -3690,8 +3714,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
             marginTop: "8px",
           }}>
             {(() => {
-              const todayStr = new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-");
-              const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"); })();
+              const todayStr = normDate(new Date());
+              const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return normDate(d); })();
               // Get last 14 days sorted newest first
               const days = Array.from({ length: 14 }, (_, i) => {
                 const d = new Date();
@@ -3762,7 +3786,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
         {(() => {
           const wKey = getWeekKey(week.start);
           const wData = checkIns[wKey] ?? {};
-          const activeClients = clients.filter(cl => cl.status === "active");
+          const activeClients = myClients.filter(cl => cl.status === "active");
           const allCount = activeClients.length;
           const remainingCount = activeClients.filter(cl => !wData[cl.id] && cl.status !== "paused").length;
           const submittedCount = activeClients.filter(cl => wData[cl.id] === "submitted").length;
@@ -3830,7 +3854,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
       {(() => {
         const wKey = getWeekKey(week.start);
         const wData = checkIns[wKey] ?? {};
-        const activeClients = clients.filter(cl => cl.status === "active");
+        const activeClients = myClients.filter(cl => cl.status === "active");
         const remaining = activeClients.filter(cl => !wData[cl.id]).length;
         return (
           <div style={{
@@ -4124,8 +4148,8 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
           const isPastWeek = weekEnd <= now;
           const isCurrentWeek = weekStart <= now && weekEnd > now;
 
-          // Always filter by checkInDay first
-          let dayClients = clients.filter(c => {
+          // Always filter by checkInDay first (Milzzy only)
+          let dayClients = myClients.filter(c => {
             if (c.checkInDay !== day) return false;
             // Always exclude cancelled clients by default
             if (c.status === "cancelled") return false;
@@ -4134,7 +4158,7 @@ function CheckInsTab({ clients, onClientClick }: { clients: Client[]; onClientCl
 
           if (isCurrentWeek && !isPastWeek) {
             // For current week: also include clients cancelled this week (with matching checkInDay)
-            const cancelledThisWeek = clients.filter(c =>
+            const cancelledThisWeek = myClients.filter(c =>
               c.checkInDay === day &&
               c.status === "cancelled" &&
               c.lastUpdated &&
@@ -6353,6 +6377,15 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [pomCheckIn, setPomCheckIn] = useState(0);
+
+  // Global Pomodoro check-in listener
+  useEffect(() => {
+    const handler = () => setPomCheckIn(n => n + 1);
+    window.addEventListener("pomodoro:checkin", handler);
+    return () => window.removeEventListener("pomodoro:checkin", handler);
+  }, []);
+
   const windowWidth = useWindowSize();
   const isDesktop = windowWidth >= 768;
 
@@ -6379,7 +6412,13 @@ export default function Home() {
   }, [pendingClients]);
 
   const totalRevenuePerWeek = clients
-    .filter(c => c.status === "active")
+    .filter(c => c.status !== "cancelled")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const milzzyRevenuePerWeek = clients
+    .filter(c => c.status !== "cancelled" && c.coach === "Milzzy")
+    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
+  const miggyRevenuePerWeek = clients
+    .filter(c => c.status !== "cancelled" && c.coach === "Miggy")
     .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
 
   useEffect(() => {
@@ -6418,7 +6457,6 @@ export default function Home() {
         { id: "checkins", label: "Check-Ins" },
         { id: "tasks", label: "Tasks" },
         { id: "leads", label: "Leads" },
-        { id: "finance", label: "Finance" },
         { id: "retention", label: "Retention" },
         { id: "referrals", label: "Referrals" },
         { id: "content", label: "Content" },
@@ -6439,6 +6477,7 @@ export default function Home() {
         { id: "agents", label: "Agents" },
         { id: "memory", label: "Memory" },
         { id: "team", label: "Team" },
+        { id: "gym", label: "Gym" },
       ],
     },
   ];
@@ -6454,7 +6493,7 @@ export default function Home() {
       name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
       paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
       weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
-      pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
+      pausedUntil: "", startDate: normDate(new Date()),
       notes: "", checkInDay: "" as "" | Client["checkInDay"],
     });
     const [searchQuery, setSearchQuery] = useState("");
@@ -6499,7 +6538,7 @@ export default function Home() {
         const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
         if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
       }
-      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), notes: "", checkInDay: "" });
+      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" });
       setShowForm(false);
     };
 
@@ -6607,11 +6646,11 @@ export default function Home() {
             {(["Milzzy","Miggy"] as const).map(c => (
               <button key={c} onClick={() => setSelectedCoach(c)}
                 style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
-                {c} {c === "Milzzy" ? `(${milzzyClients.length})` : `(${miggyClients.length})`}
+                {c} {c === "Milzzy" ? `(${milzzyClients.filter(cl=>cl.status!=="cancelled").length})` : `(${miggyClients.filter(cl=>cl.status!=="cancelled").length})`}
               </button>
             ))}
           </div>
-          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), notes: "", checkInDay: "" }); }}
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" }); }}
             style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Client"}
           </button>
@@ -6622,18 +6661,22 @@ export default function Home() {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "12px", marginBottom: "20px" }}>
           {[
-            { label: "Total Active", value: activeClients.length, color: "#34d399" },
-            { label: "Milzzy", value: milzzyClients.filter(c=>c.status==="active").length, color: Tiffany },
-            { label: "Miggy", value: miggyClients.filter(c=>c.status==="active").length, color: "#a855f7" },
-            { label: "Paused", value: pausedClients.length, color: "#fbbf24" },
-            { label: "Rev / Wk", value: `$${clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.weeklyCharge||0),0).toLocaleString()}`, color: "#0abab5" },
-            { label: "Rev / Annual", value: `$${(clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.weeklyCharge||0),0) * 52).toLocaleString()}`, color: Tiffany },
+            { label: "Total Clients", value: clients.filter(c => c.status !== "cancelled").length, color: "#34d399" },
+            { label: "Milzzy", value: milzzyClients.filter(c => c.status !== "cancelled").length, sub: `${milzzyClients.filter(c => c.status === "paused").length} paused`, color: Tiffany },
+            { label: "Miggy", value: miggyClients.filter(c => c.status !== "cancelled").length, sub: `${miggyClients.filter(c => c.status === "paused").length} paused`, color: "#a855f7" },
+            { label: "Mz Rev / Wk", value: `$${milzzyRevenuePerWeek.toLocaleString()}`, color: Tiffany },
+            { label: "Mz Rev / Annual", value: `$${(milzzyRevenuePerWeek * 52).toLocaleString()}`, color: Tiffany },
+            { label: "Mg Rev / Wk", value: `$${miggyRevenuePerWeek.toLocaleString()}`, color: "#a855f7" },
+            { label: "Mg Rev / Annual", value: `$${(miggyRevenuePerWeek * 52).toLocaleString()}`, color: "#a855f7" },
+            { label: "Total Rev / Wk", value: `$${(milzzyRevenuePerWeek + miggyRevenuePerWeek).toLocaleString()}`, color: "#34d399" },
+            { label: "Total Rev / Annual", value: `$${((milzzyRevenuePerWeek + miggyRevenuePerWeek) * 52).toLocaleString()}`, color: "#34d399" },
           ].map(s => (
             <div key={s.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
               <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
               <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
+              {s.sub && <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: "2px 0 0" }}>{s.sub}</p>}
             </div>
           ))}
         </div>
@@ -6942,7 +6985,7 @@ export default function Home() {
                       status: "active",
                       pauseStartDate: undefined,
                       pausedUntil: undefined,
-                      pauseHistory: [...history, { started: start, ended: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"), weeks: weeksPaused }],
+                      pauseHistory: [...history, { started: start, ended: normDate(new Date()), weeks: weeksPaused }],
                     });
                     setSelectedClient(null);
                   }}
@@ -7010,7 +7053,7 @@ export default function Home() {
                 <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
                   style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-") }); setSelectedClient(null); }}
+                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: normDate(new Date()) }); setSelectedClient(null); }}
                     style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
                   <button onClick={() => setActionPanel("menu")}
                     style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
@@ -7042,7 +7085,7 @@ export default function Home() {
                     const notes = (document.getElementById("cancel-notes") as HTMLTextAreaElement)?.value;
                     await updateClient(selectedClient.id, {
                       status: "cancelled",
-                      cancelDate: new Date().toLocaleDateString("en-AU", {timeZone: "Australia/Melbourne"}).split("/").reverse().join("-"),
+                      cancelDate: normDate(new Date()),
                       cancelReason: reason || undefined,
                       cancelNotes: notes || undefined,
                       lastUpdated: new Date().toISOString(),
@@ -7210,7 +7253,7 @@ export default function Home() {
         </div>
 
         {/* Kanban Board */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "12px" }}>
 
           {COLUMNS.map(col => {
             const colLeads = coachingLeads.filter(l => col.stageKeys.includes(l.stage));
@@ -7521,7 +7564,7 @@ return (
                 }}
                 onRemovePending={(id) => setPendingClients(prev => prev.filter(p => p.id !== id))}
               /> :
-             activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} /> :
+             activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} pomCheckIn={pomCheckIn} /> :
              activeTab === "referrals" ? <ReferralsTab /> :
              activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
              activeTab === "retention" ? <RetentionTab clients={clients} /> :
@@ -7530,6 +7573,7 @@ return (
              activeTab === "projects" ? <ProjectsTab /> :
              activeTab === "pages" ? <PagesTab /> :
              activeTab === "Funnel" ? <FunnelTab /> :
+             activeTab === "gym" ? <GymTab /> :
 <LeadsTab onConvertLead={(lead) => {
              const newPending: PendingClient = {
                id: `pending-${lead.id}`,
@@ -7557,6 +7601,9 @@ return (
 
         {/* Toast notifications */}
         <Toast toasts={toasts} onDismiss={dismissToast} />
+
+        {/* Floating Pomodoro Timer */}
+        <FloatingPomodoro onCheckIn={pomCheckIn} />
       </div>
     </div>
   );
