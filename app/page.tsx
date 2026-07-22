@@ -6660,26 +6660,67 @@ export default function Home() {
           </a>
         </div>
 
-        {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-          {[
-            { label: "Total Clients", value: clients.filter(c => c.status !== "cancelled").length, color: "#34d399" },
-            { label: "Milzzy", value: milzzyClients.filter(c => c.status !== "cancelled").length, sub: `${milzzyClients.filter(c => c.status === "paused").length} paused`, color: Tiffany },
-            { label: "Miggy", value: miggyClients.filter(c => c.status !== "cancelled").length, sub: `${miggyClients.filter(c => c.status === "paused").length} paused`, color: "#a855f7" },
-            { label: "Mz Rev / Wk", value: `$${milzzyRevenuePerWeek.toLocaleString()}`, color: Tiffany },
-            { label: "Mz Rev / Annual", value: `$${(milzzyRevenuePerWeek * 52).toLocaleString()}`, color: Tiffany },
-            { label: "Mg Rev / Wk", value: `$${miggyRevenuePerWeek.toLocaleString()}`, color: "#a855f7" },
-            { label: "Mg Rev / Annual", value: `$${(miggyRevenuePerWeek * 52).toLocaleString()}`, color: "#a855f7" },
-            { label: "Total Rev / Wk", value: `$${(milzzyRevenuePerWeek + miggyRevenuePerWeek).toLocaleString()}`, color: "#34d399" },
-            { label: "Total Rev / Annual", value: `$${((milzzyRevenuePerWeek + miggyRevenuePerWeek) * 52).toLocaleString()}`, color: "#34d399" },
-          ].map(s => (
-            <div key={s.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "16px", textAlign: "center" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "24px", fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
-              {s.sub && <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: "2px 0 0" }}>{s.sub}</p>}
+        {/* Stats row — 3 coach cards */}
+        {(() => {
+          const totalClients = clients.filter(c => c.status !== "cancelled").length;
+          const totalRevWk = milzzyRevenuePerWeek + miggyRevenuePerWeek;
+          const cards = [
+            {
+              label: "Milzzy",
+              color: Tiffany,
+              border: TiffanyBorder,
+              clients: milzzyClients.filter(c => c.status !== "cancelled").length,
+              paused: milzzyClients.filter(c => c.status === "paused").length,
+              revWk: milzzyRevenuePerWeek,
+              revAnnual: milzzyRevenuePerWeek * 52,
+            },
+            {
+              label: "Miggy",
+              color: "#a855f7",
+              border: "rgba(168,85,247,0.35)",
+              clients: miggyClients.filter(c => c.status !== "cancelled").length,
+              paused: miggyClients.filter(c => c.status === "paused").length,
+              revWk: miggyRevenuePerWeek,
+              revAnnual: miggyRevenuePerWeek * 52,
+            },
+            {
+              label: "Total",
+              color: "#34d399",
+              border: "rgba(52,211,153,0.35)",
+              clients: totalClients,
+              paused: clients.filter(c => c.status === "paused").length,
+              revWk: totalRevWk,
+              revAnnual: totalRevWk * 52,
+            },
+          ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
+              {cards.map(card => (
+                <div key={card.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${card.border}`, borderRadius: "16px", padding: "20px 16px" }}>
+                  {/* Coach name */}
+                  <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: card.color, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</p>
+                  {/* Clients */}
+                  <div style={{ marginBottom: "10px" }}>
+                    <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1 }}>{card.clients}</p>
+                    <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>clients{card.paused > 0 ? ` · ${card.paused} paused` : ""}</p>
+                  </div>
+                  {/* Divider */}
+                  <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "10px 0" }} />
+                  {/* Rev/Wk */}
+                  <div style={{ marginBottom: "6px" }}>
+                    <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: card.color, margin: 0, lineHeight: 1 }}>${card.revWk.toLocaleString()}</p>
+                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
+                  </div>
+                  {/* Rev/Annual */}
+                  <div>
+                    <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.50)", margin: 0 }}>${card.revAnnual.toLocaleString()}</p>
+                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ year</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* Search Results */}
         {searchQuery && (
