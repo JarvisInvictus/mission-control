@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "weekKey and status required" }, { status: 400 });
   }
 
-  const valid = ["ontime", "submitted", "late", "unset", "skip-l", "sick", "paused"];
+  const valid = ["ontime", "submitted", "late", "not-submitted", "unset", "skip", "skip-l", "sick", "paused"];
   if (!valid.includes(status)) {
     return NextResponse.json({ error: "invalid status" }, { status: 400 });
   }
