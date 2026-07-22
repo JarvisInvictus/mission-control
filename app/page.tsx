@@ -3480,6 +3480,28 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
     return () => clearInterval(interval);
   }, [weekOffset]);
 
+  // Auto-fill "not-submitted" when a client's check-in day has passed with no status
+  useEffect(() => {
+    if (weekOffset !== 0) return; // only touch current week
+    const now = new Date();
+    const updates: Record<string, CheckInStatus> = {};
+    myClients.filter(c => c.status === "active").forEach(c => {
+      const day = c.checkInDay;
+      if (!day || !(WEEK_DAYS as readonly string[]).includes(day)) return;
+      if (checkIns[weekKey]?.[c.id]) return; // already has a status
+      const dayEnd = new Date(week.start);
+      dayEnd.setDate(week.start.getDate() + (WEEK_DAYS as readonly string[]).indexOf(day));
+      dayEnd.setHours(23, 59, 59, 999); // wait until end of the day
+      if (dayEnd < now) updates[c.id] = "not-submitted";
+    });
+    if (Object.keys(updates).length === 0) return;
+    setCheckIns(prev => ({
+      ...prev,
+      [weekKey]: { ...updates, ...(prev[weekKey] ?? {}) }, // existing statuses always win
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekKey, weekOffset, clients.length, checkIns]);
+
   // Keyboard shortcuts for check-in status
   // 1=On Time, 2=Late, 3=Never, 4=Skip-L, 5=Sick, 6=Submitted, 7=Skip-L, 0=Cancelled
   // Priority: selectedClients (multi-select) > hoveredClientId
