@@ -3609,6 +3609,44 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
         return dayDate < new Date() && c.status === "active";
       }).length;
 
+  // ── Compliance rate (features 1 & 2) ──────────────────────────────────────
+  const eligibleClients = myClients.filter(c =>
+    c.status === "active" && c.checkInDay && (WEEK_DAYS as readonly string[]).includes(c.checkInDay)
+  );
+  const compliantCount = eligibleClients.filter(c => {
+    const s = checkIns[weekKey]?.[c.id];
+    return s === "ontime" || s === "submitted";
+  }).length;
+  const complianceRate = eligibleClients.length > 0
+    ? Math.round((compliantCount / eligibleClients.length) * 100)
+    : null;
+
+  // Previous week compliance (for WoW trend)
+  const prevWeek = getWeekDates(weekOffset - 1);
+  const prevWeekKey = getWeekKey(prevWeek.start);
+  const prevCompliantCount = eligibleClients.filter(c => {
+    const s = checkIns[prevWeekKey]?.[c.id];
+    return s === "ontime" || s === "submitted";
+  }).length;
+  const prevComplianceRate = eligibleClients.length > 0
+    ? Math.round((prevCompliantCount / eligibleClients.length) * 100)
+    : null;
+  const complianceDiff = complianceRate !== null && prevComplianceRate !== null
+    ? complianceRate - prevComplianceRate
+    : null;
+
+  // ── Repeat offender detection (feature 4) ────────────────────────────────
+  // Flag client if they were late/not-submitted in BOTH of the previous 2 weeks
+  function isRepeatOffender(clientId: string): boolean {
+    const badStatuses: CheckInStatus[] = ["late", "not-submitted"];
+    for (let i = 1; i <= 2; i++) {
+      const pastKey = getWeekKey(getWeekDates(weekOffset - i).start);
+      const s = checkIns[pastKey]?.[clientId] as CheckInStatus | undefined;
+      if (!s || !badStatuses.includes(s)) return false;
+    }
+    return true;
+  }
+
   function StatusBadge({ clientId, status }: { clientId: string; status: CheckInStatus | null }) {
     const isPausedClient = clients.find(c => c.id === clientId)?.status === "paused";
     if (isPausedClient) {
@@ -3850,6 +3888,54 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
           });
         })()}
       </div>
+      {/* ── Compliance Rate Card ── */}
+      {complianceRate !== null && (
+        <div style={{
+          background: GlassBg,
+          backdropFilter: GlassBlur,
+          border: `1px solid ${
+            complianceRate >= 80 ? "rgba(52,211,153,0.35)"
+            : complianceRate >= 60 ? "rgba(251,191,36,0.35)"
+            : "rgba(248,113,113,0.35)"
+          }`,
+          borderRadius: "16px",
+          padding: "16px 20px",
+          marginBottom: "16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+        }}>
+          <div>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Compliance</p>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+              <p style={{
+                fontFamily: "system-ui",
+                fontSize: "36px",
+                fontWeight: 700,
+                color: complianceRate >= 80 ? "#34d399" : complianceRate >= 60 ? "#fbbf24" : "#f87171",
+                margin: 0,
+                lineHeight: 1,
+              }}>{complianceRate}%</p>
+              {complianceDiff !== null && (
+                <span style={{
+                  fontFamily: "system-ui",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: complianceDiff > 0 ? "#34d399" : complianceDiff < 0 ? "#f87171" : "rgba(255,255,255,0.35)",
+                }}>
+                  {complianceDiff > 0 ? "↑" : complianceDiff < 0 ? "↓" : "→"}{Math.abs(complianceDiff)}% vs last week
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "white", margin: 0 }}>{compliantCount}/{eligibleClients.length}</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>on time or submitted</p>
+          </div>
+        </div>
+      )}
+
       {/* Remaining this week banner */}
       {(() => {
         const wKey = getWeekKey(week.start);
@@ -4343,6 +4429,23 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
                             >
                               {client.name}
                             </span>
+                            {isRepeatOffender(client.id) && (
+                              <span
+                                title="Repeat offender: late or missing 2+ weeks in a row"
+                                style={{
+                                  flexShrink: 0,
+                                  fontSize: "11px",
+                                  background: "rgba(251,191,36,0.15)",
+                                  color: "#fbbf24",
+                                  border: "1px solid rgba(251,191,36,0.35)",
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                  fontFamily: "system-ui",
+                                  fontWeight: 600,
+                                  cursor: "default",
+                                }}
+                              >⚠ 2wk</span>
+                            )}
                           </div>
                           {client._forceCancelled
                             ? <CancelledBadge clientId={client.id} />
