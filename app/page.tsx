@@ -3797,8 +3797,8 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
         {[
           { icon: "✅", label: "Submitted", value: submittedCount, subcolor: "#34d399" },
           { icon: "⚡", label: "On Time", value: (Object.values(weekData).filter(s => s === "ontime").length), subcolor: "#0abab5" },
-          { icon: "❌", label: "Unset", value: neverOrMissingCount, subcolor: "#f87171" },
-          { icon: "⏸", label: "Paused", value: pausedClients.length, subcolor: "#9ca3af" },
+          { icon: "◻️", label: "Unset", value: activeClients.filter(c => !checkIns[weekKey]?.[c.id]).length, subcolor: "rgba(255,255,255,0.45)" },
+          { icon: "❌", label: "Not Submitted", value: (Object.values(weekData).filter(s => s === "not-submitted").length), subcolor: "#f87171" },
         ].map(b => (
           <div key={b.label} style={{
             background: "rgba(255,255,255,0.06)",
