@@ -330,7 +330,7 @@ export default function FloatingPomodoro({ onCheckIn }: { onCheckIn: number }) {
           style={{
             position: 'fixed',
             bottom: '24px',
-            right: '24px',
+            left: '24px',
             zIndex: 9000,
             background: isActive ? 'rgba(15,15,18,0.95)' : 'rgba(15,15,18,0.75)',
             border: `1px solid ${isActive ? ringColor + '55' : 'rgba(255,255,255,0.12)'}`,
@@ -418,7 +418,7 @@ export default function FloatingPomodoro({ onCheckIn }: { onCheckIn: number }) {
       <div style={{
         position: 'fixed',
         bottom: '24px',
-        right: '24px',
+        left: '24px',
         zIndex: 9001,
         width: '280px',
         background: 'rgba(15,15,18,0.96)',
