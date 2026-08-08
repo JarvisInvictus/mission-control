@@ -4425,6 +4425,9 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
         gridTemplateColumns: isMobile ? "1fr" : `repeat(${activeDayCount}, 1fr)`,
         gap: "10px",
         overflowX: isMobile ? "visible" : "auto",
+        maxWidth: isMobile ? undefined : `${Math.min(activeDayCount * 320, 1600)}px`,
+        margin: "0 auto",
+        width: "100%",
       }}>
         {WEEK_DAYS.map((day) => {
           // Week-aware cancelled client logic
