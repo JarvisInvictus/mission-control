@@ -6705,6 +6705,15 @@ export default function Home() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit" | null>("menu");
+  const [clientEditForm, setClientEditForm] = useState({
+    name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
+    paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
+    weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
+    pausedUntil: "", startDate: normDate(new Date()),
+    notes: "", checkInDay: "" as "" | Client["checkInDay"],
+  });
+  const [clientEditingId, setClientEditingId] = useState<string | null>(null);
+  const [clientFormError, setClientFormError] = useState<string | null>(null);
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [pendingClients, setPendingClients] = useState<PendingClient[]>(() => {
@@ -6795,17 +6804,14 @@ export default function Home() {
     onActivateClient: (pc: PendingClient) => void;
     onRemovePending: (id: string) => void;
   }) {
-    const [form, setForm] = useState({
-      name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
-      paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
-      weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
-      pausedUntil: "", startDate: normDate(new Date()),
-      notes: "", checkInDay: "" as "" | Client["checkInDay"],
-    });
+    const form = clientEditForm;
+    const setForm = setClientEditForm;
+    const editingId = clientEditingId;
+    const setEditingId = setClientEditingId;
+    const formError = clientFormError;
+    const setFormError = setClientFormError;
     const [searchQuery, setSearchQuery] = useState("");
     const [showForm, setShowForm] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [formError, setFormError] = useState<string | null>(null);
     const [showCancelled, setShowCancelled] = useState(false);
     const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
 
