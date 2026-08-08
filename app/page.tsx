@@ -7072,7 +7072,7 @@ export default function Home() {
         )}
 
         {/* Day Groups Grid */}
-        {!searchQuery && <div className={gridClass}>
+        {!searchQuery && <div style={{ display: "grid", gridTemplateColumns: `repeat(${dayGroups.length}, 1fr)`, gap: "12px" }}>
           {dayGroups.map(({ day, clients: dayClients }) => (
             <div key={day} style={{
               background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
