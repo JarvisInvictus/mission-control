@@ -3614,7 +3614,7 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
 
   const activeClients = myClients.filter(c => c.status === "active");
   const pausedClients = myClients.filter(c => c.status === "paused");
-  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday"] as const;
+  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"] as const;
 
   // Stats
   const weekData = checkIns[weekKey] ?? {};
@@ -4415,11 +4415,14 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
       </div>
 
       {/* ── Day Columns ── */}
+      {(() => {
+        const activeDayCount = Math.max(1, WEEK_DAYS.filter(day =>
+          myClients.some(c => c.checkInDay === day && c.status !== "cancelled")
+        ).length);
+        return (
       <div style={{
         display: "grid",
-        gridTemplateColumns: isMobile
-          ? "1fr"
-          : "repeat(5, minmax(160px, 1fr))",
+        gridTemplateColumns: isMobile ? "1fr" : `repeat(${activeDayCount}, 1fr)`,
         gap: "10px",
         overflowX: isMobile ? "visible" : "auto",
       }}>
@@ -4667,6 +4670,8 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
           );
         })}
       </div>
+        );
+      })()}
 
       {/* ── Status Legend ── */}
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", marginTop: "24px" }}>
