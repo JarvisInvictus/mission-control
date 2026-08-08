@@ -4441,7 +4441,7 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
             // Always exclude cancelled clients by default
             if (c.status === "cancelled") return false;
             return true;
-          });
+          }).sort((a, b) => a.name.localeCompare(b.name));
 
           if (isCurrentWeek && !isPastWeek) {
             // For current week: also include clients cancelled this week (with matching checkInDay)
