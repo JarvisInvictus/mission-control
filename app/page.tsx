@@ -7943,6 +7943,10 @@ return (
           <ClientProfilePanel
             client={selectedClient}
             onClose={() => setSelectedClient(null)}
+            onUpdate={(updated) => {
+              setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+              setSelectedClient(updated);
+            }}
           />
         )}
 
