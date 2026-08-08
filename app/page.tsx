@@ -3735,6 +3735,8 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
   }
 
   const [checkInLogOpen, setCheckInLogOpen] = useState(false);
+  const [needAttentionOpen, setNeedAttentionOpen] = useState(false);
+  const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
 
   return (
     <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
@@ -3814,41 +3816,289 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
         )}
       </div>
 
-      {/* ── Stats Bar ── */}
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
-        {[
-          { icon: "✅", label: "Submitted", value: submittedCount, subcolor: "#34d399" },
-          { icon: "⚡", label: "On Time", value: (Object.values(weekData).filter(s => s === "ontime").length), subcolor: "#0abab5" },
-          { icon: "◻️", label: "Unset", value: activeClients.filter(c => !checkIns[weekKey]?.[c.id]).length, subcolor: "rgba(255,255,255,0.45)" },
-          { icon: "❌", label: "Not Submitted", value: (Object.values(weekData).filter(s => s === "not-submitted").length), subcolor: "#f87171" },
-        ].map(b => (
-          <div key={b.label} style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: "999px",
-            padding: "4px 14px",
-            fontSize: "12px",
-            fontFamily: "system-ui",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            color: "rgba(255,255,255,0.80)",
+      {/* ── Enhanced Compliance Card ── */}
+      {(() => {
+        const ontimeCount = Object.values(weekData).filter(s => s === "ontime").length;
+        const notSubmittedCount = Object.values(weekData).filter(s => s === "not-submitted").length;
+        const remainingCount = activeClients.filter(c => !weekData[c.id]).length;
+        const total = activeClients.length;
+        const progressPct = total > 0 ? Math.round(((ontimeCount + submittedCount + lateCount + notSubmittedCount) / total) * 100) : 0;
+        return (
+          <div style={{
+            background: GlassBg,
+            backdropFilter: GlassBlur,
+            border: `1px solid ${
+              complianceRate !== null && complianceRate >= 80 ? "rgba(52,211,153,0.30)"
+              : complianceRate !== null && complianceRate >= 60 ? "rgba(251,191,36,0.30)"
+              : "rgba(248,113,113,0.30)"
+            }`,
+            borderRadius: "16px",
+            padding: "16px 20px",
+            marginBottom: "12px",
           }}>
-            <span>{b.icon}</span>
-            <span style={{ color: b.subcolor, fontWeight: 600 }}>{b.value}</span>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>{b.label}</span>
+            {/* Top row: % + vs last week + count */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div>
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Compliance</p>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+                  {complianceRate !== null ? (
+                    <p style={{
+                      fontFamily: "system-ui",
+                      fontSize: "36px",
+                      fontWeight: 700,
+                      color: complianceRate >= 80 ? "#34d399" : complianceRate >= 60 ? "#fbbf24" : "#f87171",
+                      margin: 0,
+                      lineHeight: 1,
+                    }}>{complianceRate}%</p>
+                  ) : <p style={{ fontFamily: "system-ui", fontSize: "36px", fontWeight: 700, color: "rgba(255,255,255,0.20)", margin: 0, lineHeight: 1 }}>—</p>}
+                  {complianceDiff !== null && (
+                    <span style={{
+                      fontFamily: "system-ui",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: complianceDiff > 0 ? "#34d399" : complianceDiff < 0 ? "#f87171" : "rgba(255,255,255,0.35)",
+                    }}>
+                      {complianceDiff > 0 ? "↑" : complianceDiff < 0 ? "↓" : "→"}{Math.abs(complianceDiff)}% vs last week
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "white", margin: 0 }}>{compliantCount}/{eligibleClients.length}</p>
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>on time or submitted</p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "6px", marginBottom: "14px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${progressPct}%`,
+                borderRadius: "999px",
+                background: complianceRate !== null && complianceRate >= 80 ? "#34d399" : complianceRate !== null && complianceRate >= 60 ? "#fbbf24" : "#f87171",
+                transition: "width 0.4s ease",
+              }} />
+            </div>
+            {/* Stats row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px" }}>
+              {[
+                { label: "Submitted", value: submittedCount, color: "#34d399" },
+                { label: "On Time", value: ontimeCount, color: "#0abab5" },
+                { label: "Late", value: lateCount, color: "#fbbf24" },
+                { label: "Missing", value: notSubmittedCount, color: "#f87171" },
+                { label: "Remaining", value: remainingCount, color: "rgba(255,255,255,0.45)" },
+              ].map(s => (
+                <div key={s.label} style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                  padding: "8px 10px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 700, color: s.color }}>{s.value}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", marginTop: "2px" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
-      {/* ── Status counts for this week ── */}
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
+      {/* ── Need Attention ── */}
+      {(() => {
+        const needAttentionClients = activeClients.filter(c => {
+          const s = weekData[c.id];
+          return s === "late" || s === "not-submitted";
+        });
+        if (needAttentionClients.length === 0) return null;
+        return (
+          <div style={{ marginBottom: "10px" }}>
+            <button
+              onClick={() => setNeedAttentionOpen(o => !o)}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                background: needAttentionOpen ? "rgba(248,113,113,0.10)" : "rgba(255,255,255,0.05)",
+                border: `1px solid ${needAttentionOpen ? "rgba(248,113,113,0.30)" : "rgba(255,255,255,0.10)"}`,
+                borderRadius: needAttentionOpen ? "12px 12px 0 0" : "12px",
+                padding: "10px 16px",
+                color: "rgba(255,255,255,0.80)",
+                fontSize: "13px", fontFamily: "system-ui", cursor: "pointer",
+                fontWeight: 500, width: "100%", textAlign: "left",
+                transition: "all 0.15s",
+              }}
+            >
+              <span>⚠️</span>
+              <span style={{ flex: 1 }}>Need Attention</span>
+              <span style={{
+                background: "rgba(248,113,113,0.15)",
+                color: "#f87171",
+                border: "1px solid rgba(248,113,113,0.30)",
+                borderRadius: "999px",
+                padding: "1px 10px",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}>
+                {needAttentionClients.length} require follow up
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", marginLeft: "4px" }}>{needAttentionOpen ? "▲" : "▼"}</span>
+            </button>
+            {needAttentionOpen && (
+              <div style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(248,113,113,0.20)",
+                borderTop: "none",
+                borderRadius: "0 0 12px 12px",
+                padding: "8px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}>
+                {needAttentionClients.map(c => {
+                  const s = weekData[c.id] as CheckInStatus;
+                  const meta = CI_STATUS_META[s];
+                  return (
+                    <div key={c.id} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "6px 10px",
+                      background: "rgba(255,255,255,0.03)",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => { setSelectedClientId(c.id); onClientClick(c); }}
+                    >
+                      <div>
+                        <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "white", fontWeight: 500 }}>{c.name}</div>
+                        <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginTop: "1px" }}>{c.checkInDay}</div>
+                      </div>
+                      {meta && (
+                        <span style={{
+                          background: meta.bg, color: meta.color,
+                          border: `1px solid ${meta.color}50`,
+                          borderRadius: "999px", padding: "2px 10px",
+                          fontSize: "11px", fontFamily: "system-ui", fontWeight: 500,
+                        }}>{meta.label}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Review Queue ── */}
+      {(() => {
+        const reviewClients = activeClients.filter(c => weekData[c.id] === "submitted");
+        if (reviewClients.length === 0) return null;
+        return (
+          <div style={{ marginBottom: "10px" }}>
+            <button
+              onClick={() => setReviewQueueOpen(o => !o)}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                background: reviewQueueOpen ? "rgba(52,211,153,0.10)" : "rgba(255,255,255,0.05)",
+                border: `1px solid ${reviewQueueOpen ? "rgba(52,211,153,0.30)" : "rgba(255,255,255,0.10)"}`,
+                borderRadius: reviewQueueOpen ? "12px 12px 0 0" : "12px",
+                padding: "10px 16px",
+                color: "rgba(255,255,255,0.80)",
+                fontSize: "13px", fontFamily: "system-ui", cursor: "pointer",
+                fontWeight: 500, width: "100%", textAlign: "left",
+                transition: "all 0.15s",
+              }}
+            >
+              <span>📥</span>
+              <span style={{ flex: 1 }}>Review Queue</span>
+              <span style={{
+                background: "rgba(52,211,153,0.12)",
+                color: "#34d399",
+                border: "1px solid rgba(52,211,153,0.30)",
+                borderRadius: "999px",
+                padding: "1px 10px",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}>
+                {reviewClients.length} submitted check-in{reviewClients.length !== 1 ? "s" : ""}
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", marginLeft: "4px" }}>{reviewQueueOpen ? "▲" : "▼"}</span>
+            </button>
+            {reviewQueueOpen && (
+              <div style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(52,211,153,0.20)",
+                borderTop: "none",
+                borderRadius: "0 0 12px 12px",
+                padding: "8px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}>
+                {reviewClients.map(c => (
+                  <div key={c.id} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "6px 10px",
+                    background: "rgba(255,255,255,0.03)",
+                    borderRadius: "8px",
+                  }}>
+                    <div
+                      style={{ cursor: "pointer", flex: 1 }}
+                      onClick={() => { setSelectedClientId(c.id); onClientClick(c); }}
+                    >
+                      <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "white", fontWeight: 500 }}>{c.name}</div>
+                      <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", marginTop: "1px" }}>{c.checkInDay}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={() => setStatus(c.id, "ontime")}
+                        style={{
+                          background: "rgba(10,186,181,0.12)",
+                          border: "1px solid rgba(10,186,181,0.30)",
+                          borderRadius: "8px",
+                          color: "#0abab5",
+                          cursor: "pointer",
+                          padding: "4px 12px",
+                          fontSize: "12px",
+                          fontFamily: "system-ui",
+                          fontWeight: 600,
+                        }}
+                      >✓ On Time</button>
+                      <button
+                        onClick={() => setStatus(c.id, "late")}
+                        style={{
+                          background: "rgba(251,191,36,0.10)",
+                          border: "1px solid rgba(251,191,36,0.30)",
+                          borderRadius: "8px",
+                          color: "#fbbf24",
+                          cursor: "pointer",
+                          padding: "4px 12px",
+                          fontSize: "12px",
+                          fontFamily: "system-ui",
+                          fontWeight: 600,
+                        }}
+                      >Late</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Filter Tabs ── */}
+      <div style={{
+        display: "flex",
+        gap: "2px",
+        marginBottom: "20px",
+        overflowX: "auto",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        scrollbarWidth: "none",
+      } as React.CSSProperties}>
         {(() => {
           const wKey = getWeekKey(week.start);
           const wData = checkIns[wKey] ?? {};
           const activeClients = myClients.filter(cl => cl.status === "active");
           const allCount = activeClients.length;
-          const remainingCount = activeClients.filter(cl => !wData[cl.id] && cl.status !== "paused").length;
+          const remainingCount = activeClients.filter(cl => !wData[cl.id]).length;
           const submittedCount = activeClients.filter(cl => wData[cl.id] === "submitted").length;
           const ontimeCount = activeClients.filter(cl => wData[cl.id] === "ontime").length;
           const lateCount = activeClients.filter(cl => wData[cl.id] === "late").length;
@@ -3857,25 +4107,15 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
           const sickCount = activeClients.filter(cl => wData[cl.id] === "sick").length;
           const pausedCount = activeClients.filter(cl => cl.status === "paused").length;
           const cancelledCount = clients.filter(cl => cl.status === "cancelled").length;
-
           const STATUS_COUNTS: Record<string, number> = {
-            all: allCount,
-            remaining: remainingCount,
-            submitted: submittedCount,
-            ontime: ontimeCount,
-            late: lateCount,
-            unset: unsetCount,
-            "skip": skipLCount,
-            sick: sickCount,
-            paused: pausedCount,
-            cancelled: cancelledCount,
+            all: allCount, remaining: remainingCount, submitted: submittedCount,
+            ontime: ontimeCount, late: lateCount, unset: unsetCount,
+            "skip": skipLCount, sick: sickCount, paused: pausedCount, cancelled: cancelledCount,
           };
-
           return FILTER_OPTIONS.map(opt => {
             const isAll = opt.key === "all";
             const isActive = isAll ? activeFilters.size === 0 : activeFilters.has(opt.key);
             const count = STATUS_COUNTS[opt.key] ?? 0;
-            const label = isAll ? `All (${count})` : `${opt.label} (${count})`;
             return (
               <button
                 key={opt.key}
@@ -3892,104 +4132,40 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
                   }
                 }}
                 style={{
-                  background: isActive ? TiffanySoft : "rgba(255,255,255,0.06)",
-                  border: `1px solid ${isActive ? TiffanyBorder : "rgba(255,255,255,0.10)"}`,
-                  borderRadius: "999px",
-                  padding: "3px 12px",
-                  fontSize: "11px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `2px solid ${isActive ? Tiffany : "transparent"}`,
+                  borderRadius: 0,
+                  padding: "8px 14px",
+                  fontSize: "12px",
                   fontFamily: "system-ui",
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? Tiffany : "rgba(255,255,255,0.55)",
+                  color: isActive ? Tiffany : "rgba(255,255,255,0.45)",
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
                   transition: "all 0.15s",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
                 }}
               >
-                {label}
+                {opt.label}
+                <span style={{
+                  background: isActive ? TiffanySoft : "rgba(255,255,255,0.08)",
+                  color: isActive ? Tiffany : "rgba(255,255,255,0.35)",
+                  borderRadius: "999px",
+                  padding: "0px 6px",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                }}>{count}</span>
               </button>
             );
           });
         })()}
       </div>
-      {/* ── Compliance Rate Card ── */}
-      {complianceRate !== null && (
-        <div style={{
-          background: GlassBg,
-          backdropFilter: GlassBlur,
-          border: `1px solid ${
-            complianceRate >= 80 ? "rgba(52,211,153,0.35)"
-            : complianceRate >= 60 ? "rgba(251,191,36,0.35)"
-            : "rgba(248,113,113,0.35)"
-          }`,
-          borderRadius: "16px",
-          padding: "16px 20px",
-          marginBottom: "16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "16px",
-        }}>
-          <div>
-            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Compliance</p>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-              <p style={{
-                fontFamily: "system-ui",
-                fontSize: "36px",
-                fontWeight: 700,
-                color: complianceRate >= 80 ? "#34d399" : complianceRate >= 60 ? "#fbbf24" : "#f87171",
-                margin: 0,
-                lineHeight: 1,
-              }}>{complianceRate}%</p>
-              {complianceDiff !== null && (
-                <span style={{
-                  fontFamily: "system-ui",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: complianceDiff > 0 ? "#34d399" : complianceDiff < 0 ? "#f87171" : "rgba(255,255,255,0.35)",
-                }}>
-                  {complianceDiff > 0 ? "↑" : complianceDiff < 0 ? "↓" : "→"}{Math.abs(complianceDiff)}% vs last week
-                </span>
-              )}
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "white", margin: 0 }}>{compliantCount}/{eligibleClients.length}</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>on time or submitted</p>
-          </div>
-        </div>
-      )}
 
-      {/* Remaining this week banner */}
-      {(() => {
-        const wKey = getWeekKey(week.start);
-        const wData = checkIns[wKey] ?? {};
-        const activeClients = myClients.filter(cl => cl.status === "active");
-        const remaining = activeClients.filter(cl => !wData[cl.id]).length;
-        return (
-          <div style={{
-            background: remaining > 0 ? "rgba(251,191,36,0.08)" : "rgba(52,211,153,0.08)",
-            border: `1px solid ${remaining > 0 ? "rgba(251,191,36,0.25)" : "rgba(52,211,153,0.25)"}`,
-            borderRadius: "12px",
-            padding: "10px 16px",
-            marginBottom: "16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-          }}>
-            <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)", fontWeight: 500 }}>
-              Remaining this week
-            </span>
-            <span style={{
-              fontFamily: "system-ui",
-              fontSize: "18px",
-              fontWeight: 700,
-              color: remaining > 0 ? "#fbbf24" : "#34d399",
-            }}>
-              {remaining}
-            </span>
-          </div>
-        );
-      })()}
+
 
       {/* Selected client hint */}
       {selectedClientId && (() => {
