@@ -3739,7 +3739,7 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
 
   return (
-    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box" }}>
+    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box", maxWidth: "1280px", margin: "0 auto" }}>
 
       {/* ── Check-in Log Panel ── */}
       <div style={{ marginBottom: "16px" }}>
@@ -4425,9 +4425,6 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
         gridTemplateColumns: isMobile ? "1fr" : `repeat(${activeDayCount}, 1fr)`,
         gap: "10px",
         overflowX: isMobile ? "visible" : "auto",
-        maxWidth: isMobile ? undefined : `${Math.min(activeDayCount * 320, 1600)}px`,
-        margin: "0 auto",
-        width: "100%",
       }}>
         {WEEK_DAYS.map((day) => {
           // Week-aware cancelled client logic
