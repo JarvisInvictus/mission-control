@@ -3739,7 +3739,7 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
 
   return (
-    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box", maxWidth: "1280px", margin: "0 auto" }}>
+    <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box", maxWidth: "1536px", margin: "0 auto" }}>
 
       {/* ── Check-in Log Panel ── */}
       <div style={{ marginBottom: "16px" }}>
