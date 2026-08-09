@@ -6929,7 +6929,7 @@ export default function Home() {
     }
 
     return (
-      <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box", maxWidth: "1700px", margin: "0 auto" }}>
+      <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box", maxWidth: "2040px", margin: "0 auto" }}>
 
         {/* Search bar */}
         <div style={{ position: "relative", marginBottom: "14px" }}>
