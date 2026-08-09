@@ -17,13 +17,11 @@ async function redisCommand(cmd: string, ...args: string[]): Promise<unknown> {
 function parseTasks(raw: unknown): Record<string, unknown>[] {
   if (!raw) return [];
   if (Array.isArray(raw)) {
-    // Also check if items need parsing (double-encoded edge case)
     try { return JSON.parse(JSON.stringify(raw)); } catch { return raw as Record<string, unknown>[]; }
   }
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
-      // If still a string (double-encoded), parse again
       if (typeof parsed === "string") return JSON.parse(parsed);
       return parsed;
     } catch { return []; }
@@ -46,14 +44,34 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { text, day, author } = body;
-  if (!text || !day) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  // Support both legacy (text, day, author) and new (title, dueDate, owner, etc.)
+  const title = (body.title || body.text || "").trim();
+  if (!title) return NextResponse.json({ error: "Missing title" }, { status: 400 });
 
   try {
     const raw = await redisCommand("GET", "jarvis:tasks");
     let tasks = parseTasks(raw);
     if (!Array.isArray(tasks)) tasks = [];
-    const newTask = { id: Date.now().toString(), text, day, done: false, author: author || "Milzzy" };
+
+    const now = new Date().toISOString();
+    const newTask: Record<string, unknown> = {
+      id: Date.now().toString(),
+      title,
+      text: title,                            // legacy compat
+      done: false,
+      createdAt: now,
+      // Legacy fields
+      day: body.day || "",
+      author: body.owner || body.author || "Milzzy",
+      // New fields
+      owner: body.owner || body.author || "Milzzy",
+      clientId: body.clientId || null,
+      category: body.category || "",
+      priority: body.priority || "medium",
+      dueDate: body.dueDate || null,
+      sortOrder: body.sortOrder ?? tasks.length,
+      notes: body.notes || "",
+    };
     tasks.push(newTask);
     await redisCommand("SET", "jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(newTask);
@@ -65,8 +83,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json();
-  const { id, done } = body;
-  if (id === undefined) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  const { id } = body;
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   try {
     const raw = await redisCommand("GET", "jarvis:tasks");
@@ -74,12 +92,56 @@ export async function PATCH(req: NextRequest) {
     if (!Array.isArray(tasks)) tasks = [];
     const idx = tasks.findIndex((t: any) => t.id === id);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    (tasks[idx] as any).done = done;
+
+    const allowed = ["title", "text", "done", "clientId", "category", "priority",
+                     "owner", "author", "dueDate", "day", "sortOrder", "notes", "completedAt", "archived", "status"];
+    const updates: Record<string, unknown> = {};
+    for (const k of allowed) {
+      if (body[k] !== undefined) updates[k] = body[k];
+    }
+
+    // Sync legacy fields
+    if (updates.title) updates.text = updates.title;
+    if (updates.owner) updates.author = updates.owner;
+    if (updates.author && !updates.owner) updates.owner = updates.author;
+
+    // Auto-set completedAt
+    if (updates.done === true && !(tasks[idx] as any).completedAt && !updates.completedAt) {
+      updates.completedAt = new Date().toISOString();
+    }
+    if (updates.done === false) updates.completedAt = null;
+
+    tasks[idx] = { ...(tasks[idx] as object), ...updates };
     await redisCommand("SET", "jarvis:tasks", JSON.stringify(tasks));
     return NextResponse.json(tasks[idx]);
   } catch (err) {
     console.error("PATCH /api/tasks error:", err);
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });
+  }
+}
+
+// Bulk reorder (for drag-and-drop sort order updates)
+export async function PUT(req: NextRequest) {
+  const body = await req.json();
+  const { updates } = body; // [{ id, dueDate, sortOrder }]
+  if (!Array.isArray(updates)) return NextResponse.json({ error: "updates must be an array" }, { status: 400 });
+
+  try {
+    const raw = await redisCommand("GET", "jarvis:tasks");
+    let tasks = parseTasks(raw);
+    if (!Array.isArray(tasks)) tasks = [];
+
+    for (const u of updates as { id: string; dueDate?: string; sortOrder?: number; day?: string }[]) {
+      const idx = tasks.findIndex((t: any) => t.id === u.id);
+      if (idx === -1) continue;
+      if (u.dueDate !== undefined) (tasks[idx] as any).dueDate = u.dueDate;
+      if (u.sortOrder !== undefined) (tasks[idx] as any).sortOrder = u.sortOrder;
+      if (u.day !== undefined) (tasks[idx] as any).day = u.day;
+    }
+    await redisCommand("SET", "jarvis:tasks", JSON.stringify(tasks));
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
 
