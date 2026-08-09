@@ -328,6 +328,64 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     setDrawerTask(null);
   }, [drawerTask, showToast, fetchTasks]);
 
+  // ─── Input Check Ins ────────────────────────────────────────────────
+  const [generatingCheckIns, setGeneratingCheckIns] = useState(false);
+
+  const generateCheckInTasks = useCallback(async () => {
+    setGeneratingCheckIns(true);
+    const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const weekSunday = getSundayOf(new Date());
+    let created = 0;
+    let skipped = 0;
+
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      const checkInDay = DAY_NAMES[dayIdx];
+      const dayClients = activeClients.filter(c => c.checkInDay === checkInDay);
+      if (dayClients.length === 0) continue;
+
+      // Processing happens the FOLLOWING day
+      const processingDate = new Date(weekSunday);
+      processingDate.setDate(weekSunday.getDate() + dayIdx + 1);
+      const dateStr = normDateStr(processingDate);
+
+      // Duplicate guard — skip this day if any check-in task already exists for it
+      const alreadyExists = tasks.some(t =>
+        t.dueDate === dateStr && /^check in x\d+/i.test(t.title)
+      );
+      if (alreadyExists) { skipped++; continue; }
+
+      const sorted = [...dayClients].sort((a, b) => a.name.localeCompare(b.name));
+      const total = sorted.length;
+
+      for (let i = 0; i < sorted.length; i += 5) {
+        const batch = sorted.slice(i, i + 5);
+        const cumulative = i + batch.length;
+        const title = `Check In x${batch.length} [${cumulative}]`;
+        try {
+          const res = await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title, owner: "Milzzy", dueDate: dateStr,
+              priority: "normal", status: "open",
+              notes: `${checkInDay} check-ins (${cumulative - batch.length + 1}–${cumulative} of ${total})`,
+            }),
+          });
+          if (res.ok) {
+            const t: Task = await res.json();
+            setTasks(prev => [...prev, t]);
+            created++;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    setGeneratingCheckIns(false);
+    if (created > 0) showToast(`${created} check-in task${created !== 1 ? "s" : ""} created`);
+    else if (skipped > 0) showToast("Check-in tasks already exist for this week", "info");
+    else showToast("No check-in clients found", "info");
+  }, [activeClients, tasks, showToast]);
+
   const openAddTask = useCallback((defaultDate?: string) => {
     setDrawerTask({
       title: "", done: false, clientId: null, category: "Follow-up",
@@ -955,6 +1013,9 @@ export function TasksTab({ clients }: { clients: Client[] }) {
               }}>{l === "normal" ? "Normal" : "TDL"}</button>
             ))}
           </div>
+          <button onClick={generateCheckInTasks} disabled={generatingCheckIns} style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "8px 18px", cursor: generatingCheckIns ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: WHITE, opacity: generatingCheckIns ? 0.6 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+            {generatingCheckIns ? "Creating…" : "Input Check Ins"}
+          </button>
           <button onClick={() => openAddTask()} style={{ background: T, color: "#000", border: "none", borderRadius: 10, padding: "8px 18px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
             + Add task
           </button>
