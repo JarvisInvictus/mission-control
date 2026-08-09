@@ -37,8 +37,8 @@ function getTitleColor(title: string): string | null {
 }
 
 /** Manual colour takes priority over auto-detect */
-function taskColor(task: { title: string; color?: string | null }): string | null {
-  return task.color || taskColor(task);
+function taskColor(task: { title?: string; color?: string | null }): string | null {
+  return task.color || getTitleColor(task.title || "");
 }
 
 const COLOR_SWATCHES = [
@@ -238,7 +238,11 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch("/api/tasks", { cache: "no-store" });
-      if (res.ok) setTasks(await res.json());
+      if (res.ok) {
+        const raw: Task[] = await res.json();
+        // Normalise legacy tasks that only have `text` not `title`
+        setTasks(raw.map(t => ({ ...t, title: t.title || t.text || "" })));
+      }
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
