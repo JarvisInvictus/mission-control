@@ -198,8 +198,20 @@ const sel: React.CSSProperties = {
   appearance: "none" as const,
 };
 
+// ─── Mobile hook ────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768): boolean {
+  const [mobile, setMobile] = useState(() => typeof window !== "undefined" ? window.innerWidth < breakpoint : false);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [breakpoint]);
+  return mobile;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export function TasksTab({ clients }: { clients: Client[] }) {
+  const isMobile = useIsMobile();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState<"normal" | "tdl">("normal");
@@ -247,6 +259,13 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // Scroll TDL to today's column on mobile
+  useEffect(() => {
+    if (!isMobile || layout !== "tdl") return;
+    const todayCol = document.querySelector(`[data-date="${today}"]`) as HTMLElement | null;
+    if (todayCol) todayCol.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  }, [isMobile, layout, today, tdlWeekSunday]);
 
   // ─── Toast helpers ────────────────────────────────────────────────────────
   const showToast = useCallback((message: string, type: Toast["type"] = "success") => {
@@ -669,7 +688,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const renderNormal = () => (
     <>
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: isMobile ? 8 : 12, marginBottom: 20 }}>
         {[
           { label: "Due Today",  sub: "Focus list",   count: counts.dueToday,   color: T,      filter: "today" as const },
           { label: "Overdue",    sub: "Needs action", count: counts.overdue,    color: RED,    filter: "overdue" as const },
@@ -828,7 +847,17 @@ export function TasksTab({ clients }: { clients: Client[] }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(120px,1fr))", gap: 8, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
+      <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(7, 85vw)" : "repeat(7,minmax(120px,1fr))",
+          gap: isMobile ? 10 : 8,
+          overflowX: "auto",
+          paddingBottom: isMobile ? 16 : 8,
+          alignItems: "start",
+          scrollSnapType: isMobile ? "x mandatory" : undefined,
+          WebkitOverflowScrolling: "touch" as any,
+          paddingLeft: isMobile ? 0 : undefined,
+        }}>
         {tdlDays.map(({ dateStr, dayName, dayShort, isToday: isTdy }) => {
           const colTasks = tdlByDate[dateStr] || [];
           const openCount = colTasks.filter((t) => !t.done).length;
@@ -841,9 +870,11 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                 background: isTdy ? TSoft : CARD,
                 border: `1px solid ${isTdy ? TBorder : BORDER}`,
                 borderLeft: isTdy ? `3px solid ${T}` : `1px solid ${BORDER}`,
-                borderRadius: 12, padding: "10px 8px", minHeight: 220,
+                borderRadius: 12, padding: isMobile ? "12px 10px" : "10px 8px",
+                minHeight: isMobile ? 160 : 220,
                 display: "flex", flexDirection: "column", gap: 6,
                 transition: "background 0.15s",
+                scrollSnapAlign: isMobile ? "start" : undefined,
                 ...(isDropZone ? { background: `${T}1a` } : {}),
               }}>
               <div style={{ textAlign: "center", marginBottom: 4 }}>
@@ -885,7 +916,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
                       <Checkbox done={task.done} onToggle={(e) => { e.stopPropagation(); toggleDone(task); }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, color: WHITE, fontWeight: 500, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: 14, color: WHITE, fontWeight: 500, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap", wordBreak: isMobile ? "break-word" as const : undefined }}>
                           {task.title}
                         </div>
                         <div style={{ fontSize: 10, color: MUTED, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1057,25 +1088,42 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   return (
     <div style={{ padding: "24px", fontFamily: "system-ui, -apple-system, sans-serif", color: WHITE, boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: T, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 4 }}>Daily operations</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>Tasks &amp; follow-ups</h1>
-          <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Everything that needs action, connected to the right client.</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 3, gap: 2 }}>
+      <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: isMobile ? 12 : 0 }}>
+          <div>
+            {!isMobile && <div style={{ fontSize: 10, fontWeight: 700, color: T, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 4 }}>Daily operations</div>}
+            <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>Tasks &amp; follow-ups</h1>
+            {!isMobile && <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>Everything that needs action, connected to the right client.</p>}
+          </div>
+          {/* Layout toggle — always visible */}
+          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
             {(["normal","tdl"] as const).map((l) => (
               <button key={l} onClick={() => setLayout(l)} style={{
-                padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                padding: isMobile ? "5px 12px" : "6px 14px", borderRadius: 7, border: "none", cursor: "pointer",
+                fontSize: isMobile ? 11 : 12, fontWeight: 600, fontFamily: "inherit",
                 background: layout === l ? T : "transparent", color: layout === l ? "#000" : MUTED, transition: "all 0.15s",
               }}>{l === "normal" ? "Normal" : "TDL"}</button>
             ))}
           </div>
-          <button onClick={generateCheckInTasks} disabled={generatingCheckIns} style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "8px 18px", cursor: generatingCheckIns ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: WHITE, opacity: generatingCheckIns ? 0.6 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+        </div>
+        {/* Action buttons row */}
+        <div style={{ display: "flex", gap: 8, marginTop: isMobile ? 0 : 12, flexWrap: "wrap" }}>
+          <button onClick={generateCheckInTasks} disabled={generatingCheckIns} style={{
+            background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}`, borderRadius: 10,
+            padding: isMobile ? "9px 14px" : "8px 18px",
+            cursor: generatingCheckIns ? "not-allowed" : "pointer",
+            fontSize: isMobile ? 13 : 13, fontWeight: 600, fontFamily: "inherit",
+            color: WHITE, opacity: generatingCheckIns ? 0.6 : 1,
+            flex: isMobile ? 1 : undefined,
+          }}>
             {generatingCheckIns ? "Creating…" : "Input Check Ins"}
           </button>
-          <button onClick={() => openAddTask()} style={{ background: T, color: "#000", border: "none", borderRadius: 10, padding: "8px 18px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => openAddTask()} style={{
+            background: T, color: "#000", border: "none", borderRadius: 10,
+            padding: isMobile ? "9px 14px" : "8px 18px",
+            cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+            flex: isMobile ? 1 : undefined,
+          }}>
             + Add task
           </button>
         </div>
