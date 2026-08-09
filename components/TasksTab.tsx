@@ -674,7 +674,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
               onMouseLeave={(e) => (e.currentTarget.style.background = (() => { const tc = getTitleColor(task.title); return tc ? `${tc}0d` : CARD; })())}
             >
               <Checkbox done={task.done} onToggle={(e) => { e.stopPropagation(); toggleDone(task); }} />
-              <span style={{ flex: 1, fontSize: 13, color: WHITE, textDecoration: task.done ? "line-through" : "none", minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, fontSize: 15, color: WHITE, textDecoration: task.done ? "line-through" : "none", minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {task.title}
               </span>
               <span style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", marginLeft: 8 }}>{clientName}</span>
@@ -768,7 +768,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
                       <Checkbox done={task.done} onToggle={(e) => { e.stopPropagation(); toggleDone(task); }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: WHITE, fontWeight: 500, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: 14, color: WHITE, fontWeight: 500, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {task.title}
                         </div>
                         <div style={{ fontSize: 10, color: MUTED, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
