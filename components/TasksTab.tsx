@@ -22,7 +22,7 @@ const GREEN = "#4ade80";
 
 // ─── Title-based auto-colour ─────────────────────────────────────────────────
 const TITLE_COLORS: Array<{ match: string | RegExp; color: string }> = [
-  { match: "catch up",          color: "#fbbf24" }, // yellow
+  { match: "catch up",          color: "#22c55e" }, // darker green
   { match: "consult",           color: "#39ff14" }, // neon green
   { match: "onboarding",        color: "#f87171" }, // red
   { match: /\bm[1-6]\b/i,       color: "#fbbf24" }, // M1–M6 yellow
@@ -163,7 +163,8 @@ function getWeekLabel(weekSunday: Date): string {
 }
 
 function normDateStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  // Use Sydney timezone so column dates match getToday() — avoids UTC-shift bug
+  return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -662,8 +663,8 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           return (
             <div key={task.id} onClick={() => openEditTask(task)} style={{
               display: "flex", alignItems: "center", gap: 10,
-              background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}0d` : CARD; })(),
-              border: `1px solid ${(() => { const tc = getTitleColor(task.title); return tc ? tc + "50" : BORDER; })()}`,
+              background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}22` : CARD; })(),
+              border: `1px solid ${(() => { const tc = getTitleColor(task.title); return tc ? tc + "80" : BORDER; })()}`,
               borderRadius: 12, padding: "11px 14px", marginBottom: 6,
               cursor: "pointer", transition: "background 0.15s",
               opacity: task.done ? 0.5 : 1,
@@ -753,12 +754,12 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     onMouseLeave={() => setHoveredTdlId(null)}
                     onClick={() => openEditTask(task)}
                     style={{
-                      background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}12` : "rgba(255,255,255,0.05)"; })(),
+                      background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}25` : "rgba(255,255,255,0.05)"; })(),
                       borderRadius: 8, padding: "8px 10px",
                       cursor: "grab", fontSize: 12, display: "flex", flexDirection: "column", gap: 4,
                       transition: "opacity 0.15s, border-color 0.15s",
                       opacity: isDragging ? 0.4 : task.done ? 0.45 : 1,
-                      border: (() => { const tc = getTitleColor(task.title); return `1px solid ${isTarget ? T : tc ? tc + "50" : BORDER}`; })(),
+                      border: (() => { const tc = getTitleColor(task.title); return `1px solid ${isTarget ? T : tc ? tc + "90" : BORDER}`; })(),
                       borderTop: isTarget && dropPosition === "before" ? `2px solid ${T}` : undefined,
                       borderBottom: isTarget && dropPosition === "after" ? `2px solid ${T}` : undefined,
                       position: "relative",
