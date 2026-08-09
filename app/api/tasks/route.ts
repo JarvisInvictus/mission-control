@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest) {
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const allowed = ["title", "text", "done", "clientId", "category", "priority",
-                     "owner", "author", "dueDate", "day", "sortOrder", "notes", "completedAt", "archived", "status"];
+                     "owner", "author", "dueDate", "day", "sortOrder", "notes", "completedAt", "archived", "status", "color"];
     const updates: Record<string, unknown> = {};
     for (const k of allowed) {
       if (body[k] !== undefined) updates[k] = body[k];

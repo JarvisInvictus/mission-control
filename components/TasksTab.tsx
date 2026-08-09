@@ -36,6 +36,24 @@ function getTitleColor(title: string): string | null {
   return null;
 }
 
+/** Manual colour takes priority over auto-detect */
+function taskColor(task: { title: string; color?: string | null }): string | null {
+  return task.color || taskColor(task);
+}
+
+const COLOR_SWATCHES = [
+  { label: "Clear",   value: null,      hex: null },
+  { label: "Teal",    value: "#0abab5", hex: "#0abab5" },
+  { label: "Yellow",  value: "#fbbf24", hex: "#fbbf24" },
+  { label: "Green",   value: "#22c55e", hex: "#22c55e" },
+  { label: "Red",     value: "#f87171", hex: "#f87171" },
+  { label: "Orange",  value: "#f97316", hex: "#f97316" },
+  { label: "Purple",  value: "#a78bfa", hex: "#a78bfa" },
+  { label: "Blue",    value: "#60a5fa", hex: "#60a5fa" },
+  { label: "Pink",    value: "#f472b6", hex: "#f472b6" },
+  { label: "White",   value: "#e2e8f0", hex: "#e2e8f0" },
+];
+
 function getMiggyColor(): string { return "#f97316"; }
 const PRIORITIES = [
   { value: "low",    label: "Low",    color: BLUE   },
@@ -61,6 +79,7 @@ interface Task {
   sortOrder?: number;
   done: boolean;
   archived?: boolean;
+  color?: string | null;
   completedAt?: string | null;
   notes?: string;
   createdAt?: string;
@@ -198,6 +217,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const [dropPosition, setDropPosition] = useState<"before" | "after" | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hoveredTdlId, setHoveredTdlId] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
   const inlineRef = useRef<HTMLTextAreaElement>(null);
 
   const today = getToday();
@@ -229,6 +249,37 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }, []);
+
+  // ─── Colour context menu ──────────────────────────────────────────────────
+  const setTaskColor = useCallback(async (taskId: string, color: string | null) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, color } : t));
+    setCtxMenu(null);
+    try {
+      await fetch("/api/tasks", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, color }),
+      });
+      showToast(color ? "Colour applied" : "Colour cleared", "info");
+    } catch { fetchTasks(); }
+  }, [showToast, fetchTasks]);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent && e.key !== "Escape") return;
+      setCtxMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", close); };
+  }, [ctxMenu]);
+
+  const openCtxMenu = useCallback((e: React.MouseEvent, taskId: string) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 220);
+    const y = Math.min(e.clientY, window.innerHeight - 200);
+    setCtxMenu({ taskId, x, y });
   }, []);
 
   // ─── C key: archive hovered TDL task ─────────────────────────────────────
@@ -723,15 +774,16 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           return (
             <div key={task.id} onClick={() => openEditTask(task)} style={{
               display: "flex", alignItems: "center", gap: 10,
-              background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}22` : CARD; })(),
-              border: `1px solid ${(() => { const tc = getTitleColor(task.title); return tc ? tc + "80" : BORDER; })()}`,
+              background: (() => { const tc = taskColor(task); return tc ? `${tc}22` : CARD; })(),
+              border: `1px solid ${(() => { const tc = taskColor(task); return tc ? tc + "80" : BORDER; })()}`,
               borderRadius: 12, padding: "11px 14px", marginBottom: 6,
               cursor: "pointer", transition: "background 0.15s",
               opacity: task.done ? 0.5 : 1,
               overflowX: "auto",
             }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = (() => { const tc = getTitleColor(task.title); return tc ? `${tc}1a` : "rgba(255,255,255,0.07)"; })())}
-              onMouseLeave={(e) => (e.currentTarget.style.background = (() => { const tc = getTitleColor(task.title); return tc ? `${tc}0d` : CARD; })())}
+              onContextMenu={(e) => openCtxMenu(e, task.id)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = (() => { const tc = taskColor(task); return tc ? `${tc}1a` : "rgba(255,255,255,0.07)"; })())}
+              onMouseLeave={(e) => (e.currentTarget.style.background = (() => { const tc = taskColor(task); return tc ? `${tc}0d` : CARD; })())}
             >
               <Checkbox done={task.done} onToggle={(e) => { e.stopPropagation(); toggleDone(task); }} />
               <span style={{ flex: 1, fontSize: 15, color: WHITE, textDecoration: task.done ? "line-through" : "none", minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -810,16 +862,17 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     onDragLeave={() => { if (dropTargetId === task.id) { setDropTargetId(null); setDropPosition(null); } }}
                     onDrop={(e) => { e.stopPropagation(); handleDrop(e, task.id, dateStr); }}
                     onDragEnd={() => { setDraggingId(null); setDropTargetId(null); setDropPosition(null); }}
+                    onContextMenu={(e) => { e.stopPropagation(); openCtxMenu(e, task.id); }}
                     onMouseEnter={() => setHoveredTdlId(task.id)}
                     onMouseLeave={() => setHoveredTdlId(null)}
                     onClick={() => openEditTask(task)}
                     style={{
-                      background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}25` : "rgba(255,255,255,0.05)"; })(),
+                      background: (() => { const tc = taskColor(task); return tc ? `${tc}25` : "rgba(255,255,255,0.05)"; })(),
                       borderRadius: 8, padding: "8px 10px",
                       cursor: "grab", fontSize: 12, display: "flex", flexDirection: "column", gap: 4,
                       transition: "opacity 0.15s, border-color 0.15s",
                       opacity: isDragging ? 0.4 : task.done ? 0.45 : 1,
-                      border: (() => { const tc = getTitleColor(task.title); return `1px solid ${isTarget ? T : tc ? tc + "90" : BORDER}`; })(),
+                      border: (() => { const tc = taskColor(task); return `1px solid ${isTarget ? T : tc ? tc + "90" : BORDER}`; })(),
                       borderTop: isTarget && dropPosition === "before" ? `2px solid ${T}` : undefined,
                       borderBottom: isTarget && dropPosition === "after" ? `2px solid ${T}` : undefined,
                       position: "relative",
@@ -1027,6 +1080,48 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       {layout === "normal" ? renderNormal() : renderTdl()}
       {renderDrawer()}
       {renderToasts()}
+
+      {/* Colour context menu */}
+      {ctxMenu && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 300,
+            background: "#1a1d2e", border: `1px solid ${BORDER}`,
+            borderRadius: 12, padding: "10px 12px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+            minWidth: 200,
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Pick colour</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 8 }}>
+            {COLOR_SWATCHES.filter(s => s.hex).map(s => {
+              const current = tasks.find(t => t.id === ctxMenu.taskId)?.color;
+              const isActive = current === s.value;
+              return (
+                <div
+                  key={s.label}
+                  title={s.label}
+                  onClick={() => setTaskColor(ctxMenu.taskId, s.value)}
+                  style={{
+                    width: 28, height: 28, borderRadius: 6, background: s.hex!,
+                    cursor: "pointer", border: isActive ? "2px solid white" : "2px solid transparent",
+                    boxShadow: isActive ? "0 0 0 1px rgba(255,255,255,0.4)" : "none",
+                    transition: "transform 0.1s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.15)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                />
+              );
+            })}
+          </div>
+          <button
+            onClick={() => setTaskColor(ctxMenu.taskId, null)}
+            style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "6px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            ✕ Clear colour
+          </button>
+        </div>
+      )}
     </div>
   );
 }
