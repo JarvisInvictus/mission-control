@@ -689,7 +689,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(120px,1fr))", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(120px,1fr))", gap: 8, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
         {tdlDays.map(({ dateStr, dayName, dayShort, isToday: isTdy }) => {
           const colTasks = tdlByDate[dateStr] || [];
           const openCount = colTasks.filter((t) => !t.done).length;
