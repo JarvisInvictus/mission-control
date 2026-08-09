@@ -18,7 +18,7 @@ const ORANGE = "#f97316";
 const PURPLE = "#a78bfa";
 const GREEN = "#4ade80";
 
-const CATEGORIES = ["Follow-up", "Check-in", "Programming"];
+// Category removed from UI — kept in data for legacy compat
 
 // ─── Title-based auto-colour ─────────────────────────────────────────────────
 const TITLE_COLORS: Array<{ match: string; color: string; label: string }> = [
@@ -661,30 +661,26 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           return (
             <div key={task.id} onClick={() => openEditTask(task)} style={{
               display: "flex", alignItems: "center", gap: 10,
-              background: CARD,
-              border: `1px solid ${BORDER}`,
-              borderLeft: (() => { const tc = getTitleColor(task.title); return tc ? `3px solid ${tc}` : `1px solid ${BORDER}`; })(),
+              background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}0d` : CARD; })(),
+              border: `1px solid ${(() => { const tc = getTitleColor(task.title); return tc ? tc + "50" : BORDER; })()}`,
               borderRadius: 12, padding: "11px 14px", marginBottom: 6,
               cursor: "pointer", transition: "background 0.15s",
               opacity: task.done ? 0.5 : 1,
               overflowX: "auto",
             }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = CARD)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = (() => { const tc = getTitleColor(task.title); return tc ? `${tc}1a` : "rgba(255,255,255,0.07)"; })())}
+              onMouseLeave={(e) => (e.currentTarget.style.background = (() => { const tc = getTitleColor(task.title); return tc ? `${tc}0d` : CARD; })())}
             >
               <Checkbox done={task.done} onToggle={(e) => { e.stopPropagation(); toggleDone(task); }} />
               <span style={{ flex: 1, fontSize: 13, color: WHITE, textDecoration: task.done ? "line-through" : "none", minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {task.title}
               </span>
               <span style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", marginLeft: 8 }}>{clientName}</span>
-              {task.category && <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: "rgba(255,255,255,0.07)", color: MUTED, border: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>{task.category}</span>}
+              {(task.owner || task.author) === "Miggy" && <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.35)", whiteSpace: "nowrap", fontWeight: 700 }}>Miggy</span>}
               {task.priority && task.priority !== "normal" && task.priority !== "medium" && (
                 <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: `${pc}1a`, color: pc, fontWeight: 700, whiteSpace: "nowrap" }}>{priorityLabel(task.priority)}</span>
               )}
-              {(() => { const oc = getOwnerColor(owner); return (
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: oc.bg, border: `1px solid ${oc.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: oc.text, flexShrink: 0 }}>
-                {getOwnerInitials(owner)}
-              </div>); })()}
+
               <span style={{ fontSize: 11, color: dueRed ? RED : MUTED, whiteSpace: "nowrap" }}>{dueText}</span>
               <button onClick={(e) => { e.stopPropagation(); openEditTask(task); }} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 16, padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}>⋯</button>
             </div>
@@ -756,12 +752,12 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     onMouseLeave={() => setHoveredTdlId(null)}
                     onClick={() => openEditTask(task)}
                     style={{
-                      background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: "8px 10px",
+                      background: (() => { const tc = getTitleColor(task.title); return tc ? `${tc}12` : "rgba(255,255,255,0.05)"; })(),
+                      borderRadius: 8, padding: "8px 10px",
                       cursor: "grab", fontSize: 12, display: "flex", flexDirection: "column", gap: 4,
                       transition: "opacity 0.15s, border-color 0.15s",
                       opacity: isDragging ? 0.4 : task.done ? 0.45 : 1,
-                      border: `1px solid ${isTarget ? T : BORDER}`,
-                      borderLeft: (() => { const tc = getTitleColor(task.title); if (isTarget && dropPosition === "before") return `2px solid ${T}`; return tc ? `3px solid ${tc}` : `1px solid ${BORDER}`; })(),
+                      border: (() => { const tc = getTitleColor(task.title); return `1px solid ${isTarget ? T : tc ? tc + "50" : BORDER}`; })(),
                       borderTop: isTarget && dropPosition === "before" ? `2px solid ${T}` : undefined,
                       borderBottom: isTarget && dropPosition === "after" ? `2px solid ${T}` : undefined,
                       position: "relative",
@@ -774,16 +770,13 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                           {task.title}
                         </div>
                         <div style={{ fontSize: 10, color: MUTED, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {getClientName(clients, task.clientId) || task.category || ""}
+                          {getClientName(clients, task.clientId)}
                         </div>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {task.priority && <span style={{ width: 6, height: 6, borderRadius: "50%", background: pc, display: "inline-block" }} />}
-                      {(() => { const oc = getOwnerColor(task.owner || task.author); return (
-                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: oc.bg, border: `1px solid ${oc.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: oc.text }}>
-                        {getOwnerInitials(task.owner || task.author)}
-                      </span>); })()}
+                      {(task.owner || task.author) === "Miggy" && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.35)", fontWeight: 700 }}>Miggy</span>}
                       {isHovered && !isDragging && (
                         <span title="Press C to archive" style={{ marginLeft: "auto", fontSize: 9, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 4px", lineHeight: 1, fontWeight: 700 }}>C</span>
                       )}
@@ -885,12 +878,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                   {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>Category</label>
-                <select style={sel} value={dt.category || "Follow-up"} onChange={(e) => upd({ category: e.target.value })}>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
+
             </div>
 
             <div>
