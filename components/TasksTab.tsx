@@ -334,12 +334,14 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const generateCheckInTasks = useCallback(async () => {
     setGeneratingCheckIns(true);
     const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const DAY_ABBR  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     const weekSunday = getSundayOf(new Date());
     let created = 0;
     let skipped = 0;
 
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const checkInDay = DAY_NAMES[dayIdx];
+      const dayAbbr    = DAY_ABBR[dayIdx];
       const dayClients = activeClients.filter(c => c.checkInDay === checkInDay);
       if (dayClients.length === 0) continue;
 
@@ -350,7 +352,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
       // Duplicate guard — skip this day if any check-in task already exists for it
       const alreadyExists = tasks.some(t =>
-        t.dueDate === dateStr && /^check in x\d+/i.test(t.title)
+        t.dueDate === dateStr && /^check in x\d+.*- \w+$/i.test(t.title)
       );
       if (alreadyExists) { skipped++; continue; }
 
@@ -360,7 +362,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       for (let i = 0; i < sorted.length; i += 5) {
         const batch = sorted.slice(i, i + 5);
         const cumulative = i + batch.length;
-        const title = `Check In x${batch.length} [${cumulative}]`;
+        const title = `Check In x${batch.length} [${cumulative}] - ${dayAbbr}`;
         try {
           const res = await fetch("/api/tasks", {
             method: "POST",
