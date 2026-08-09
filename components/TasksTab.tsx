@@ -21,16 +21,17 @@ const GREEN = "#4ade80";
 // Category removed from UI — kept in data for legacy compat
 
 // ─── Title-based auto-colour ─────────────────────────────────────────────────
-const TITLE_COLORS: Array<{ match: string; color: string; label: string }> = [
-  { match: "catch up",   color: "#38bdf8", label: "Catch Up" },
-  { match: "consult",    color: "#39ff14", label: "Consult" },
-  { match: "onboarding", color: "#f87171", label: "Onboarding" },
+const TITLE_COLORS: Array<{ match: string | RegExp; color: string }> = [
+  { match: "catch up",          color: "#fbbf24" }, // yellow
+  { match: "consult",           color: "#39ff14" }, // neon green
+  { match: "onboarding",        color: "#f87171" }, // red
+  { match: /\bm[1-6]\b/i,       color: "#fbbf24" }, // M1–M6 yellow
 ];
 
 function getTitleColor(title: string): string | null {
   const t = title.toLowerCase();
   for (const { match, color } of TITLE_COLORS) {
-    if (t.includes(match)) return color;
+    if (typeof match === "string" ? t.includes(match) : match.test(title)) return color;
   }
   return null;
 }
