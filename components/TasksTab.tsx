@@ -912,7 +912,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                   <textarea
                     ref={inlineRef}
                     rows={2}
-                    style={{ ...inp, fontSize: 11, resize: "none", padding: "6px 8px" }}
+                    style={{ ...inp, fontSize: 14, resize: "none", padding: "8px 10px" }}
                     placeholder="What needs to be done?"
                     value={inlineTitle}
                     onChange={(e) => setInlineTitle(e.target.value)}
