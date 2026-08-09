@@ -104,7 +104,9 @@ export interface Lead {
   phone: string;
   instagram?: string;
   source: "referral" | "instagram" | "facebook" | "content" | "cold" | "other" | "Macro Calculator";
-  stage: "new-lead" | "book-consult" | "consult-call" | "signed" | "lost" | "no-show";
+  stage: "new-lead" | "book-consult" | "consult-call" | "follow-up" | "signed" | "lost" | "no-show";
+  estWeeklyValue?: number;
+  nextFollowUp?: string;
   stageHistory: { stage: string; date: string }[];
   notes: string;
   assignedTo: "Milzzy" | "Miggy";
@@ -7492,27 +7494,30 @@ export default function Home() {
   // ─── LeadsTab ─────────────────────────────────────────────────────────────
   function LeadsTab({ onConvertLead }: { onConvertLead: (lead: Lead) => void }) {
     const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
+    const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [dragOverStage, setDragOverStage] = useState<string | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
 
-    // Kanban stages: New Lead | Book Consult | Consult Call | Signed | Lost
+    // Kanban stages
     const BOARD_STAGES = [
       { key: "new-lead",      label: "New Lead",         color: Tiffany },
       { key: "book-consult",  label: "Book Consult Call", color: "rgba(139,92,246,0.7)" },
       { key: "consult-call",   label: "Consultation Call", color: "rgba(139,92,246,0.7)" },
+      { key: "follow-up",     label: "Follow Up",         color: "#f59e0b" },
       { key: "signed",        label: "Signed",            color: "#34d399" },
       { key: "lost",          label: "Lost",             color: "rgba(248,113,113,0.6)" },
       { key: "no-show",       label: "No Shows",          color: "rgba(249,115,22,0.6)" },
     ] as const;
 
-    type BoardKey = "new-lead" | "book-consult" | "consult-call" | "signed" | "lost" | "no-show";
+    type BoardKey = "new-lead" | "book-consult" | "consult-call" | "follow-up" | "signed" | "lost" | "no-show";
     const COLUMNS: { key: BoardKey; label: string; stageKeys: string[]; color: string }[] = [
-      { key: "new-lead",      label: "New Lead",          stageKeys: ["new-lead"],                    color: Tiffany },
-      { key: "book-consult",  label: "Book Consult Call",  stageKeys: ["book-consult"],                color: "rgba(139,92,246,0.7)" },
-      { key: "consult-call",   label: "Consultation Call",  stageKeys: ["consult-call"],                color: "rgba(139,92,246,0.7)" },
-      { key: "signed",         label: "Signed",             stageKeys: ["signed"],                       color: "#34d399" },
-      { key: "lost",           label: "Lost",               stageKeys: ["lost"],                         color: "rgba(248,113,113,0.6)" },
-      { key: "no-show",        label: "No Shows",            stageKeys: ["no-show"],                      color: "rgba(249,115,22,0.6)" },
+      { key: "new-lead",      label: "New Lead",          stageKeys: ["new-lead"],        color: Tiffany },
+      { key: "book-consult",  label: "Book Consult",       stageKeys: ["book-consult"],    color: "rgba(139,92,246,0.7)" },
+      { key: "consult-call",  label: "Consult Call",       stageKeys: ["consult-call"],   color: "rgba(139,92,246,0.7)" },
+      { key: "follow-up",     label: "Follow Up",          stageKeys: ["follow-up"],       color: "#f59e0b" },
+      { key: "signed",        label: "Signed",             stageKeys: ["signed"],          color: "#34d399" },
+      { key: "lost",          label: "Lost",               stageKeys: ["lost"],            color: "rgba(248,113,113,0.6)" },
+      { key: "no-show",       label: "No Shows",           stageKeys: ["no-show"],         color: "rgba(249,115,22,0.6)" },
     ];
 
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -7529,6 +7534,7 @@ export default function Home() {
       if (lead.stage === "new-lead")     return "new-lead";
       if (lead.stage === "book-consult")  return "book-consult";
       if (lead.stage === "consult-call")  return "consult-call";
+      if (lead.stage === "follow-up")     return "follow-up";
       if (lead.stage === "signed")         return "signed";
       if (lead.stage === "lost")           return "lost";
       if (lead.stage === "no-show")        return "no-show";
@@ -7540,6 +7546,7 @@ export default function Home() {
         "new-lead":      "new-lead",
         "book-consult":  "book-consult",
         "consult-call":  "consult-call",
+        "follow-up":     "follow-up",
         "signed":        "signed",
         "lost":          "lost",
         "no-show":       "no-show",
@@ -7585,7 +7592,171 @@ export default function Home() {
       </div>
     );
 
+    const Tiffany2 = "#0abab5";
+    const TiffanySoft2 = "rgba(10,186,181,0.12)";
+    const TiffanyBorder2 = "rgba(10,186,181,0.25)";
+
+    function leadInitials(name: string) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function LeadRecordPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
+      const [form, setForm] = useState({
+        name: lead.name,
+        email: lead.email ?? "",
+        phone: lead.phone ?? "",
+        instagram: lead.instagram ?? "",
+        stage: lead.stage,
+        assignedTo: lead.assignedTo ?? "Milzzy",
+        source: lead.source,
+        estWeeklyValue: String(lead.estWeeklyValue ?? ""),
+        nextFollowUp: lead.nextFollowUp ?? "",
+        notes: lead.notes ?? "",
+      });
+      const [saving, setSaving] = useState(false);
+      const [saveError, setSaveError] = useState("");
+      const [saved, setSaved] = useState(false);
+
+      async function saveLead() {
+        setSaving(true); setSaveError("");
+        try {
+          const res = await fetch(`/api/leads/${lead.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.name.trim(),
+              email: form.email.trim(),
+              phone: form.phone.trim(),
+              instagram: form.instagram.trim(),
+              stage: form.stage,
+              assignedTo: form.assignedTo,
+              source: form.source,
+              estWeeklyValue: form.estWeeklyValue !== "" ? Number(form.estWeeklyValue) : undefined,
+              nextFollowUp: form.nextFollowUp || undefined,
+              notes: form.notes,
+            }),
+          });
+          if (!res.ok) { const e = await res.json().catch(() => ({})); setSaveError((e as any).error ?? "Save failed"); return; }
+          const updated: Lead = await res.json();
+          setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+          setSaved(true); setTimeout(() => setSaved(false), 2000);
+          onClose();
+        } catch (e: any) { setSaveError(e?.message ?? "Network error"); }
+        finally { setSaving(false); }
+      }
+
+      const stageColor: Record<string, string> = {
+        "new-lead": Tiffany2, "book-consult": "rgba(139,92,246,0.9)",
+        "consult-call": "rgba(139,92,246,0.9)", "follow-up": "#f59e0b",
+        "signed": "#34d399", "lost": "#f87171", "no-show": "#f97316",
+      };
+      const srcLabel = lead.source === "Macro Calculator" ? "Macro Calculator" : lead.source.charAt(0).toUpperCase() + lead.source.slice(1);
+      const inp: React.CSSProperties = { width: "100%", boxSizing: "border-box" as const, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px", color: "white", padding: "8px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none" };
+      const lbl: React.CSSProperties = { fontFamily: "system-ui", fontSize: "9px", fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase" as const, letterSpacing: "0.10em", marginBottom: "5px", display: "block" };
+      const sel: React.CSSProperties = { ...inp, appearance: "none" as const, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.4)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: "30px" };
+
+      return (
+        <>
+          <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "400px", maxWidth: "95vw", zIndex: 70, background: "#0d0f1a", borderLeft: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "-8px 0 40px rgba(0,0,0,0.5)" }}>
+
+            {/* Top bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+              <span style={{ fontFamily: "system-ui", fontSize: "10px", fontWeight: 700, color: Tiffany2, textTransform: "uppercase", letterSpacing: "0.12em" }}>Lead Record</span>
+              <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: "8px", color: "rgba(255,255,255,0.50)", cursor: "pointer", padding: "5px 9px", fontSize: "14px", lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Scrollable body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+
+              {/* Identity */}
+              <div style={{ display: "flex", alignItems: "center", gap: "14px", paddingBottom: "14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ width: 46, height: 46, borderRadius: "50%", flexShrink: 0, background: TiffanySoft2, border: `1.5px solid ${TiffanyBorder2}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui", fontSize: "15px", fontWeight: 800, color: Tiffany2 }}>{leadInitials(lead.name)}</div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontFamily: "system-ui", fontSize: "17px", fontWeight: 700, color: "white", lineHeight: 1.2 }}>{lead.name}</p>
+                  <p style={{ margin: "4px 0 0", fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)" }}>{srcLabel} · {lead.assignedTo}</p>
+                </div>
+              </div>
+
+              {/* Quick-contact buttons */}
+              <div style={{ display: "flex", gap: "8px" }}>
+                {lead.phone && <a href={`https://wa.me/${lead.phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "rgba(37,211,102,0.10)", border: "1px solid rgba(37,211,102,0.25)", borderRadius: "10px", padding: "8px 6px", color: "#25d366", fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}>💬 WhatsApp</a>}
+                {lead.instagram && <a href={`https://instagram.com/${lead.instagram.replace("@","")}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "rgba(225,48,108,0.10)", border: "1px solid rgba(225,48,108,0.25)", borderRadius: "10px", padding: "8px 6px", color: "#e1306c", fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}>📸 Instagram</a>}
+                {lead.email && <a href={`mailto:${lead.email}`} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", background: "rgba(96,165,250,0.10)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: "10px", padding: "8px 6px", color: "#60a5fa", fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}>✉ Email</a>}
+              </div>
+
+              {/* Fields grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ gridColumn: "1/-1" }}><label style={lbl}>Full Name</label><input style={inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+                <div><label style={lbl}>Email</label><input style={inp} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+                <div><label style={lbl}>Phone</label><input style={inp} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+                <div><label style={lbl}>Instagram</label><input style={inp} value={form.instagram} onChange={e => setForm(f => ({ ...f, instagram: e.target.value }))} placeholder="@handle" /></div>
+                <div><label style={lbl}>Est. Weekly Value ($)</label><input style={inp} type="number" value={form.estWeeklyValue} onChange={e => setForm(f => ({ ...f, estWeeklyValue: e.target.value }))} placeholder="100" /></div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div><label style={lbl}>Pipeline Stage</label>
+                  <select style={{ ...sel, color: stageColor[form.stage] ?? "white" }} value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Lead["stage"] }))}>
+                    <option value="new-lead">New Lead</option>
+                    <option value="book-consult">Book Consult</option>
+                    <option value="consult-call">Consult Call</option>
+                    <option value="follow-up">Follow Up</option>
+                    <option value="signed">Signed</option>
+                    <option value="lost">Lost</option>
+                    <option value="no-show">No Show</option>
+                  </select>
+                </div>
+                <div><label style={lbl}>Assigned Coach</label>
+                  <select style={sel} value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value as "Milzzy" | "Miggy" }))}>
+                    <option value="Milzzy">Milzzy</option>
+                    <option value="Miggy">Miggy</option>
+                  </select>
+                </div>
+                <div><label style={lbl}>Lead Source</label>
+                  <select style={sel} value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value as Lead["source"] }))}>
+                    <option value="referral">Referral</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="content">Content</option>
+                    <option value="cold">Cold</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div><label style={lbl}>Next Follow-Up</label><input style={inp} type="date" value={form.nextFollowUp} onChange={e => setForm(f => ({ ...f, nextFollowUp: e.target.value }))} /></div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={lbl}>Notes</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={5} placeholder="What's their goal? Quote given? Any context…" style={{ ...inp, resize: "none" as const, lineHeight: 1.5 }} />
+              </div>
+
+              {/* Fillout reference */}
+              {lead.source === "Macro Calculator" && (
+                <div style={{ background: "rgba(10,186,181,0.06)", border: "1px solid rgba(10,186,181,0.15)", borderRadius: "10px", padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ fontSize: "14px", flexShrink: 0 }}>🧮</span>
+                  <div><p style={{ margin: 0, fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: Tiffany2 }}>Imported from Macro Calculator</p><p style={{ margin: "2px 0 0", fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)" }}>{lead.goal ?? ""}{lead.weight ? ` · ${lead.weight}kg` : ""}</p></div>
+                </div>
+              )}
+
+              {saveError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "8px 12px", margin: 0 }}>⚠ {saveError}</p>}
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "8px", paddingTop: "4px" }}>
+                <button onClick={saveLead} disabled={saving} style={{ flex: 1, background: Tiffany2, border: "none", borderRadius: "10px", padding: "11px", color: "#000", fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save Lead"}</button>
+                <button onClick={onClose} style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "11px", color: "rgba(255,255,255,0.50)", fontFamily: "system-ui", fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+              </div>
+
+            </div>
+          </div>
+        </>
+      );
+    }
+
     return (
+      <>
       <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
 
         {/* Header */}
@@ -7683,7 +7854,7 @@ export default function Home() {
                             setDraggingId(lead.id);
                           }}
                           onDragEnd={e => { e.stopPropagation(); setDraggingId(null); setDragOverStage(null); }}
-                          onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+                          onClick={() => { setSelectedLead(lead); setExpandedLeadId(null); }}
                           onMouseEnter={e => {
                             const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".delete-btn");
                             if (btn) { btn.style.opacity = "1"; btn.style.color = "#f87171"; }
@@ -7859,6 +8030,10 @@ export default function Home() {
 
           </div>
       </div>
+
+      {/* Lead Record Panel */}
+      {selectedLead && <LeadRecordPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />}
+      </>
     );
   }
 

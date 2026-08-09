@@ -29,7 +29,8 @@ export async function PATCH(
   }
 
   const allowedFields = [
-    "name", "email", "phone", "source", "stage", "notes", "assignedTo", "followUpDue",
+    "name", "email", "phone", "instagram", "source", "stage", "notes",
+    "assignedTo", "followUpDue", "estWeeklyValue", "nextFollowUp",
   ];
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {
@@ -47,7 +48,7 @@ export async function PATCH(
   }
 
   // Validate stage if provided
-  const validStages = ["new-lead", "book-consult", "consult-call", "signed", "lost", "no-show"];
+  const validStages = ["new-lead", "book-consult", "consult-call", "follow-up", "signed", "lost", "no-show"];
   if (updates.stage && !validStages.includes(updates.stage as string)) {
     return NextResponse.json({ error: `stage must be one of: ${validStages.join(", ")}` }, { status: 400 });
   }
