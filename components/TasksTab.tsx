@@ -18,7 +18,24 @@ const ORANGE = "#f97316";
 const PURPLE = "#a78bfa";
 const GREEN = "#4ade80";
 
-const CATEGORIES = ["Follow-up", "Check-in", "Programming", "Admin"];
+const CATEGORIES = ["Follow-up", "Check-in", "Programming"];
+
+// ─── Title-based auto-colour ─────────────────────────────────────────────────
+const TITLE_COLORS: Array<{ match: string; color: string; label: string }> = [
+  { match: "catch up",   color: "#38bdf8", label: "Catch Up" },
+  { match: "consult",    color: "#39ff14", label: "Consult" },
+  { match: "onboarding", color: "#f87171", label: "Onboarding" },
+];
+
+function getTitleColor(title: string): string | null {
+  const t = title.toLowerCase();
+  for (const { match, color } of TITLE_COLORS) {
+    if (t.includes(match)) return color;
+  }
+  return null;
+}
+
+function getMiggyColor(): string { return "#f97316"; }
 const PRIORITIES = [
   { value: "low",    label: "Low",    color: BLUE   },
   { value: "normal", label: "Normal", color: AMBER  },
@@ -106,6 +123,11 @@ function getOwnerInitials(owner: string | undefined): string {
   if (owner === "Milzzy") return "MV";
   if (owner === "Miggy") return "MG";
   return owner.slice(0, 2).toUpperCase();
+}
+
+function getOwnerColor(owner: string | undefined): { bg: string; border: string; text: string } {
+  if (owner === "Miggy") return { bg: "rgba(249,115,22,0.18)", border: "rgba(249,115,22,0.40)", text: "#f97316" };
+  return { bg: TSoft, border: TBorder, text: T };
 }
 
 function getClientName(clients: Client[], clientId: string | null | undefined): string {
@@ -329,7 +351,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title, owner: effectiveOwner, dueDate: dateStr,
-          category: "Admin", priority: "normal", status: "open",
+          category: "Follow-up", priority: "normal", status: "open",
         }),
       });
       if (res.ok) {
@@ -639,7 +661,9 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           return (
             <div key={task.id} onClick={() => openEditTask(task)} style={{
               display: "flex", alignItems: "center", gap: 10,
-              background: CARD, border: `1px solid ${BORDER}`,
+              background: CARD,
+              border: `1px solid ${BORDER}`,
+              borderLeft: (() => { const tc = getTitleColor(task.title); return tc ? `3px solid ${tc}` : `1px solid ${BORDER}`; })(),
               borderRadius: 12, padding: "11px 14px", marginBottom: 6,
               cursor: "pointer", transition: "background 0.15s",
               opacity: task.done ? 0.5 : 1,
@@ -657,9 +681,10 @@ export function TasksTab({ clients }: { clients: Client[] }) {
               {task.priority && task.priority !== "normal" && task.priority !== "medium" && (
                 <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: `${pc}1a`, color: pc, fontWeight: 700, whiteSpace: "nowrap" }}>{priorityLabel(task.priority)}</span>
               )}
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: TSoft, border: `1px solid ${TBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: T, flexShrink: 0 }}>
+              {(() => { const oc = getOwnerColor(owner); return (
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: oc.bg, border: `1px solid ${oc.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: oc.text, flexShrink: 0 }}>
                 {getOwnerInitials(owner)}
-              </div>
+              </div>); })()}
               <span style={{ fontSize: 11, color: dueRed ? RED : MUTED, whiteSpace: "nowrap" }}>{dueText}</span>
               <button onClick={(e) => { e.stopPropagation(); openEditTask(task); }} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 16, padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}>⋯</button>
             </div>
@@ -735,7 +760,8 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                       cursor: "grab", fontSize: 12, display: "flex", flexDirection: "column", gap: 4,
                       transition: "opacity 0.15s, border-color 0.15s",
                       opacity: isDragging ? 0.4 : task.done ? 0.45 : 1,
-                      border: `1px solid ${isTarget && dropPosition === "before" ? T : isTarget && dropPosition === "after" ? T : BORDER}`,
+                      border: `1px solid ${isTarget ? T : BORDER}`,
+                      borderLeft: (() => { const tc = getTitleColor(task.title); if (isTarget && dropPosition === "before") return `2px solid ${T}`; return tc ? `3px solid ${tc}` : `1px solid ${BORDER}`; })(),
                       borderTop: isTarget && dropPosition === "before" ? `2px solid ${T}` : undefined,
                       borderBottom: isTarget && dropPosition === "after" ? `2px solid ${T}` : undefined,
                       position: "relative",
@@ -754,9 +780,10 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {task.priority && <span style={{ width: 6, height: 6, borderRadius: "50%", background: pc, display: "inline-block" }} />}
-                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: TSoft, border: `1px solid ${TBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: T }}>
+                      {(() => { const oc = getOwnerColor(task.owner || task.author); return (
+                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: oc.bg, border: `1px solid ${oc.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: oc.text }}>
                         {getOwnerInitials(task.owner || task.author)}
-                      </span>
+                      </span>); })()}
                       {isHovered && !isDragging && (
                         <span title="Press C to archive" style={{ marginLeft: "auto", fontSize: 9, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 4px", lineHeight: 1, fontWeight: 700 }}>C</span>
                       )}
