@@ -248,6 +248,9 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after" | null>(null);
+  // Onboarding card drag state (separate from task drag so the two flows don't fight each other)
+  const [draggingOnboarding, setDraggingOnboarding] = useState<OnboardingSubmission | null>(null);
+  const [onboardingDropDate, setOnboardingDropDate] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hoveredTdlId, setHoveredTdlId] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
@@ -708,6 +711,63 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   // ─── Drag & drop ─────────────────────────────────────────────────────────
   const handleDrop = useCallback(async (e: React.DragEvent, targetTaskId: string | null, targetDate: string) => {
     e.preventDefault(); e.stopPropagation();
+    setOnboardingDropDate(null);
+
+    // ─── Onboarding submission drop ────────────────────────────────────────
+    if (draggingOnboarding) {
+      const sub = draggingOnboarding;
+      setDraggingOnboarding(null);
+      const matchedClient = sub.email
+        ? activeClients.find((c) => c.email && c.email.toLowerCase() === sub.email.toLowerCase())
+        : null;
+
+      const goalLine = sub.goal ? `Goal: ${sub.goal}\n` : "";
+      const serviceLine = sub.service ? `Service: ${sub.service}\n` : "";
+      const photoLine = sub.photoUrls.length > 0
+        ? `Physique photos: ${sub.photoUrls[0]}${sub.photoUrls.length > 1 ? ` (+${sub.photoUrls.length - 1} more)` : ""}\n`
+        : "";
+
+      const taskBody: Record<string, unknown> = {
+        title: `Onboard: ${sub.name}`,
+        owner: sub.coach,
+        clientId: matchedClient?.id ?? null,
+        category: "Onboarding",
+        priority: "high",
+        dueDate: targetDate,
+        notes:
+          `Fillout form: ${sub.filloutUrl}\n` +
+          `Email: ${sub.email}\n` +
+          `Phone: ${sub.phone}\n` +
+          goalLine +
+          serviceLine +
+          photoLine +
+          (matchedClient ? `\n✓ Linked to existing client: ${matchedClient.name}` : "\n⚠ No matching client — create one in Clients tab."),
+        status: "open",
+      };
+
+      try {
+        const res = await fetch("/api/tasks", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(taskBody),
+        });
+        if (!res.ok) throw new Error(`Task creation failed (${res.status})`);
+        await fetchTasks();
+        // Ack the submission so it disappears from the inbox
+        setOnboardingSubs((prev) => prev.filter((s) => s.id !== sub.id));
+        try {
+          await fetch("/api/onboarding/ack", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [sub.id] }),
+          });
+        } catch { /* ignore */ }
+        showToast(`Onboard: ${sub.name} → ${new Date(targetDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}`);
+      } catch (err) {
+        showToast("Failed to create task", "error");
+        console.error("Onboarding drop error:", err);
+      }
+      return;
+    }
+
     if (!draggingId) return;
     const draggedTask = tasks.find((t) => t.id === draggingId);
     if (!draggedTask) { setDraggingId(null); return; }
@@ -753,7 +813,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
         body: JSON.stringify({ updates }),
       });
     } catch { fetchTasks(); }
-  }, [draggingId, tasks, tdlByDate, dropPosition, showToast, fetchTasks]);
+  }, [draggingId, draggingOnboarding, tasks, tdlByDate, dropPosition, showToast, fetchTasks, activeClients]);
 
   // ─── Format due date ──────────────────────────────────────────────────────
   const fmtDue = (d: string | null | undefined): { text: string; red: boolean } => {
@@ -959,20 +1019,26 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           const colTasks = tdlByDate[dateStr] || [];
           const openCount = colTasks.filter((t) => !t.done).length;
           const isDropZone = draggingId !== null && dropTargetId === dateStr && !colTasks.some((t) => t.id === dropTargetId);
+          const isOnboardingDrop = draggingOnboarding !== null && onboardingDropDate === dateStr;
           return (
             <div key={dateStr} data-date={dateStr}
-              onDragOver={(e) => { e.preventDefault(); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (draggingOnboarding) setOnboardingDropDate(dateStr);
+              }}
+              onDragLeave={() => { if (onboardingDropDate === dateStr) setOnboardingDropDate(null); }}
               onDrop={(e) => { e.stopPropagation(); handleDrop(e, null, dateStr); }}
               style={{
-                background: isTdy ? TSoft : CARD,
-                border: `1px solid ${isTdy ? TBorder : BORDER}`,
-                borderLeft: isTdy ? `3px solid ${T}` : `1px solid ${BORDER}`,
+                background: isOnboardingDrop ? `${T}30` : (isDropZone ? `${T}1a` : (isTdy ? TSoft : CARD)),
+                border: `1px solid ${isOnboardingDrop ? T : (isTdy ? TBorder : BORDER)}`,
+                borderLeft: isOnboardingDrop ? `3px solid ${T}` : (isTdy ? `3px solid ${T}` : `1px solid ${BORDER}`),
                 borderRadius: 12, padding: isMobile ? "12px 10px" : "10px 8px",
                 minHeight: isMobile ? 160 : 220,
                 display: "flex", flexDirection: "column", gap: 6,
-                transition: "background 0.15s",
+                transition: "background 0.15s, border-color 0.15s, transform 0.15s",
                 scrollSnapAlign: isMobile ? "start" : undefined,
-                ...(isDropZone ? { background: `${T}1a` } : {}),
+                transform: isOnboardingDrop ? "scale(1.02)" : undefined,
+                boxShadow: isOnboardingDrop ? `0 0 0 2px ${T}40, 0 8px 24px rgba(10,186,181,0.25)` : undefined,
               }}>
               <div style={{ textAlign: "center", marginBottom: 4 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: isTdy ? T : MUTED }}>{dayName}</div>
@@ -1256,15 +1322,30 @@ export function TasksTab({ clients }: { clients: Client[] }) {
               : null;
 
             return (
-              <div key={sub.id} style={{
-                background: "rgba(255,255,255,0.04)",
-                border: `1px solid ${BORDER}`,
-                borderLeft: `3px solid ${sub.coach === "Miggy" ? "#f97316" : T}`,
-                borderRadius: 12,
-                padding: isMobile ? "12px" : "14px 16px",
-                display: "flex", gap: 12, alignItems: "flex-start",
-                flexWrap: isMobile ? "wrap" : "nowrap",
-              }}>
+              <div key={sub.id} draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/x-onboarding", sub.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  setDraggingOnboarding(sub);
+                }}
+                onDragEnd={() => {
+                  setDraggingOnboarding(null);
+                  setOnboardingDropDate(null);
+                }}
+                title="Drag onto a day in the TDL grid above to schedule"
+                style={{
+                  background: draggingOnboarding?.id === sub.id ? "rgba(10,186,181,0.10)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${draggingOnboarding?.id === sub.id ? T : BORDER}`,
+                  borderLeft: `3px solid ${sub.coach === "Miggy" ? "#f97316" : T}`,
+                  borderRadius: 12,
+                  padding: isMobile ? "12px" : "14px 16px",
+                  display: "flex", gap: 12, alignItems: "flex-start",
+                  flexWrap: isMobile ? "wrap" : "nowrap",
+                  cursor: "grab",
+                  opacity: draggingOnboarding?.id === sub.id ? 0.5 : 1,
+                  transition: "background 0.15s, opacity 0.15s, border-color 0.15s",
+                  userSelect: "none",
+                }}>
                 {hasPhoto ? (
                   <img src={sub.photoUrls[0]} alt="" style={{
                     width: 48, height: 48, borderRadius: 10, objectFit: "cover",
@@ -1309,6 +1390,11 @@ export function TasksTab({ clients }: { clients: Client[] }) {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: MUTED, padding: "4px 8px",
+                    background: "rgba(255,255,255,0.04)", border: `1px dashed ${BORDER}`, borderRadius: 6,
+                    whiteSpace: "nowrap", letterSpacing: "0.04em",
+                  }}>↕ Drag</span>
                   <a href={sub.filloutUrl} target="_blank" rel="noopener noreferrer" style={{
                     fontSize: 11, fontWeight: 600, color: MUTED, textDecoration: "none",
                     padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: 8,

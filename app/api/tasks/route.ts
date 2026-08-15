@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL!;
-const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
+const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!;
+const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
 
 async function redisCommand(cmd: string, ...args: string[]): Promise<unknown> {
   const body = JSON.stringify([cmd, ...args]);

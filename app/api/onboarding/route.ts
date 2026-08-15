@@ -13,6 +13,18 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
+const REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!;
+const REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
+
+function getRedis() {
+  if (!REDIS_REST_URL || !REDIS_REST_TOKEN) return null;
+  try {
+    return new Redis({ url: REDIS_REST_URL, token: REDIS_REST_TOKEN });
+  } catch {
+    return null;
+  }
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -48,10 +60,6 @@ interface OnboardingSubmission {
   signatureUrl?: string;
   submittedAt: string;
   filloutUrl: string;
-}
-
-function getRedis() {
-  try { return Redis.fromEnv(); } catch { return null; }
 }
 
 function pickAnswer(questions: OnboardingQuestion[], names: string[]): string {
