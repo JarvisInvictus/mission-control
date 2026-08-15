@@ -511,45 +511,53 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const DAY_ABBR  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     const weekSunday = getSundayOf(new Date());
+
+    // Compute current weekKey (same format as the Check-ins tab uses: "YYYY-Www")
+    const year = weekSunday.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const week1Start = new Date(startOfYear);
+    week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
+    const weekNum = Math.floor((weekSunday.getTime() - week1Start.getTime()) / (7 * 86400000)) + 1;
+    const weekKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
+
+    // Fetch per-week check-in statuses from /api/checkins — this is where Milzzy
+    // attaches "paused / holiday / sick / skip" statuses per client per week.
+    let weekCheckins: Record<string, string> = {};
+    try {
+      const res = await fetch(`/api/checkins?weekKey=${weekKey}`, { cache: "no-store" });
+      if (res.ok) weekCheckins = await res.json();
+    } catch { /* fall through to empty */ }
+
+    const SKIP_STATUSES = new Set(["skip", "skip-l", "sick", "paused"]);
+
     let created = 0;
     let skipped = 0;
-    let skippedPausedNames: string[] = [];
-
-    // A paused client is eligible for a check-in on a given day if their `pausedUntil`
-    // has already passed by that day. Otherwise they're still on pause for that day.
-    const isEligibleForDay = (c: Client, checkInDate: Date): boolean => {
-      if (c.status === "cancelled") return false;
-      if (c.status === "paused") {
-        if (!c.pausedUntil) return false; // Paused with no end date → treat as indefinite
-        const pauseEnd = new Date(c.pausedUntil);
-        pauseEnd.setHours(0, 0, 0, 0);
-        if (pauseEnd >= checkInDate) return false; // Pause still active on this day
-      }
-      return true;
-    };
+    let skippedNames: string[] = [];
 
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const checkInDay = DAY_NAMES[dayIdx];
       const dayAbbr    = DAY_ABBR[dayIdx];
 
-      // The check-in happens on this day of the week
-      const checkInDate = new Date(weekSunday);
-      checkInDate.setDate(weekSunday.getDate() + dayIdx);
-      checkInDate.setHours(0, 0, 0, 0);
-
-      const allForDay = clients.filter(c => c.checkInDay === checkInDay);
-      const dayClients = allForDay.filter(c => isEligibleForDay(c, checkInDate));
-      const skippedForDay = allForDay.filter(c => !isEligibleForDay(c, checkInDate));
-
-      for (const c of skippedForDay) {
-        if (!skippedPausedNames.includes(c.name)) skippedPausedNames.push(c.name);
-      }
-      if (dayClients.length === 0) continue;
-
-      // Processing happens the FOLLOWING day
+      // The check-in happens on this day; processing happens the FOLLOWING day
       const processingDate = new Date(weekSunday);
       processingDate.setDate(weekSunday.getDate() + dayIdx + 1);
       const dateStr = normDateStr(processingDate);
+
+      const allForDay = clients.filter(c => c.checkInDay === checkInDay);
+      // Eligible if: not cancelled AND no skip-type status attached this week.
+      // Includes clients with no check-in status set yet (will check in).
+      const dayClients = allForDay.filter(c => {
+        if (c.status === "cancelled") return false;
+        const wkStatus = weekCheckins[c.id];
+        if (wkStatus && SKIP_STATUSES.has(wkStatus)) return false;
+        return true;
+      });
+      const skippedForDay = allForDay.filter(c => !dayClients.includes(c));
+
+      for (const c of skippedForDay) {
+        if (!skippedNames.includes(c.name)) skippedNames.push(c.name);
+      }
+      if (dayClients.length === 0) continue;
 
       // Duplicate guard — skip this day if any check-in task already exists for it
       const alreadyExists = tasks.some(t =>
@@ -585,12 +593,12 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
     setGeneratingCheckIns(false);
     if (created > 0) {
-      const pauseNote = skippedPausedNames.length > 0 ? ` (skipped ${skippedPausedNames.length} paused: ${skippedPausedNames.slice(0, 3).join(", ")}${skippedPausedNames.length > 3 ? "…" : ""})` : "";
-      showToast(`${created} check-in task${created !== 1 ? "s" : ""} created${pauseNote}`);
+      const skipNote = skippedNames.length > 0 ? ` (skipped ${skippedNames.length}: ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""})` : "";
+      showToast(`${created} check-in task${created !== 1 ? "s" : ""} created${skipNote}`);
     }
     else if (skipped > 0) showToast("Check-in tasks already exist for this week", "info");
-    else if (skippedPausedNames.length > 0 && clients.some(c => c.checkInDay)) {
-      showToast(`All eligible clients already have check-in tasks. ${skippedPausedNames.length} paused this week: ${skippedPausedNames.slice(0, 3).join(", ")}${skippedPausedNames.length > 3 ? "…" : ""}`, "info");
+    else if (skippedNames.length > 0 && clients.some(c => c.checkInDay)) {
+      showToast(`All eligible clients already have check-in tasks. ${skippedNames.length} skipped (paused/sick/skip): ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}`, "info");
     }
     else showToast("No check-in clients found", "info");
   }, [clients, tasks, showToast]);
