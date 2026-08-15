@@ -519,31 +519,31 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
   const generateCheckInTasks = useCallback(async () => {
     setGeneratingCheckIns(true);
-    // Check-in day order matching ISO weeks (Mon → Sun), same as the Check-ins tab
-    const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-    const DAY_ABBR  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    // Sun-Sat week order (today is Sunday — full week starts today)
+    const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const DAY_ABBR  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-    // Target NEXT week (Mon-based, matching Check-ins tab week convention)
-    const thisMonday = getMondayOf(new Date());
-    const targetMonday = new Date(thisMonday);
-    targetMonday.setDate(thisMonday.getDate() + 7);
-    const weekKey = getIsoWeekKey(targetMonday);
+    // Target the current week (Sun Aug 16 → Sat Aug 22, Sun-Sat convention).
+    // ISO weekKey is computed from the Monday of this week so we read the right
+    // per-week status data from the Check-ins tab.
+    const weekSunday = getSundayOf(new Date());
+    const thisMonday = new Date(weekSunday);
+    thisMonday.setDate(weekSunday.getDate() + 1); // Mon of this week (Sun + 1)
+    const weekKey = getIsoWeekKey(thisMonday);
 
     // Fetch per-week check-in statuses from /api/checkins — this is where Milzzy
-    // attaches "paused / holiday / sick / skip" statuses per client per week.
+    // attaches "paused / holiday / sick / skip / ontime / submitted" statuses.
     let weekCheckins: Record<string, string> = {};
     try {
       const res = await fetch(`/api/checkins?weekKey=${weekKey}`, { cache: "no-store" });
       if (res.ok) weekCheckins = await res.json();
     } catch { /* fall through to empty */ }
 
-    const SKIP_STATUSES = new Set(["skip", "skip-l", "sick", "paused"]);
-
     // Compute target processing dates (next-day processing for each check-in day)
     const targetDates: string[] = [];
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
-      const processingDate = new Date(targetMonday);
-      processingDate.setDate(targetMonday.getDate() + dayIdx + 1);
+      const processingDate = new Date(weekSunday);
+      processingDate.setDate(weekSunday.getDate() + dayIdx + 1);
       targetDates.push(normDateStr(processingDate));
     }
 
@@ -565,6 +565,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     setTasks(prev => prev.filter(t => !existingForTarget.find(e => e.id === t.id)));
 
     let created = 0;
+    let includedNames: string[] = [];
     let skippedNames: string[] = [];
 
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
@@ -572,21 +573,28 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       const dayAbbr    = DAY_ABBR[dayIdx];
 
       // Processing happens the FOLLOWING day
-      const processingDate = new Date(targetMonday);
-      processingDate.setDate(targetMonday.getDate() + dayIdx + 1);
+      const processingDate = new Date(weekSunday);
+      processingDate.setDate(weekSunday.getDate() + dayIdx + 1);
       const dateStr = normDateStr(processingDate);
 
       const allForDay = clients.filter(c => c.checkInDay === checkInDay);
-      // Eligible if: not cancelled AND no skip-type status attached this week.
-      // Includes clients with no check-in status set yet (will check in).
+
+      // INVERTED logic (Milzzy's rule):
+      //   INCLUDE only clients with NO status set yet this week (they need attention)
+      //   SKIP   anyone with any status already attached (paused, skip, ontime,
+      //          submitted, late, not-submitted, sick, skip-l, etc.)
+      //   SKIP   cancelled clients (hard skip)
       const dayClients = allForDay.filter(c => {
         if (c.status === "cancelled") return false;
         const wkStatus = weekCheckins[c.id];
-        if (wkStatus && SKIP_STATUSES.has(wkStatus)) return false;
+        if (wkStatus && wkStatus.length > 0) return false;
         return true;
       });
       const skippedForDay = allForDay.filter(c => !dayClients.includes(c));
 
+      for (const c of dayClients) {
+        if (!includedNames.includes(c.name)) includedNames.push(c.name);
+      }
       for (const c of skippedForDay) {
         if (!skippedNames.includes(c.name)) skippedNames.push(c.name);
       }
@@ -621,10 +629,10 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     setGeneratingCheckIns(false);
     if (created > 0) {
       const replaceNote = replaced > 0 ? ` (replaced ${replaced} existing)` : "";
-      const skipNote = skippedNames.length > 0 ? ` | ${skippedNames.length} skipped: ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}` : "";
+      const skipNote = skippedNames.length > 0 ? ` | ${skippedNames.length} skipped (already have status): ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}` : "";
       showToast(`${created} check-in task${created !== 1 ? "s" : ""} created for week ${weekKey}${replaceNote}${skipNote}`);
-    } else if (skippedNames.length > 0 && clients.some(c => c.checkInDay)) {
-      showToast(`No eligible clients for week ${weekKey}. ${skippedNames.length} skipped (paused/sick/skip): ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}`, "info");
+    } else if (skippedNames.length > 0) {
+      showToast(`All eligible clients already have a check-in status for week ${weekKey}. ${skippedNames.length} handled: ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}`, "info");
     } else {
       showToast(`No check-in clients found for week ${weekKey}`, "info");
     }
@@ -1520,7 +1528,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
             color: WHITE, opacity: generatingCheckIns ? 0.6 : 1,
             flex: isMobile ? 1 : undefined,
           }}>
-            {generatingCheckIns ? "Creating…" : "Input Next Week's Check Ins"}
+            {generatingCheckIns ? "Creating…" : "Input Check Ins"}
           </button>
           <button onClick={() => openAddTask()} style={{
             background: T, color: "#000", border: "none", borderRadius: 10,
