@@ -113,7 +113,7 @@ async function runSync() {
     }
 
     for (const sub of submissions) {
-      const submissionId = sub.id as string;
+      const submissionId = (sub.submissionId || sub.id) as string;
 
       if (seenIds.has(submissionId)) {
         skipped++;

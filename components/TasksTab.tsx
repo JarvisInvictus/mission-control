@@ -89,9 +89,30 @@ interface Task {
 interface Client {
   id: string;
   name: string;
+  email?: string;
   coach: string;
   status: string;
   checkInDay?: string;
+}
+
+interface OnboardingSubmission {
+  id: string;
+  coach: "Milzzy" | "Miggy";
+  formId: string;
+  formName: string;
+  name: string;
+  email: string;
+  phone: string;
+  gender?: string;
+  birthday?: string;
+  weight?: string;
+  height?: string;
+  goal?: string;
+  service?: string;
+  photoUrls: string[];
+  signatureUrl?: string;
+  submittedAt: string;
+  filloutUrl: string;
 }
 
 interface Toast {
@@ -232,6 +253,11 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   const [ctxMenu, setCtxMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
   const inlineRef = useRef<HTMLTextAreaElement>(null);
 
+  // Onboarding submissions (new clients who just filled out the onboarding form)
+  const [onboardingSubs, setOnboardingSubs] = useState<OnboardingSubmission[]>([]);
+  const [onboardingExpanded, setOnboardingExpanded] = useState(false);
+  const [onboardingRefreshing, setOnboardingRefreshing] = useState(false);
+
   const today = getToday();
   const activeClients = useMemo(() => clients.filter((c) => c.status === "active"), [clients]);
 
@@ -260,19 +286,90 @@ export function TasksTab({ clients }: { clients: Client[] }) {
   }, []);
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // Scroll TDL to today's column on mobile
-  useEffect(() => {
-    if (!isMobile || layout !== "tdl") return;
-    const todayCol = document.querySelector(`[data-date="${today}"]`) as HTMLElement | null;
-    if (todayCol) todayCol.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
-  }, [isMobile, layout, today, tdlWeekSunday]);
-
   // ─── Toast helpers ────────────────────────────────────────────────────────
   const showToast = useCallback((message: string, type: Toast["type"] = "success") => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }, []);
+
+  // ─── Onboarding inbox ─────────────────────────────────────────────────────
+  const fetchOnboarding = useCallback(async () => {
+    try {
+      const res = await fetch("/api/onboarding", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setOnboardingSubs(Array.isArray(data.unacked) ? data.unacked : []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchOnboarding();
+    const interval = setInterval(fetchOnboarding, 60_000); // poll every 60s
+    return () => clearInterval(interval);
+  }, [fetchOnboarding]);
+
+  const refreshOnboarding = useCallback(async () => {
+    setOnboardingRefreshing(true);
+    try {
+      await fetch("/api/onboarding", { method: "POST", cache: "no-store" });
+      await fetchOnboarding();
+      showToast("Onboarding inbox refreshed");
+    } finally {
+      setOnboardingRefreshing(false);
+    }
+  }, [fetchOnboarding, showToast]);
+
+  const dismissOnboarding = useCallback(async (ids: string[]) => {
+    setOnboardingSubs((prev) => prev.filter((s) => !ids.includes(s.id)));
+    try {
+      await fetch("/api/onboarding/ack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+    } catch { /* ignore */ }
+    showToast(ids.length === 1 ? "Dismissed" : `${ids.length} dismissed`, "info");
+  }, [showToast]);
+
+  const openOnboardTask = useCallback((sub: OnboardingSubmission) => {
+    // Try to match to an existing client by email
+    const matchedClient = sub.email
+      ? activeClients.find((c) => c.email && c.email.toLowerCase() === sub.email.toLowerCase())
+      : null;
+
+    const goalLine = sub.goal ? `Goal: ${sub.goal}\n` : "";
+    const serviceLine = sub.service ? `Service: ${sub.service}\n` : "";
+    const photoLine = sub.photoUrls.length > 0 ? `Physique photos: ${sub.photoUrls[0]}${sub.photoUrls.length > 1 ? ` (+${sub.photoUrls.length - 1} more)` : ""}\n` : "";
+
+    setDrawerTask({
+      title: `Onboard: ${sub.name}`,
+      done: false,
+      clientId: matchedClient?.id ?? null,
+      category: "Onboarding",
+      priority: "high",
+      owner: sub.coach,
+      dueDate: today,
+      notes:
+        `Fillout form: ${sub.filloutUrl}\n` +
+        `Email: ${sub.email}\n` +
+        `Phone: ${sub.phone}\n` +
+        goalLine +
+        serviceLine +
+        photoLine +
+        (matchedClient ? `\n✓ Linked to existing client: ${matchedClient.name}` : "\n⚠ No matching client — create one in Clients tab."),
+      status: "open",
+    });
+    setDrawerIsNew(true);
+    setDrawerDefaultDate(today);
+  }, [activeClients, today]);
+
+  // Scroll TDL to today's column on mobile
+  useEffect(() => {
+    if (!isMobile || layout !== "tdl") return;
+    const todayCol = document.querySelector(`[data-date="${today}"]`) as HTMLElement | null;
+    if (todayCol) todayCol.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  }, [isMobile, layout, today, tdlWeekSunday]);
 
   // ─── Colour context menu ──────────────────────────────────────────────────
   const setTaskColor = useCallback(async (taskId: string, color: string | null) => {
@@ -1082,6 +1179,159 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     </div>
   );
 
+  // ─── Onboarding inbox ─────────────────────────────────────────────────────
+  const renderOnboardingInbox = () => {
+    if (onboardingSubs.length === 0) return null;
+    const subs = onboardingExpanded ? onboardingSubs : onboardingSubs.slice(0, 3);
+    const ownerStyle = (coach: string) =>
+      coach === "Miggy"
+        ? { bg: "rgba(249,115,22,0.15)", border: "rgba(249,115,22,0.40)", text: "#f97316" }
+        : { bg: TSoft, border: TBorder, text: T };
+
+    return (
+      <section style={{
+        marginTop: 32,
+        background: "linear-gradient(135deg, rgba(10,186,181,0.10) 0%, rgba(168,85,247,0.06) 100%)",
+        border: `1px solid ${TBorder}`,
+        borderRadius: 18,
+        padding: isMobile ? "16px" : "20px 22px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: TSoft, border: `1px solid ${TBorder}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16,
+            }}>📥</div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: 0 }}>New onboarding submissions</h2>
+                <span style={{
+                  background: T, color: "#000", borderRadius: 999, padding: "2px 9px",
+                  fontSize: 11, fontWeight: 800,
+                }}>{onboardingSubs.length}</span>
+              </div>
+              <p style={{ fontSize: 11, color: MUTED, margin: "2px 0 0" }}>
+                Clients who just completed the onboarding form. Pick a day to schedule their kickoff.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={refreshOnboarding} disabled={onboardingRefreshing} style={{
+              background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}`, borderRadius: 8,
+              padding: "6px 12px", color: WHITE, fontSize: 11, cursor: onboardingRefreshing ? "not-allowed" : "pointer",
+              fontFamily: "inherit", fontWeight: 600, opacity: onboardingRefreshing ? 0.5 : 1,
+            }}>
+              {onboardingRefreshing ? "…" : "↻ Refresh"}
+            </button>
+            {onboardingSubs.length > 3 && (
+              <button onClick={() => setOnboardingExpanded((e) => !e)} style={{
+                background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 8,
+                padding: "6px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+              }}>
+                {onboardingExpanded ? "Show less" : `Show all (${onboardingSubs.length})`}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {subs.map((sub) => {
+            const submittedDate = new Date(sub.submittedAt);
+            const agoMs = Date.now() - submittedDate.getTime();
+            const agoMin = Math.round(agoMs / 60000);
+            const agoHr = Math.round(agoMs / 3600000);
+            const agoDay = Math.round(agoMs / 86400000);
+            const agoText =
+              agoMin < 60 ? `${agoMin}m ago` :
+              agoHr  < 24 ? `${agoHr}h ago` :
+              agoDay === 1 ? "Yesterday" :
+              `${agoDay}d ago`;
+            const oc = ownerStyle(sub.coach);
+            const initials = (sub.name || "?").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+            const hasPhoto = sub.photoUrls.length > 0;
+            const matchedExisting = sub.email
+              ? activeClients.find((c) => c.email && c.email.toLowerCase() === sub.email.toLowerCase())
+              : null;
+
+            return (
+              <div key={sub.id} style={{
+                background: "rgba(255,255,255,0.04)",
+                border: `1px solid ${BORDER}`,
+                borderLeft: `3px solid ${sub.coach === "Miggy" ? "#f97316" : T}`,
+                borderRadius: 12,
+                padding: isMobile ? "12px" : "14px 16px",
+                display: "flex", gap: 12, alignItems: "flex-start",
+                flexWrap: isMobile ? "wrap" : "nowrap",
+              }}>
+                {hasPhoto ? (
+                  <img src={sub.photoUrls[0]} alt="" style={{
+                    width: 48, height: 48, borderRadius: 10, objectFit: "cover",
+                    border: `1px solid ${BORDER}`, flexShrink: 0,
+                  }} />
+                ) : (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 10,
+                    background: oc.bg, border: `1px solid ${oc.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: oc.text, fontSize: 16, fontWeight: 700, flexShrink: 0,
+                  }}>{initials}</div>
+                )}
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{sub.name || "(no name)"}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5,
+                      background: oc.bg, color: oc.text, border: `1px solid ${oc.border}`,
+                    }}>{sub.coach}</span>
+                    <span style={{ fontSize: 10, color: MUTED }}>· {agoText}</span>
+                    {matchedExisting && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5,
+                        background: "rgba(74,222,128,0.15)", color: GREEN, border: `1px solid rgba(74,222,128,0.40)`,
+                      }}>✓ existing client</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+                    {sub.email && <span>{sub.email}</span>}
+                    {sub.email && sub.phone && <span style={{ color: BORDER }}>  ·  </span>}
+                    {sub.phone && <span>{sub.phone}</span>}
+                  </div>
+                  {(sub.goal || sub.service) && (
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 6, lineHeight: 1.4 }}>
+                      {sub.service && <span style={{ color: "rgba(255,255,255,0.45)" }}>{sub.service}</span>}
+                      {sub.service && sub.goal && <span style={{ color: BORDER }}>  ·  </span>}
+                      {sub.goal && <span>{sub.goal}</span>}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center", flexWrap: "wrap" }}>
+                  <a href={sub.filloutUrl} target="_blank" rel="noopener noreferrer" style={{
+                    fontSize: 11, fontWeight: 600, color: MUTED, textDecoration: "none",
+                    padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: 8,
+                  }}>View form ↗</a>
+                  <button onClick={() => dismissOnboarding([sub.id])} style={{
+                    background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+                    borderRadius: 8, padding: "6px 12px", color: MUTED,
+                    fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  }}>Dismiss</button>
+                  <button onClick={() => openOnboardTask(sub)} style={{
+                    background: T, color: "#000", border: "none", borderRadius: 8,
+                    padding: "7px 14px", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>+ Add as task</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
   if (loading) return <div style={{ padding: 40, color: MUTED, textAlign: "center", fontFamily: "system-ui" }}>Loading tasks…</div>;
 
@@ -1130,6 +1380,9 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       </div>
 
       {layout === "normal" ? renderNormal() : renderTdl()}
+
+      {renderOnboardingInbox()}
+
       {renderDrawer()}
       {renderToasts()}
 
