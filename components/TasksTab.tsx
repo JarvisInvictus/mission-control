@@ -516,7 +516,8 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const checkInDay = DAY_NAMES[dayIdx];
       const dayAbbr    = DAY_ABBR[dayIdx];
-      const dayClients = activeClients.filter(c => c.checkInDay === checkInDay);
+      // Include active + paused clients (exclude cancelled). Paused clients still need check-ins while they're paused.
+      const dayClients = clients.filter(c => c.checkInDay === checkInDay && c.status !== "cancelled");
       if (dayClients.length === 0) continue;
 
       // Processing happens the FOLLOWING day
@@ -560,7 +561,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     if (created > 0) showToast(`${created} check-in task${created !== 1 ? "s" : ""} created`);
     else if (skipped > 0) showToast("Check-in tasks already exist for this week", "info");
     else showToast("No check-in clients found", "info");
-  }, [activeClients, tasks, showToast]);
+  }, [clients, tasks, showToast]);
 
   const openAddTask = useCallback((defaultDate?: string) => {
     setDrawerTask({
