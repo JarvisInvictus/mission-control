@@ -137,7 +137,6 @@ function getSundayOf(date: Date): Date {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-
 function getMondayOf(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
@@ -145,6 +144,18 @@ function getMondayOf(date: Date): Date {
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/** ISO weekKey ("YYYY-Www") matching the Check-ins tab's format. */
+function getIsoWeekKey(date: Date): string {
+  const year = date.getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+  const week1Start = new Date(startOfYear);
+  const dayOfWeek = startOfYear.getDay(); // 0=Sun, 1=Mon
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  week1Start.setDate(startOfYear.getDate() - daysToMonday);
+  const weekNum = Math.floor((date.getTime() - week1Start.getTime()) / (7 * 86400000)) + 1;
+  return `${year}-W${String(weekNum).padStart(2, "0")}`;
 }
 
 function isWithinDays(dateStr: string, days: number): boolean {
@@ -508,17 +519,15 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
   const generateCheckInTasks = useCallback(async () => {
     setGeneratingCheckIns(true);
-    const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const DAY_ABBR  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const weekSunday = getSundayOf(new Date());
+    // Check-in day order matching ISO weeks (Mon → Sun), same as the Check-ins tab
+    const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    const DAY_ABBR  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
-    // Compute current weekKey (same format as the Check-ins tab uses: "YYYY-Www")
-    const year = weekSunday.getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const week1Start = new Date(startOfYear);
-    week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
-    const weekNum = Math.floor((weekSunday.getTime() - week1Start.getTime()) / (7 * 86400000)) + 1;
-    const weekKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
+    // Target NEXT week (Mon-based, matching Check-ins tab week convention)
+    const thisMonday = getMondayOf(new Date());
+    const targetMonday = new Date(thisMonday);
+    targetMonday.setDate(thisMonday.getDate() + 7);
+    const weekKey = getIsoWeekKey(targetMonday);
 
     // Fetch per-week check-in statuses from /api/checkins — this is where Milzzy
     // attaches "paused / holiday / sick / skip" statuses per client per week.
@@ -530,17 +539,41 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
     const SKIP_STATUSES = new Set(["skip", "skip-l", "sick", "paused"]);
 
+    // Compute target processing dates (next-day processing for each check-in day)
+    const targetDates: string[] = [];
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      const processingDate = new Date(targetMonday);
+      processingDate.setDate(targetMonday.getDate() + dayIdx + 1);
+      targetDates.push(normDateStr(processingDate));
+    }
+
+    // Auto-regenerate: delete any existing undone check-in tasks for the target
+    // processing dates. Done tasks are preserved (historical record).
+    const existingForTarget = tasks.filter(t =>
+      !t.done &&
+      t.dueDate != null &&
+      targetDates.includes(t.dueDate) &&
+      /^check in x\d+.*- \w+$/i.test(t.title)
+    );
+    let replaced = 0;
+    for (const t of existingForTarget) {
+      try {
+        await fetch(`/api/tasks?id=${encodeURIComponent(t.id)}`, { method: "DELETE" });
+        replaced++;
+      } catch { /* ignore */ }
+    }
+    setTasks(prev => prev.filter(t => !existingForTarget.find(e => e.id === t.id)));
+
     let created = 0;
-    let skipped = 0;
     let skippedNames: string[] = [];
 
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const checkInDay = DAY_NAMES[dayIdx];
       const dayAbbr    = DAY_ABBR[dayIdx];
 
-      // The check-in happens on this day; processing happens the FOLLOWING day
-      const processingDate = new Date(weekSunday);
-      processingDate.setDate(weekSunday.getDate() + dayIdx + 1);
+      // Processing happens the FOLLOWING day
+      const processingDate = new Date(targetMonday);
+      processingDate.setDate(targetMonday.getDate() + dayIdx + 1);
       const dateStr = normDateStr(processingDate);
 
       const allForDay = clients.filter(c => c.checkInDay === checkInDay);
@@ -559,12 +592,6 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       }
       if (dayClients.length === 0) continue;
 
-      // Duplicate guard — skip this day if any check-in task already exists for it
-      const alreadyExists = tasks.some(t =>
-        t.dueDate === dateStr && /^check in x\d+.*- \w+$/i.test(t.title)
-      );
-      if (alreadyExists) { skipped++; continue; }
-
       const sorted = [...dayClients].sort((a, b) => a.name.localeCompare(b.name));
       const total = sorted.length;
 
@@ -579,7 +606,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
             body: JSON.stringify({
               title, owner: "Milzzy", dueDate: dateStr,
               priority: "normal", status: "open",
-              notes: `${checkInDay} check-ins (${cumulative - batch.length + 1}–${cumulative} of ${total})`,
+              notes: `${checkInDay} check-ins (${cumulative - batch.length + 1}–${cumulative} of ${total}) — week ${weekKey}`,
             }),
           });
           if (res.ok) {
@@ -593,14 +620,14 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
     setGeneratingCheckIns(false);
     if (created > 0) {
-      const skipNote = skippedNames.length > 0 ? ` (skipped ${skippedNames.length}: ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""})` : "";
-      showToast(`${created} check-in task${created !== 1 ? "s" : ""} created${skipNote}`);
+      const replaceNote = replaced > 0 ? ` (replaced ${replaced} existing)` : "";
+      const skipNote = skippedNames.length > 0 ? ` | ${skippedNames.length} skipped: ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}` : "";
+      showToast(`${created} check-in task${created !== 1 ? "s" : ""} created for week ${weekKey}${replaceNote}${skipNote}`);
+    } else if (skippedNames.length > 0 && clients.some(c => c.checkInDay)) {
+      showToast(`No eligible clients for week ${weekKey}. ${skippedNames.length} skipped (paused/sick/skip): ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}`, "info");
+    } else {
+      showToast(`No check-in clients found for week ${weekKey}`, "info");
     }
-    else if (skipped > 0) showToast("Check-in tasks already exist for this week", "info");
-    else if (skippedNames.length > 0 && clients.some(c => c.checkInDay)) {
-      showToast(`All eligible clients already have check-in tasks. ${skippedNames.length} skipped (paused/sick/skip): ${skippedNames.slice(0, 3).join(", ")}${skippedNames.length > 3 ? "…" : ""}`, "info");
-    }
-    else showToast("No check-in clients found", "info");
   }, [clients, tasks, showToast]);
 
   const openAddTask = useCallback((defaultDate?: string) => {
@@ -1493,7 +1520,7 @@ export function TasksTab({ clients }: { clients: Client[] }) {
             color: WHITE, opacity: generatingCheckIns ? 0.6 : 1,
             flex: isMobile ? 1 : undefined,
           }}>
-            {generatingCheckIns ? "Creating…" : "Input Check Ins"}
+            {generatingCheckIns ? "Creating…" : "Input Next Week's Check Ins"}
           </button>
           <button onClick={() => openAddTask()} style={{
             background: T, color: "#000", border: "none", borderRadius: 10,
