@@ -93,6 +93,7 @@ interface Client {
   coach: string;
   status: string;
   checkInDay?: string;
+  pausedUntil?: string;
 }
 
 interface OnboardingSubmission {
@@ -512,12 +513,37 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     const weekSunday = getSundayOf(new Date());
     let created = 0;
     let skipped = 0;
+    let skippedPausedNames: string[] = [];
+
+    // A paused client is eligible for a check-in on a given day if their `pausedUntil`
+    // has already passed by that day. Otherwise they're still on pause for that day.
+    const isEligibleForDay = (c: Client, checkInDate: Date): boolean => {
+      if (c.status === "cancelled") return false;
+      if (c.status === "paused") {
+        if (!c.pausedUntil) return false; // Paused with no end date → treat as indefinite
+        const pauseEnd = new Date(c.pausedUntil);
+        pauseEnd.setHours(0, 0, 0, 0);
+        if (pauseEnd >= checkInDate) return false; // Pause still active on this day
+      }
+      return true;
+    };
 
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
       const checkInDay = DAY_NAMES[dayIdx];
       const dayAbbr    = DAY_ABBR[dayIdx];
-      // Include active + paused clients (exclude cancelled). Paused clients still need check-ins while they're paused.
-      const dayClients = clients.filter(c => c.checkInDay === checkInDay && c.status !== "cancelled");
+
+      // The check-in happens on this day of the week
+      const checkInDate = new Date(weekSunday);
+      checkInDate.setDate(weekSunday.getDate() + dayIdx);
+      checkInDate.setHours(0, 0, 0, 0);
+
+      const allForDay = clients.filter(c => c.checkInDay === checkInDay);
+      const dayClients = allForDay.filter(c => isEligibleForDay(c, checkInDate));
+      const skippedForDay = allForDay.filter(c => !isEligibleForDay(c, checkInDate));
+
+      for (const c of skippedForDay) {
+        if (!skippedPausedNames.includes(c.name)) skippedPausedNames.push(c.name);
+      }
       if (dayClients.length === 0) continue;
 
       // Processing happens the FOLLOWING day
@@ -558,8 +584,14 @@ export function TasksTab({ clients }: { clients: Client[] }) {
     }
 
     setGeneratingCheckIns(false);
-    if (created > 0) showToast(`${created} check-in task${created !== 1 ? "s" : ""} created`);
+    if (created > 0) {
+      const pauseNote = skippedPausedNames.length > 0 ? ` (skipped ${skippedPausedNames.length} paused: ${skippedPausedNames.slice(0, 3).join(", ")}${skippedPausedNames.length > 3 ? "…" : ""})` : "";
+      showToast(`${created} check-in task${created !== 1 ? "s" : ""} created${pauseNote}`);
+    }
     else if (skipped > 0) showToast("Check-in tasks already exist for this week", "info");
+    else if (skippedPausedNames.length > 0 && clients.some(c => c.checkInDay)) {
+      showToast(`All eligible clients already have check-in tasks. ${skippedPausedNames.length} paused this week: ${skippedPausedNames.slice(0, 3).join(", ")}${skippedPausedNames.length > 3 ? "…" : ""}`, "info");
+    }
     else showToast("No check-in clients found", "info");
   }, [clients, tasks, showToast]);
 
