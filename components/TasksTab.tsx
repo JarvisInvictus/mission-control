@@ -580,12 +580,12 @@ export function TasksTab({ clients }: { clients: Client[] }) {
       const allForDay = clients.filter(c => c.checkInDay === checkInDay);
 
       // INVERTED logic (Milzzy's rule):
-      //   INCLUDE only clients with NO status set yet this week (they need attention)
-      //   SKIP   anyone with any status already attached (paused, skip, ontime,
+      //   INCLUDE only active clients (master status) with NO week status set
+      //   SKIP   anyone with status !== "active" (paused / cancelled — not checking in)
+      //   SKIP   anyone with a week status already attached (paused, skip, ontime,
       //          submitted, late, not-submitted, sick, skip-l, etc.)
-      //   SKIP   cancelled clients (hard skip)
       const dayClients = allForDay.filter(c => {
-        if (c.status === "cancelled") return false;
+        if (c.status !== "active") return false;
         const wkStatus = weekCheckins[c.id];
         if (wkStatus && wkStatus.length > 0) return false;
         return true;
