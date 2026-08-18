@@ -6712,7 +6712,7 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" }); }}
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); }}
             style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
             {showForm ? "Cancel" : "+ Add Client"}
           </button>
