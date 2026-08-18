@@ -98,6 +98,20 @@ export interface Client {
   _forceCancelled?: boolean;
 }
 
+export interface ClientFormState {
+  name: string;
+  email: string;
+  coach: "Milzzy" | "Miggy";
+  paymentPlatform: "Newie" | "Upfront" | "Mentorship";
+  weeklyCharge: number;
+  spreadsheetUrl: string;
+  status: Client["status"];
+  pausedUntil: string;
+  startDate: string;
+  notes: string;
+  checkInDay: "" | Client["checkInDay"];
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -6426,6 +6440,734 @@ const funnels = [
   );
 }
 
+// ─── ClientsTab (module-scoped for stable React reference) ──────────────────
+function ClientsTab({
+  onClientClick,
+  pendingClients,
+  onActivateClient,
+  onRemovePending,
+  clients,
+  clientEditForm,
+  setClientEditForm,
+  clientEditingId,
+  setClientEditingId,
+  clientFormError,
+  setClientFormError,
+  setClients,
+  updateClient,
+  addToast,
+  selectedClient,
+  setSelectedClient,
+  actionPanel,
+  setActionPanel,
+}: {
+  onClientClick: (c: Client) => void;
+  pendingClients: PendingClient[];
+  onActivateClient: (pc: PendingClient) => void;
+  onRemovePending: (id: string) => void;
+  clients: Client[];
+  clientEditForm: ClientFormState;
+  setClientEditForm: React.Dispatch<React.SetStateAction<ClientFormState>>;
+  clientEditingId: string | null;
+  setClientEditingId: React.Dispatch<React.SetStateAction<string | null>>;
+  clientFormError: string | null;
+  setClientFormError: React.Dispatch<React.SetStateAction<string | null>>;
+  setClients: React.Dispatch<React.SetStateAction<Client[]>>;
+  updateClient: (id: string, data: Partial<Client>) => Promise<void>;
+  addToast: (msg: string, type?: "success" | "error" | "info") => void;
+  selectedClient: Client | null;
+  setSelectedClient: React.Dispatch<React.SetStateAction<Client | null>>;
+  actionPanel: "menu" | "pause" | "cancel" | "edit" | null;
+  setActionPanel: React.Dispatch<React.SetStateAction<"menu" | "pause" | "cancel" | "edit" | null>>;
+}) {
+  const form = clientEditForm;
+  const setForm = setClientEditForm;
+  const editingId = clientEditingId;
+  const setEditingId = setClientEditingId;
+  const formError = clientFormError;
+  const setFormError = setClientFormError;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
+
+  const searchResults = searchQuery
+    ? clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())))
+    : [];
+
+  const coachFiltered = clients.filter(c => c.coach === selectedCoach);
+  const dayGroups = DAY_ORDER.map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day && c.status !== "cancelled").sort((a,b) => a.name.localeCompare(b.name)) })).filter(g => g.clients.length > 0);
+  const cancelledClients = coachFiltered.filter(c => c.status === "cancelled");
+  const pausedClients = coachFiltered.filter(c => c.status === "paused");
+  const activeClients = coachFiltered.filter(c => c.status === "active");
+  const miggyClients = clients.filter(c => c.coach === "Miggy");
+  const milzzyClients = clients.filter(c => c.coach === "Milzzy");
+
+  const startEdit = (client: Client) => {
+    setForm({
+      name: client.name, email: client.email ?? "",
+      coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie",
+      weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "",
+      status: client.status, pausedUntil: client.pausedUntil ?? "",
+      startDate: client.startDate, notes: client.notes ?? "",
+      checkInDay: client.checkInDay ?? "",
+    });
+    setEditingId(client.id);
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setFormError("Name is required"); return; }
+    setFormError(null);
+    if (editingId) {
+      await updateClient(editingId, { ...form, checkInDay: form.checkInDay || undefined });
+      setEditingId(null);
+    } else {
+      const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
+    }
+    setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" });
+    setShowForm(false);
+  };
+
+  const statusPill = (client: Client) => {
+    if (client.status === "active") return <span style={{ background: TiffanySoft, color: Tiffany, border: `1px solid ${TiffanyBorder}`, borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Active</span>;
+    if (client.status === "paused") {
+      const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
+      return <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Paused {wks ? `· ${wks}w` : ""}</span>;
+    }
+    return <span style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Cancelled</span>;
+  };
+
+  const platformColors: Record<string, string> = { Newie: Tiffany, Upfront: "#a855f7", Mentorship: "#10b981" };
+
+  const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
+    : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
+    : dayGroups.length <= 4 ? "grid grid-cols-2 lg:grid-cols-4 gap-3"
+    : "grid grid-cols-2 lg:grid-cols-4 gap-3";
+
+  // ── Pending Client Row sub-component ──────────────────────────────────────
+  function PendingClientRow({ pc, onActivate, onRemove }: {
+    pc: PendingClient;
+    onActivate: (pc: PendingClient) => void;
+    onRemove: (id: string) => void;
+  }) {
+    const [coach, setCoach] = useState<"Milzzy"|"Miggy">(pc.coach);
+    const [checkInDay, setCheckInDay] = useState<""|Client["checkInDay"]>(pc.checkInDay);
+    const [weeklyCharge, setWeeklyCharge] = useState(pc.weeklyCharge);
+    const [expanded, setExpanded] = useState(false);
+    const isComplete = !!(coach && checkInDay && weeklyCharge > 0);
+
+    return (
+      <div style={{ borderBottom: "1px solid rgba(10,186,181,0.08)", padding: "14px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: expanded ? "12px" : "0" }}>
+          <div>
+            <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{pc.name}</div>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pc.source} · Converted {pc.convertedAt}</div>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {!isComplete && <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(251,191,36,0.70)", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 8px" }}>Incomplete</span>}
+            <button onClick={() => setExpanded(e => !e)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "6px 12px", color: "rgba(255,255,255,0.60)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>{expanded ? "Hide" : "Edit"}</button>
+            <button onClick={() => onRemove(pc.id)} style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "6px 10px", color: "#f87171", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>✕</button>
+          </div>
+        </div>
+        {expanded && (
+          <div style={{ background: "rgba(0,0,0,0.20)", borderRadius: "12px", padding: "14px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "10px", alignItems: "end" }}>
+              <div>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
+                <select value={coach} onChange={e => setCoach(e.target.value as "Milzzy"|"Miggy")} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
+                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label>
+                <select value={checkInDay} onChange={e => setCheckInDay(e.target.value as ""|Client["checkInDay"])} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
+                  <option value="">— Select —</option>
+                  {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
+                <input type="number" value={weeklyCharge} onChange={e => setWeeklyCharge(Number(e.target.value))} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
+              </div>
+              <button
+                onClick={() => isComplete ? onActivate({ ...pc, coach, checkInDay, weeklyCharge }) : undefined}
+                disabled={!isComplete}
+                style={{ background: isComplete ? TiffanySoft : "rgba(255,255,255,0.04)", border: isComplete ? `1px solid ${TiffanyBorder}` : "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 18px", color: isComplete ? Tiffany : "rgba(255,255,255,0.20)", fontSize: "13px", cursor: isComplete ? "pointer" : "not-allowed", fontFamily: "system-ui", fontWeight: 600, opacity: isComplete ? 1 : 0.5 }}>
+                Activate
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box", maxWidth: "2040px", margin: "0 auto" }}>
+
+      {/* Search bar */}
+      <div style={{ position: "relative", marginBottom: "14px" }}>
+        <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", fontSize: "14px", pointerEvents: "none" }}>🔍</span>
+        <input
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search clients..."
+          style={{
+            width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${GlassBorder}`,
+            borderRadius: "12px", color: "white", padding: "10px 14px 10px 40px",
+            fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box",
+          }}
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "14px" }}>✕</button>
+        )}
+      </div>
+
+      {/* Header + Add */}
+      <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+        COACH FILTER
+      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {(["Milzzy","Miggy"] as const).map(c => (
+            <button key={c} onClick={() => setSelectedCoach(c)}
+              style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
+              {c} {c === "Milzzy" ? `(${milzzyClients.filter(cl=>cl.status!=="cancelled").length})` : `(${miggyClients.filter(cl=>cl.status!=="cancelled").length})`}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => { setShowForm(!showForm); setEditingId(null); }}
+          style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+          {showForm ? "Cancel" : "+ Add Client"}
+        </button>
+        <a href="https://docs.google.com/spreadsheets/d/1c3PuGmw3LddG_edWagTCoMIq8AhQqqwOBmHqjnuWKGM/edit?gid=1541591503#gid=1541591503" target="_blank" rel="noopener noreferrer"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "8px 18px", color: "rgba(255,255,255,0.75)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          📋 Fresh Sheet
+        </a>
+      </div>
+
+      {/* Stats row — 3 coach cards */}
+      {(() => {
+        const totalClients = clients.filter(c => c.status !== "cancelled").length;
+        const _milzzyRevWk = clients.filter(c => c.status !== "cancelled" && c.coach === "Milzzy").reduce((s, c) => s + (c.weeklyCharge || 0), 0);
+        const _miggyRevWk = clients.filter(c => c.status !== "cancelled" && c.coach === "Miggy").reduce((s, c) => s + (c.weeklyCharge || 0), 0);
+        const totalRevWk = _milzzyRevWk + _miggyRevWk;
+        const cards = [
+          {
+            label: "Milzzy",
+            color: Tiffany,
+            border: TiffanyBorder,
+            clients: milzzyClients.filter(c => c.status !== "cancelled").length,
+            paused: milzzyClients.filter(c => c.status === "paused").length,
+            revWk: _milzzyRevWk,
+            revAnnual: _milzzyRevWk * 52,
+          },
+          {
+            label: "Miggy",
+            color: "#a855f7",
+            border: "rgba(168,85,247,0.35)",
+            clients: miggyClients.filter(c => c.status !== "cancelled").length,
+            paused: miggyClients.filter(c => c.status === "paused").length,
+            revWk: _miggyRevWk,
+            revAnnual: _miggyRevWk * 52,
+          },
+          {
+            label: "Total",
+            color: "#34d399",
+            border: "rgba(52,211,153,0.35)",
+            clients: totalClients,
+            paused: clients.filter(c => c.status === "paused").length,
+            revWk: totalRevWk,
+            revAnnual: totalRevWk * 52,
+          },
+        ];
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
+            {cards.map(card => (
+              <div key={card.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${card.border}`, borderRadius: "16px", padding: "20px 16px" }}>
+                {/* Coach name */}
+                <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: card.color, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</p>
+                {/* Clients */}
+                <div style={{ marginBottom: "10px" }}>
+                  <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1 }}>{card.clients}</p>
+                  <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>clients{card.paused > 0 ? ` · ${card.paused} paused` : ""}</p>
+                </div>
+                {/* Divider */}
+                <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "10px 0" }} />
+                {/* Rev/Wk */}
+                <div style={{ marginBottom: "6px" }}>
+                  <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: card.color, margin: 0, lineHeight: 1 }}>${card.revWk.toLocaleString()}</p>
+                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
+                </div>
+                {/* Rev/Annual */}
+                <div>
+                  <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.50)", margin: 0 }}>${card.revAnnual.toLocaleString()}</p>
+                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ year</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Search Results */}
+      {searchQuery && (
+        <div style={{ marginBottom: "20px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", marginBottom: "10px" }}>
+            {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
+          </p>
+          <div style={{ background: "rgba(255,255,255,0.04)", backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "12px" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <tbody>
+                  {searchResults.map((client, idx) => {
+                    const isPaused = client.status === "paused";
+                    return (
+                      <tr key={client.id}
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
+                        onClick={() => { onClientClick?.(client); }}
+                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
+                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
+                        <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span
+                              style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
+                              onClick={() => { onClientClick?.(client); }}
+                              title="View profile"
+                            >{client.name}</span>
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
+                        <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)" }}>{client.coach}</td>
+                        <td style={{ padding: "10px 12px" }}>{statusPill(client)}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setActionPanel("menu"); }} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}>⋯</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day Groups Grid */}
+      {!searchQuery && <div style={{ display: "grid", gridTemplateColumns: `repeat(${dayGroups.length}, 1fr)`, gap: "12px" }}>
+        {dayGroups.map(({ day, clients: dayClients }) => (
+          <div key={day} style={{
+            background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
+            backdropFilter: GlassBlur,
+            border: `1px solid rgba(255,255,255,0.10)`,
+            borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`,
+            borderRadius: "20px",
+            padding: "16px",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 600 }}>{day.toUpperCase()}</span>
+                <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.28)", letterSpacing: "0.04em" }}>Submission</span>
+              </div>
+              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
+            </div>
+            <div>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <tbody>
+                  {dayClients.map((client, idx) => {
+                    const isPaused = client.status === "paused";
+                    const rowBg = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent";
+                    return (
+                      <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
+                        onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
+                        onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
+                        <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
+                            <span
+                              style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
+                              onClick={() => { onClientClick?.(client); }}
+                              title="View profile"
+                            >{client.name}</span>
+                            
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
+                        </td>
+                        <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                        <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
+                        <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
+                          <button onClick={() => { onClientClick?.(client); }}
+                            style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                            &#x22EE;
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>}
+
+      {/* Add/Edit Form */}
+      {!searchQuery && showForm && (
+        <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: `1px solid ${GlassBorder}`, borderRadius: "20px", padding: "24px", marginTop: "20px" }}>
+          <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>{editingId ? "Edit Client" : "Add New Client"}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
+              <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="Full name" /></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</label>
+              <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="client@email.com" /></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Coach</label>
+              <select value={form.coach} onChange={e => setForm({...form, coach: e.target.value as "Milzzy"|"Miggy"})} style={{ ...inputStyle, marginTop: "4px" }}>
+                <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Payment Platform</label>
+              <select value={form.paymentPlatform} onChange={e => setForm({...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship"})} style={{ ...inputStyle, marginTop: "4px" }}>
+                <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Weekly Charge ($)</label>
+              <input type="number" value={form.weeklyCharge} onChange={e => setForm({...form, weeklyCharge: Number(e.target.value)})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="0" /></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Check-in Day</label>
+              <select value={form.checkInDay} onChange={e => setForm({...form, checkInDay: e.target.value as ""|Client["checkInDay"]})} style={{ ...inputStyle, marginTop: "4px" }}>
+                <option value="">— Select day —</option>
+                {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
+              </select></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Spreadsheet URL</label>
+              <input value={form.spreadsheetUrl} onChange={e => setForm({...form, spreadsheetUrl: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="https://docs.google.com/..." /></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Start Date</label>
+              <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} /></div>
+          </div>
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</label>
+            <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} style={{ ...inputStyle, resize: "none", marginTop: "4px" }} placeholder="Optional notes..." />
+          </div>
+          {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={handleSave} style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "10px", padding: "10px 24px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
+              {editingId ? "Save Changes" : "Add Client"}
+            </button>
+            {editingId && <button onClick={() => { setEditingId(null); setShowForm(false); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Cancelled Clients ────────────────────────────────────── */}
+      {cancelledClients.length > 0 && (
+        <div style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          marginTop: '12px',
+        }}>
+          <div
+            onClick={() => setShowCancelled(s => !s)}
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              borderBottom: showCancelled ? '1px solid rgba(255,255,255,0.06)' : 'none',
+              padding: '14px 20px',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: 'system-ui', fontSize: '11px', color: 'rgba(248,113,113,0.60)', textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '2px' }}>
+                Retention
+              </div>
+              <div style={{ fontFamily: 'system-ui', fontSize: '15px', fontWeight: 700, color: 'rgba(248,113,113,0.85)' }}>
+                Cancelled Clients — {cancelledClients.length}
+              </div>
+            </div>
+            <div style={{ fontFamily: 'system-ui', fontSize: '20px', color: 'rgba(255,255,255,0.35)' }}>
+              {showCancelled ? '▼' : '▶'}
+            </div>
+          </div>
+
+          {showCancelled && (
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
+                gap: '0',
+                padding: '10px 20px',
+                background: 'rgba(255,255,255,0.02)',
+                borderBottom: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                {['Name', 'Coach', 'Cancelled Date', 'Stage'].map(h => (
+                  <div key={h} style={{ fontFamily: 'system-ui', fontSize: '10px', color: 'rgba(255,255,255,0.30)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                    {h}
+                  </div>
+                ))}
+              </div>
+
+              {cancelledClients.map(client => (
+                <div
+                  key={client.id}
+                  onClick={() => { setSelectedClient(client); setActionPanel('menu'); }}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
+                    gap: '0',
+                    padding: '11px 20px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                >
+                  <div style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.70)', fontWeight: 500 }}>
+                    {client.name}
+                  </div>
+                  <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>
+                    {client.coach}
+                  </div>
+                  <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(248,113,113,0.55)' }}>
+                    {client.lastUpdated ? new Date(client.lastUpdated).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </div>
+                  <div>
+                    <span style={{ background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '999px', padding: '1px 8px', fontSize: '10px', fontFamily: 'system-ui', fontWeight: 500 }}>
+                      Cancelled
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── New Clients (pending activation) ─────────────────────── */}
+      {pendingClients.length > 0 && (
+        <div style={{
+          background: "rgba(10,186,181,0.06)",
+          border: "1px solid rgba(10,186,181,0.25)",
+          borderRadius: "16px",
+          overflow: "hidden",
+          marginTop: "12px",
+        }}>
+          <div style={{
+            background: "rgba(10,186,181,0.08)",
+            borderBottom: "1px solid rgba(10,186,181,0.15)",
+            padding: "14px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <div>
+              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Leads</div>
+              <div style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "rgba(255,255,255,0.90)" }}>
+                New Clients — {pendingClients.length}
+              </div>
+            </div>
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.60)" }}>Fill in details to activate</span>
+          </div>
+
+          {pendingClients.map(pc => (
+            <PendingClientRow
+              key={pc.id}
+              pc={pc}
+              onActivate={onActivateClient}
+              onRemove={onRemovePending}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Action Modal */}
+      {selectedClient && (
+        <GlassModal onClose={() => setSelectedClient(null)}>
+          <div style={{ marginBottom: "20px" }}>
+            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
+          </div>
+          {actionPanel === "menu" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <button onClick={() => { setActionPanel(null); onClientClick(selectedClient); }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                👤 View Profile
+              </button>
+              <button onClick={() => {
+                setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
+                setEditingId(selectedClient.id);
+                setActionPanel("edit");
+              }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                ✏️ Edit Client
+              </button>
+              {selectedClient.status === "paused" ? (
+                <button onClick={async () => {
+                  const start = selectedClient.pauseStartDate ?? new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                  const startD = new Date(start + "T00:00:00");
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const weeksPaused = Math.max(1, Math.round((today.getTime() - startD.getTime()) / (7 * 86400000)));
+                  const history = selectedClient.pauseHistory ?? [];
+                  await updateClient(selectedClient.id, {
+                    status: "active",
+                    pauseStartDate: undefined,
+                    pausedUntil: undefined,
+                    pauseHistory: [...history, { started: start, ended: normDate(new Date()), weeks: weeksPaused }],
+                  });
+                  setSelectedClient(null);
+                }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#34d399", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  ▶️ Resume Client
+                </button>
+              ) : (
+                <button onClick={() => setActionPanel("pause")}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  ⏸️ Pause Client
+                </button>
+              )}
+              {selectedClient.spreadsheetUrl && (
+                <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 16px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                  📊 Open Sheet
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  const year = now.getFullYear();
+                  const startOfYear = new Date(year, 0, 1);
+                  const week1Start = new Date(startOfYear);
+                  week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
+                  const weekNum = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+                  const weekKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
+                  try {
+                    const stored = localStorage.getItem("mc_checkins");
+                    const checkIns = stored ? JSON.parse(stored) : {};
+                    const next = { ...checkIns, [weekKey]: { ...checkIns[weekKey], [selectedClient.id]: "ontime" } };
+                    localStorage.setItem("mc_checkins", JSON.stringify(next));
+                    window.dispatchEvent(new Event("checkins-updated"));
+                    fetch("/api/clients/" + selectedClient.id + "/checkin", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekKey, status: "ontime" }) }).catch(() => {});
+                  } catch { /* ignore */ }
+                }}
+                style={{
+                  width: "100%",
+                  background: Tiffany,
+                  border: `1px solid ${Tiffany}`,
+                  borderRadius: "12px",
+                  padding: "12px 16px",
+                  color: "#000",
+                  fontSize: "14px",
+                  fontFamily: "system-ui",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                }}
+              >
+                ✓ Check-in Complete
+              </button>
+              <button onClick={() => setActionPanel("cancel")}
+                style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
+                ✕ Cancel Client
+              </button>
+            </div>
+          )}
+          {actionPanel === "pause" && (
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:</p>
+              <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
+                style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: normDate(new Date()) }); setSelectedClient(null); }}
+                  style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
+                <button onClick={() => setActionPanel("menu")}
+                  style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
+              </div>
+            </div>
+          )}
+          {actionPanel === "cancel" && (
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "14px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Cancel Reason</label>
+                <select id="cancel-reason"
+                  style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", marginBottom: "8px" }}>
+                  <option value="">Select a reason...</option>
+                  <option value="Price">Price</option>
+                  <option value="Results">Results</option>
+                  <option value="Life circumstances">Life circumstances</option>
+                  <option value="Moved to another coach">Moved to another coach</option>
+                  <option value="Other">Other</option>
+                </select>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Notes (optional)</label>
+                <textarea id="cancel-notes" rows={2}
+                  placeholder="Any additional context..."
+                  style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", resize: "vertical" }} />
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={async () => {
+                  const reason = (document.getElementById("cancel-reason") as HTMLSelectElement)?.value;
+                  const notes = (document.getElementById("cancel-notes") as HTMLTextAreaElement)?.value;
+                  await updateClient(selectedClient.id, {
+                    status: "cancelled",
+                    cancelDate: normDate(new Date()),
+                    cancelReason: reason || undefined,
+                    cancelNotes: notes || undefined,
+                    lastUpdated: new Date().toISOString(),
+                  });
+                  setSelectedClient(null);
+                }}
+                  style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Cancel</button>
+                <button onClick={() => setActionPanel("menu")}
+                  style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
+              </div>
+            </div>
+          )}
+          {actionPanel === "edit" && (
+            <div onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
+                <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} /></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" /></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label><select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label><select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}><option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label><input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} /></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label><select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}><option value="">— Select —</option>{DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label><input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} /></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label><select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}><option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option></select></div>
+              </div>
+              <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label><input value={form.spreadsheetUrl} onChange={e => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/..." /></div>
+              <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} /></div>
+              {formError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>{formError}</p>}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={async () => { if (!form.name.trim()) { setFormError("Name is required"); return; } setFormError(null); await updateClient(editingId!, { ...form, checkInDay: form.checkInDay || undefined }); setEditingId(null); setActionPanel("menu"); setSelectedClient(null); }}
+                  style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "11px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>
+                  Save Changes
+                </button>
+                <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
+                  style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "11px", color: "rgba(255,255,255,0.50)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </GlassModal>
+      )}
+    </div>
+  );
+}
+
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -6455,12 +7197,12 @@ export default function Home() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit" | null>("menu");
-  const [clientEditForm, setClientEditForm] = useState({
-    name: "", email: "", coach: "Milzzy" as "Milzzy" | "Miggy",
-    paymentPlatform: "Newie" as "Newie" | "Upfront" | "Mentorship",
-    weeklyCharge: 0, spreadsheetUrl: "", status: "active" as Client["status"],
+  const [clientEditForm, setClientEditForm] = useState<ClientFormState>({
+    name: "", email: "", coach: "Milzzy",
+    paymentPlatform: "Newie",
+    weeklyCharge: 0, spreadsheetUrl: "", status: "active",
     pausedUntil: "", startDate: normDate(new Date()),
-    notes: "", checkInDay: "" as "" | Client["checkInDay"],
+    notes: "", checkInDay: "",
   });
   const [clientEditingId, setClientEditingId] = useState<string | null>(null);
   const [clientFormError, setClientFormError] = useState<string | null>(null);
@@ -6547,697 +7289,7 @@ export default function Home() {
     },
   ];
 
-  // ─── ClientsTab ──────────────────────────────────────────────────────────────
-  function ClientsTab({ onClientClick, pendingClients, onActivateClient, onRemovePending }: {
-    onClientClick: (c: Client) => void;
-    pendingClients: PendingClient[];
-    onActivateClient: (pc: PendingClient) => void;
-    onRemovePending: (id: string) => void;
-  }) {
-    const form = clientEditForm;
-    const setForm = setClientEditForm;
-    const editingId = clientEditingId;
-    const setEditingId = setClientEditingId;
-    const formError = clientFormError;
-    const setFormError = setClientFormError;
-    const [searchQuery, setSearchQuery] = useState("");
-    const [showForm, setShowForm] = useState(false);
-    const [showCancelled, setShowCancelled] = useState(false);
-    const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
-
-    const searchResults = searchQuery
-      ? clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())))
-      : [];
-
-    const coachFiltered = clients.filter(c => c.coach === selectedCoach);
-    const dayGroups = DAY_ORDER.map(day => ({ day, clients: coachFiltered.filter(c => c.checkInDay === day && c.status !== "cancelled").sort((a,b) => a.name.localeCompare(b.name)) })).filter(g => g.clients.length > 0);
-    const cancelledClients = coachFiltered.filter(c => c.status === "cancelled");
-    const pausedClients = coachFiltered.filter(c => c.status === "paused");
-    const activeClients = coachFiltered.filter(c => c.status === "active");
-    const miggyClients = clients.filter(c => c.coach === "Miggy");
-    const milzzyClients = clients.filter(c => c.coach === "Milzzy");
-
-    const startEdit = (client: Client) => {
-      setForm({
-        name: client.name, email: client.email ?? "",
-        coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie",
-        weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "",
-        status: client.status, pausedUntil: client.pausedUntil ?? "",
-        startDate: client.startDate, notes: client.notes ?? "",
-        checkInDay: client.checkInDay ?? "",
-      });
-      setEditingId(client.id);
-      setShowForm(true);
-    };
-
-    const handleSave = async () => {
-      if (!form.name.trim()) { setFormError("Name is required"); return; }
-      setFormError(null);
-      if (editingId) {
-        await updateClient(editingId, { ...form, checkInDay: form.checkInDay || undefined });
-        setEditingId(null);
-      } else {
-        const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-        if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
-      }
-      setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" });
-      setShowForm(false);
-    };
-
-    const statusPill = (client: Client) => {
-      if (client.status === "active") return <span style={{ background: TiffanySoft, color: Tiffany, border: `1px solid ${TiffanyBorder}`, borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Active</span>;
-      if (client.status === "paused") {
-        const wks = client.pausedUntil ? weeksRemaining(client.pausedUntil) : null;
-        return <span style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Paused {wks ? `· ${wks}w` : ""}</span>;
-      }
-      return <span style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "999px", padding: "2px 10px", fontSize: "11px", fontFamily: "system-ui", fontWeight: 500, display: "inline-block" }}>Cancelled</span>;
-    };
-
-    const platformColors: Record<string, string> = { Newie: Tiffany, Upfront: "#a855f7", Mentorship: "#10b981" };
-
-    const gridClass = dayGroups.length === 1 ? "grid grid-cols-1 gap-4"
-      : dayGroups.length === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
-      : dayGroups.length <= 4 ? "grid grid-cols-2 lg:grid-cols-4 gap-3"
-      : "grid grid-cols-2 lg:grid-cols-4 gap-3";
-
-    // ── Pending Client Row sub-component ──────────────────────────────────────
-    function PendingClientRow({ pc, onActivate, onRemove }: {
-      pc: PendingClient;
-      onActivate: (pc: PendingClient) => void;
-      onRemove: (id: string) => void;
-    }) {
-      const [coach, setCoach] = useState<"Milzzy"|"Miggy">(pc.coach);
-      const [checkInDay, setCheckInDay] = useState<""|Client["checkInDay"]>(pc.checkInDay);
-      const [weeklyCharge, setWeeklyCharge] = useState(pc.weeklyCharge);
-      const [expanded, setExpanded] = useState(false);
-      const isComplete = !!(coach && checkInDay && weeklyCharge > 0);
-
-      return (
-        <div style={{ borderBottom: "1px solid rgba(10,186,181,0.08)", padding: "14px 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: expanded ? "12px" : "0" }}>
-            <div>
-              <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{pc.name}</div>
-              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pc.source} · Converted {pc.convertedAt}</div>
-            </div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {!isComplete && <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(251,191,36,0.70)", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 8px" }}>Incomplete</span>}
-              <button onClick={() => setExpanded(e => !e)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "6px 12px", color: "rgba(255,255,255,0.60)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>{expanded ? "Hide" : "Edit"}</button>
-              <button onClick={() => onRemove(pc.id)} style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "6px 10px", color: "#f87171", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>✕</button>
-            </div>
-          </div>
-          {expanded && (
-            <div style={{ background: "rgba(0,0,0,0.20)", borderRadius: "12px", padding: "14px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "10px", alignItems: "end" }}>
-                <div>
-                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
-                  <select value={coach} onChange={e => setCoach(e.target.value as "Milzzy"|"Miggy")} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
-                    <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label>
-                  <select value={checkInDay} onChange={e => setCheckInDay(e.target.value as ""|Client["checkInDay"])} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
-                    <option value="">— Select —</option>
-                    {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
-                  <input type="number" value={weeklyCharge} onChange={e => setWeeklyCharge(Number(e.target.value))} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
-                </div>
-                <button
-                  onClick={() => isComplete ? onActivate({ ...pc, coach, checkInDay, weeklyCharge }) : undefined}
-                  disabled={!isComplete}
-                  style={{ background: isComplete ? TiffanySoft : "rgba(255,255,255,0.04)", border: isComplete ? `1px solid ${TiffanyBorder}` : "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 18px", color: isComplete ? Tiffany : "rgba(255,255,255,0.20)", fontSize: "13px", cursor: isComplete ? "pointer" : "not-allowed", fontFamily: "system-ui", fontWeight: 600, opacity: isComplete ? 1 : 0.5 }}>
-                  Activate
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ padding: "16px 20px", width: "100%", boxSizing: "border-box", maxWidth: "2040px", margin: "0 auto" }}>
-
-        {/* Search bar */}
-        <div style={{ position: "relative", marginBottom: "14px" }}>
-          <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", fontSize: "14px", pointerEvents: "none" }}>🔍</span>
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search clients..."
-            style={{
-              width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${GlassBorder}`,
-              borderRadius: "12px", color: "white", padding: "10px 14px 10px 40px",
-              fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box",
-            }}
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "14px" }}>✕</button>
-          )}
-        </div>
-
-        {/* Header + Add */}
-        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
-          COACH FILTER
-        </p>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {(["Milzzy","Miggy"] as const).map(c => (
-              <button key={c} onClick={() => setSelectedCoach(c)}
-                style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
-                {c} {c === "Milzzy" ? `(${milzzyClients.filter(cl=>cl.status!=="cancelled").length})` : `(${miggyClients.filter(cl=>cl.status!=="cancelled").length})`}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => { setShowForm(!showForm); setEditingId(null); }}
-            style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
-            {showForm ? "Cancel" : "+ Add Client"}
-          </button>
-          <a href="https://docs.google.com/spreadsheets/d/1c3PuGmw3LddG_edWagTCoMIq8AhQqqwOBmHqjnuWKGM/edit?gid=1541591503#gid=1541591503" target="_blank" rel="noopener noreferrer"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "8px 18px", color: "rgba(255,255,255,0.75)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            📋 Fresh Sheet
-          </a>
-        </div>
-
-        {/* Stats row — 3 coach cards */}
-        {(() => {
-          const totalClients = clients.filter(c => c.status !== "cancelled").length;
-          const totalRevWk = milzzyRevenuePerWeek + miggyRevenuePerWeek;
-          const cards = [
-            {
-              label: "Milzzy",
-              color: Tiffany,
-              border: TiffanyBorder,
-              clients: milzzyClients.filter(c => c.status !== "cancelled").length,
-              paused: milzzyClients.filter(c => c.status === "paused").length,
-              revWk: milzzyRevenuePerWeek,
-              revAnnual: milzzyRevenuePerWeek * 52,
-            },
-            {
-              label: "Miggy",
-              color: "#a855f7",
-              border: "rgba(168,85,247,0.35)",
-              clients: miggyClients.filter(c => c.status !== "cancelled").length,
-              paused: miggyClients.filter(c => c.status === "paused").length,
-              revWk: miggyRevenuePerWeek,
-              revAnnual: miggyRevenuePerWeek * 52,
-            },
-            {
-              label: "Total",
-              color: "#34d399",
-              border: "rgba(52,211,153,0.35)",
-              clients: totalClients,
-              paused: clients.filter(c => c.status === "paused").length,
-              revWk: totalRevWk,
-              revAnnual: totalRevWk * 52,
-            },
-          ];
-          return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
-              {cards.map(card => (
-                <div key={card.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${card.border}`, borderRadius: "16px", padding: "20px 16px" }}>
-                  {/* Coach name */}
-                  <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: card.color, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</p>
-                  {/* Clients */}
-                  <div style={{ marginBottom: "10px" }}>
-                    <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1 }}>{card.clients}</p>
-                    <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>clients{card.paused > 0 ? ` · ${card.paused} paused` : ""}</p>
-                  </div>
-                  {/* Divider */}
-                  <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "10px 0" }} />
-                  {/* Rev/Wk */}
-                  <div style={{ marginBottom: "6px" }}>
-                    <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: card.color, margin: 0, lineHeight: 1 }}>${card.revWk.toLocaleString()}</p>
-                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
-                  </div>
-                  {/* Rev/Annual */}
-                  <div>
-                    <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.50)", margin: 0 }}>${card.revAnnual.toLocaleString()}</p>
-                    <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ year</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* Search Results */}
-        {searchQuery && (
-          <div style={{ marginBottom: "20px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)", marginBottom: "10px" }}>
-              {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{searchQuery}"
-            </p>
-            <div style={{ background: "rgba(255,255,255,0.04)", backdropFilter: GlassBlur, border: `1px solid ${GlassBorder}`, borderRadius: "16px", padding: "12px" }}>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <tbody>
-                    {searchResults.map((client, idx) => {
-                      const isPaused = client.status === "paused";
-                      return (
-                        <tr key={client.id}
-                          style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
-                          onClick={() => { onClientClick?.(client); }}
-                          onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"}
-                          onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent"}>
-                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                              <span
-                                style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
-                                onClick={() => { onClientClick?.(client); }}
-                                title="View profile"
-                              >{client.name}</span>
-                            </span>
-                          </td>
-                          <td style={{ padding: "10px 12px" }}><span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span></td>
-                          <td style={{ padding: "10px 12px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.60)" }}>{client.coach}</td>
-                          <td style={{ padding: "10px 12px" }}>{statusPill(client)}</td>
-                          <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                            <button onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setActionPanel("menu"); }} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}>⋯</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Day Groups Grid */}
-        {!searchQuery && <div style={{ display: "grid", gridTemplateColumns: `repeat(${dayGroups.length}, 1fr)`, gap: "12px" }}>
-          {dayGroups.map(({ day, clients: dayClients }) => (
-            <div key={day} style={{
-              background: DAY_COLORS[day] ?? "rgba(255,255,255,0.03)",
-              backdropFilter: GlassBlur,
-              border: `1px solid rgba(255,255,255,0.10)`,
-              borderLeft: `3px solid ${DAY_BORDER_COLORS[day]}`,
-              borderRadius: "20px",
-              padding: "16px",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span style={{ fontFamily: "system-ui", fontSize: "11px", letterSpacing: "0.1em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 600 }}>{day.toUpperCase()}</span>
-                  <span style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.28)", letterSpacing: "0.04em" }}>Submission</span>
-                </div>
-                <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>{dayClients.length}</span>
-              </div>
-              <div>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <tbody>
-                    {dayClients.map((client, idx) => {
-                      const isPaused = client.status === "paused";
-                      const rowBg = isPaused ? "rgba(251,191,36,0.04)" : idx % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent";
-                      return (
-                        <tr key={client.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: rowBg, transition: "background 0.15s" }}
-                          onMouseEnter={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.025)"; }}
-                          onMouseLeave={e => { if (!isPaused) (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}>
-                          <td style={{ padding: "8px 10px", minWidth: "120px", width: "40%", fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                              {isPaused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)", flexShrink: 0, display: "inline-block" }} />}
-                              <span
-                                style={{ cursor: "pointer", color: "rgba(255,255,255,0.90)" }}
-                                onClick={() => { onClientClick?.(client); }}
-                                title="View profile"
-                              >{client.name}</span>
-                              
-                            </span>
-                          </td>
-                          <td style={{ padding: "8px 10px" }}>
-                            <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
-                          </td>
-                          <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
-                          <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
-                          <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
-                            <button onClick={() => { onClientClick?.(client); }}
-                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", fontSize: "16px", lineHeight: 1 }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.70)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.25)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-                              &#x22EE;
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>}
-
-        {/* Add/Edit Form */}
-        {!searchQuery && showForm && (
-          <div style={{ background: "rgba(15,20,40,0.60)", backdropFilter: "blur(20px)", border: `1px solid ${GlassBorder}`, borderRadius: "20px", padding: "24px", marginTop: "20px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: "16px" }}>{editingId ? "Edit Client" : "Add New Client"}</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="Full name" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</label>
-                <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="client@email.com" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Coach</label>
-                <select value={form.coach} onChange={e => setForm({...form, coach: e.target.value as "Milzzy"|"Miggy"})} style={{ ...inputStyle, marginTop: "4px" }}>
-                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Payment Platform</label>
-                <select value={form.paymentPlatform} onChange={e => setForm({...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship"})} style={{ ...inputStyle, marginTop: "4px" }}>
-                  <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Weekly Charge ($)</label>
-                <input type="number" value={form.weeklyCharge} onChange={e => setForm({...form, weeklyCharge: Number(e.target.value)})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="0" /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Check-in Day</label>
-                <select value={form.checkInDay} onChange={e => setForm({...form, checkInDay: e.target.value as ""|Client["checkInDay"]})} style={{ ...inputStyle, marginTop: "4px" }}>
-                  <option value="">— Select day —</option>
-                  {DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}
-                </select></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Spreadsheet URL</label>
-                <input value={form.spreadsheetUrl} onChange={e => setForm({...form, spreadsheetUrl: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="https://docs.google.com/..." /></div>
-              <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Start Date</label>
-                <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} /></div>
-            </div>
-            <div style={{ marginBottom: "12px" }}>
-              <label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</label>
-              <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} style={{ ...inputStyle, resize: "none", marginTop: "4px" }} placeholder="Optional notes..." />
-            </div>
-            {formError && <p style={{ color: "#f87171", fontFamily: "system-ui", fontSize: "12px", marginBottom: "8px" }}>{formError}</p>}
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={handleSave} style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "10px", padding: "10px 24px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
-                {editingId ? "Save Changes" : "Add Client"}
-              </button>
-              {editingId && <button onClick={() => { setEditingId(null); setShowForm(false); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: "10px 24px", color: "rgba(255,255,255,0.55)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui" }}>Cancel</button>}
-            </div>
-          </div>
-        )}
-
-        {/* ── Cancelled Clients ────────────────────────────────────── */}
-        {cancelledClients.length > 0 && (
-          <div style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '16px',
-            overflow: 'hidden',
-            marginTop: '12px',
-          }}>
-            <div
-              onClick={() => setShowCancelled(s => !s)}
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                borderBottom: showCancelled ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                padding: '14px 20px',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontFamily: 'system-ui', fontSize: '11px', color: 'rgba(248,113,113,0.60)', textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '2px' }}>
-                  Retention
-                </div>
-                <div style={{ fontFamily: 'system-ui', fontSize: '15px', fontWeight: 700, color: 'rgba(248,113,113,0.85)' }}>
-                  Cancelled Clients — {cancelledClients.length}
-                </div>
-              </div>
-              <div style={{ fontFamily: 'system-ui', fontSize: '20px', color: 'rgba(255,255,255,0.35)' }}>
-                {showCancelled ? '▼' : '▶'}
-              </div>
-            </div>
-
-            {showCancelled && (
-              <>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
-                  gap: '0',
-                  padding: '10px 20px',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                }}>
-                  {['Name', 'Coach', 'Cancelled Date', 'Stage'].map(h => (
-                    <div key={h} style={{ fontFamily: 'system-ui', fontSize: '10px', color: 'rgba(255,255,255,0.30)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                      {h}
-                    </div>
-                  ))}
-                </div>
-
-                {cancelledClients.map(client => (
-                  <div
-                    key={client.id}
-                    onClick={() => { setSelectedClient(client); setActionPanel('menu'); }}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 2fr 1.5fr 1fr',
-                      gap: '0',
-                      padding: '11px 20px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                  >
-                    <div style={{ fontFamily: 'system-ui', fontSize: '13px', color: 'rgba(255,255,255,0.70)', fontWeight: 500 }}>
-                      {client.name}
-                    </div>
-                    <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>
-                      {client.coach}
-                    </div>
-                    <div style={{ fontFamily: 'system-ui', fontSize: '12px', color: 'rgba(248,113,113,0.55)' }}>
-                      {client.lastUpdated ? new Date(client.lastUpdated).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                    </div>
-                    <div>
-                      <span style={{ background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '999px', padding: '1px 8px', fontSize: '10px', fontFamily: 'system-ui', fontWeight: 500 }}>
-                        Cancelled
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── New Clients (pending activation) ─────────────────────── */}
-        {pendingClients.length > 0 && (
-          <div style={{
-            background: "rgba(10,186,181,0.06)",
-            border: "1px solid rgba(10,186,181,0.25)",
-            borderRadius: "16px",
-            overflow: "hidden",
-            marginTop: "12px",
-          }}>
-            <div style={{
-              background: "rgba(10,186,181,0.08)",
-              borderBottom: "1px solid rgba(10,186,181,0.15)",
-              padding: "14px 20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <div>
-                <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Leads</div>
-                <div style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "rgba(255,255,255,0.90)" }}>
-                  New Clients — {pendingClients.length}
-                </div>
-              </div>
-              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.60)" }}>Fill in details to activate</span>
-            </div>
-
-            {pendingClients.map(pc => (
-              <PendingClientRow
-                key={pc.id}
-                pc={pc}
-                onActivate={onActivateClient}
-                onRemove={onRemovePending}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Action Modal */}
-        {selectedClient && (
-          <GlassModal onClose={() => setSelectedClient(null)}>
-            <div style={{ marginBottom: "20px" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.45)", marginBottom: "4px" }}>Manage Client</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "18px", fontWeight: 600, color: "rgba(255,255,255,0.95)" }}>{selectedClient.name}</p>
-            </div>
-            {actionPanel === "menu" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <button onClick={() => { setActionPanel(null); onClientClick(selectedClient); }}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                  👤 View Profile
-                </button>
-                <button onClick={() => {
-                  setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
-                  setEditingId(selectedClient.id);
-                  setActionPanel("edit");
-                }}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", color: "rgba(255,255,255,0.85)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                  ✏️ Edit Client
-                </button>
-                {selectedClient.status === "paused" ? (
-                  <button onClick={async () => {
-                    const start = selectedClient.pauseStartDate ?? new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-                    const startD = new Date(start + "T00:00:00");
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const weeksPaused = Math.max(1, Math.round((today.getTime() - startD.getTime()) / (7 * 86400000)));
-                    const history = selectedClient.pauseHistory ?? [];
-                    await updateClient(selectedClient.id, {
-                      status: "active",
-                      pauseStartDate: undefined,
-                      pausedUntil: undefined,
-                      pauseHistory: [...history, { started: start, ended: normDate(new Date()), weeks: weeksPaused }],
-                    });
-                    setSelectedClient(null);
-                  }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#34d399", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    ▶️ Resume Client
-                  </button>
-                ) : (
-                  <button onClick={() => setActionPanel("pause")}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#fbbf24", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    ⏸️ Pause Client
-                  </button>
-                )}
-                {selectedClient.spreadsheetUrl && (
-                  <button onClick={() => { window.open(selectedClient.spreadsheetUrl, "_blank"); setSelectedClient(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "12px 16px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                    📊 Open Sheet
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    const now = new Date();
-                    const year = now.getFullYear();
-                    const startOfYear = new Date(year, 0, 1);
-                    const week1Start = new Date(startOfYear);
-                    week1Start.setDate(startOfYear.getDate() - startOfYear.getDay() + 1);
-                    const weekNum = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-                    const weekKey = `${year}-W${String(weekNum).padStart(2, "0")}`;
-                    try {
-                      const stored = localStorage.getItem("mc_checkins");
-                      const checkIns = stored ? JSON.parse(stored) : {};
-                      const next = { ...checkIns, [weekKey]: { ...checkIns[weekKey], [selectedClient.id]: "ontime" } };
-                      localStorage.setItem("mc_checkins", JSON.stringify(next));
-                      window.dispatchEvent(new Event("checkins-updated"));
-                      fetch("/api/clients/" + selectedClient.id + "/checkin", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekKey, status: "ontime" }) }).catch(() => {});
-                    } catch { /* ignore */ }
-                  }}
-                  style={{
-                    width: "100%",
-                    background: Tiffany,
-                    border: `1px solid ${Tiffany}`,
-                    borderRadius: "12px",
-                    padding: "12px 16px",
-                    color: "#000",
-                    fontSize: "14px",
-                    fontFamily: "system-ui",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                  }}
-                >
-                  ✓ Check-in Complete
-                </button>
-                <button onClick={() => setActionPanel("cancel")}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "12px", padding: "12px 16px", color: "#f87171", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", textAlign: "left" }}>
-                  ✕ Cancel Client
-                </button>
-              </div>
-            )}
-            {actionPanel === "pause" && (
-              <div>
-                <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.50)", marginBottom: "10px" }}>Pause <strong style={{ color: "rgba(255,255,255,0.80)" }}>{selectedClient.name}</strong> until:</p>
-                <input id="pause-date-modal" type="date" defaultValue={selectedClient.pausedUntil ?? ""}
-                  style={{ display: "block", width: "100%", marginBottom: "14px", background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "12px", color: "white", padding: "12px 14px", fontSize: "14px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box" }} />
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={async () => { const date = (document.getElementById("pause-date-modal") as HTMLInputElement)?.value; if (!date) return; await updateClient(selectedClient.id, { status: "paused", pausedUntil: date, pauseStartDate: normDate(new Date()) }); setSelectedClient(null); }}
-                    style={{ flex: 1, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Pause</button>
-                  <button onClick={() => setActionPanel("menu")}
-                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Back</button>
-                </div>
-              </div>
-            )}
-            {actionPanel === "cancel" && (
-              <div>
-                <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.70)", marginBottom: "14px", lineHeight: 1.5 }}>Remove <strong style={{ color: "rgba(255,255,255,0.90)" }}>{selectedClient.name}</strong> from active clients?</p>
-                <div style={{ marginBottom: "10px" }}>
-                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Cancel Reason</label>
-                  <select id="cancel-reason"
-                    style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", marginBottom: "8px" }}>
-                    <option value="">Select a reason...</option>
-                    <option value="Price">Price</option>
-                    <option value="Results">Results</option>
-                    <option value="Life circumstances">Life circumstances</option>
-                    <option value="Moved to another coach">Moved to another coach</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "5px" }}>Notes (optional)</label>
-                  <textarea id="cancel-notes" rows={2}
-                    placeholder="Any additional context..."
-                    style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "white", padding: "10px 12px", fontSize: "13px", fontFamily: "system-ui", outline: "none", boxSizing: "border-box", resize: "vertical" }} />
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button onClick={async () => {
-                    const reason = (document.getElementById("cancel-reason") as HTMLSelectElement)?.value;
-                    const notes = (document.getElementById("cancel-notes") as HTMLTextAreaElement)?.value;
-                    await updateClient(selectedClient.id, {
-                      status: "cancelled",
-                      cancelDate: normDate(new Date()),
-                      cancelReason: reason || undefined,
-                      cancelNotes: notes || undefined,
-                      lastUpdated: new Date().toISOString(),
-                    });
-                    setSelectedClient(null);
-                  }}
-                    style={{ flex: 1, background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", color: "#f87171", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>Confirm Cancel</button>
-                  <button onClick={() => setActionPanel("menu")}
-                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.55)", borderRadius: "12px", padding: "12px", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>Keep</button>
-                </div>
-              </div>
-            )}
-            {actionPanel === "edit" && (
-              <div onClick={e => e.stopPropagation()}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                  <p style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>Edit Client</p>
-                  <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
-                    style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.30)", cursor: "pointer", fontSize: "18px", padding: "4px", lineHeight: 1 }}>✕</button>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} /></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" /></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label><select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label><select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}><option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label><input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} /></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label><select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}><option value="">— Select —</option>{DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label><input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} /></div>
-                  <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label><select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}><option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option></select></div>
-                </div>
-                <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label><input value={form.spreadsheetUrl} onChange={e => setForm({ ...form, spreadsheetUrl: e.target.value })} style={inputStyle} placeholder="https://docs.google.com/..." /></div>
-                <div style={{ marginBottom: "10px" }}><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: "none" }} /></div>
-                {formError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>{formError}</p>}
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button onClick={async () => { if (!form.name.trim()) { setFormError("Name is required"); return; } setFormError(null); await updateClient(editingId!, { ...form, checkInDay: form.checkInDay || undefined }); setEditingId(null); setActionPanel("menu"); setSelectedClient(null); }}
-                    style={{ flex: 1, background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "11px", color: Tiffany, fontSize: "14px", fontFamily: "system-ui", cursor: "pointer", fontWeight: 600 }}>
-                    Save Changes
-                  </button>
-                  <button onClick={() => { setActionPanel("menu"); setEditingId(null); setSelectedClient(null); }}
-                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "11px", color: "rgba(255,255,255,0.50)", fontSize: "14px", fontFamily: "system-ui", cursor: "pointer" }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </GlassModal>
-        )}
-      </div>
-    );
-  }
+  // ─── ClientsTab moved to module scope (see above) ─────────────────────────────
 
   // ─── LeadsTab ─────────────────────────────────────────────────────────────
   function LeadsTab({ onConvertLead }: { onConvertLead: (lead: Lead) => void }) {
@@ -7819,6 +7871,20 @@ return (
              activeTab === "clients" ? <ClientsTab
                 onClientClick={setSelectedClient}
                 pendingClients={pendingClients}
+                clients={clients}
+                clientEditForm={clientEditForm}
+                setClientEditForm={setClientEditForm}
+                clientEditingId={clientEditingId}
+                setClientEditingId={setClientEditingId}
+                clientFormError={clientFormError}
+                setClientFormError={setClientFormError}
+                setClients={setClients}
+                updateClient={updateClient}
+                addToast={addToast}
+                selectedClient={selectedClient}
+                setSelectedClient={setSelectedClient}
+                actionPanel={actionPanel}
+                setActionPanel={setActionPanel}
                 onActivateClient={async (pc) => {
                   const newClient: Client = {
                     id: pc.id,
