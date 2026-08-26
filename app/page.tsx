@@ -15,6 +15,7 @@ import FunnelTab from "@/components/FunnelTab";
 import { ContentTab } from "@/components/ContentTab";
 import { TasksTab } from "@/components/TasksTab";
 import { GymTab } from "@/components/GymTab";
+import { Dashboard as CoachDashboard } from "./coach/dashboard/page";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import FloatingPomodoro from "@/components/FloatingPomodoro";
 import { RevenueTrend } from "@/components/RevenueTrend";
@@ -83,6 +84,7 @@ export interface Client {
   coach: "Milzzy" | "Miggy";
   paymentPlatform: "Newie" | "Upfront" | "Mentorship";
   weeklyCharge: number;
+  coachCut?: number;
   spreadsheetUrl: string;
   status: "active" | "paused" | "cancelled";
   pausedUntil?: string;
@@ -104,6 +106,7 @@ export interface ClientFormState {
   coach: "Milzzy" | "Miggy";
   paymentPlatform: "Newie" | "Upfront" | "Mentorship";
   weeklyCharge: number;
+  coachCut?: number;
   spreadsheetUrl: string;
   status: Client["status"];
   pausedUntil: string;
@@ -148,6 +151,8 @@ export interface PendingClient {
   coach: "Milzzy" | "Miggy";
   checkInDay: "" | Client["checkInDay"];
   weeklyCharge: number;
+  coachCut: number;
+  spreadsheetUrl: string;
 }
 
 type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks" | "gym";
@@ -451,8 +456,8 @@ function Sidebar({
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "18px" }}>🤖</span>
             </div>
-            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white", margin: 0, letterSpacing: "0.08em", lineHeight: 1.2 }}>JARVIS</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", margin: 0, letterSpacing: "0.03em" }}>Invictus Physiques</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 700, color: "white", margin: 0, letterSpacing: "0.08em", lineHeight: 1.2 }}>INVICTUS</p>
+            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", margin: 0, letterSpacing: "0.03em" }}>Dashboard</p>
           </div>
 
           {sections.map((section) => (
@@ -1442,7 +1447,7 @@ const TEAM_MEMBERS: TeamMember[] = [
   {
     name: "Codex",
     role: "Lead Engineer",
-    description: "Builds Mission Control, integrations, automation. The quiet one who makes everything work.",
+    description: "Builds Invictus Dashboard, integrations, automation. The quiet one who makes everything work.",
     tags: [
       { label: "Code", color: Tiffany },
       { label: "Systems", color: Tiffany },
@@ -3035,8 +3040,23 @@ function getWeekDates(offset: number) {
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]; onClientClick: (c: Client) => void; pomCheckIn: number }) {
-  const myClients = clients.filter(c => c.coach === "Milzzy");
+function CheckInsTab({ clients, onClientClick, pomCheckIn, mode }: { clients: Client[]; onClientClick: (c: Client) => void; pomCheckIn: number; mode: "admin" | "coach" }) {
+  // Parent pre-filters by coach in coach mode; in admin mode clients is the full list.
+  // Admin can toggle showing Miggy's clients via showMiggyCheckIns (default hidden).
+  // Weekly compliance always uses Milzzy's own roster in admin mode, regardless of toggle.
+  const [showMiggyCheckIns, setShowMiggyCheckIns] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mc_show_miggy_checkins");
+      if (stored) setShowMiggyCheckIns(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("mc_show_miggy_checkins", JSON.stringify(showMiggyCheckIns));
+  }, [showMiggyCheckIns]);
+  const myClients = mode === "admin" && !showMiggyCheckIns
+    ? clients.filter(c => c.coach !== "Miggy")
+    : clients;
   const windowWidth = useWindowSize();
   const isMobile = windowWidth < 768;
 
@@ -3382,9 +3402,12 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
 
   // Stats
   const weekData = checkIns[weekKey] ?? {};
-  const submittedCount = Object.values(weekData).filter(s => s === "submitted").length;
-  const lateCount = Object.values(weekData).filter(s => s === "late").length;
-  const neverOrMissingCount = Object.values(weekData).filter(s => s === "not-submitted").length
+  // Coach-filtered: only count check-ins belonging to clients in this view's roster
+  const myClientIds = new Set(myClients.map(c => c.id));
+  const inMyRoster = ([id]: [string, unknown]) => myClientIds.has(id);
+  const submittedCount = Object.entries(weekData).filter(([id, s]) => inMyRoster([id, s]) && s === "submitted").length;
+  const lateCount = Object.entries(weekData).filter(([id, s]) => inMyRoster([id, s]) && s === "late").length;
+  const neverOrMissingCount = Object.entries(weekData).filter(([id, s]) => inMyRoster([id, s]) && s === "not-submitted").length
     + activeClients.filter(c => {
         const day = c.checkInDay;
         if (!day || !(WEEK_DAYS as readonly string[]).includes(day)) return false;
@@ -3396,7 +3419,11 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
       }).length;
 
   // ── Compliance rate (features 1 & 2) ──────────────────────────────────────
-  const eligibleClients = myClients.filter(c =>
+  // Compliance roster: in admin mode always Milzzy's own clients (independent of display toggle)
+  const complianceRoster = mode === "admin"
+    ? clients.filter(c => c.coach === "Milzzy")
+    : clients;
+  const eligibleClients = complianceRoster.filter(c =>
     c.status === "active" && c.checkInDay && (WEEK_DAYS as readonly string[]).includes(c.checkInDay)
   );
   const compliantCount = eligibleClients.filter(c => {
@@ -3505,6 +3532,41 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
   return (
     <div style={{ padding: "0 4px 40px", width: "100%", boxSizing: "border-box", maxWidth: "1536px", margin: "0 auto" }}>
 
+      {/* ── Admin toggle: show/hide Miggy's check-ins (default hidden) ── */}
+      {mode === "admin" && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "14px", padding: "10px 14px", background: showMiggyCheckIns ? "rgba(10,186,181,0.08)" : "rgba(255,255,255,0.04)", border: `1px solid ${showMiggyCheckIns ? "rgba(10,186,181,0.30)" : "rgba(255,255,255,0.10)"}`, borderRadius: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "16px" }}>{showMiggyCheckIns ? "👀" : "🙈"}</span>
+            <div>
+              <div style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>
+                {showMiggyCheckIns ? "Showing Miggy's check-ins" : "Hiding Miggy's check-ins"}
+              </div>
+              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
+                Your weekly compliance always uses your own clients only.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowMiggyCheckIns(o => !o)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "999px",
+              border: `1px solid ${showMiggyCheckIns ? "rgba(255,255,255,0.20)" : Tiffany}`,
+              background: showMiggyCheckIns ? "rgba(255,255,255,0.08)" : Tiffany,
+              color: showMiggyCheckIns ? "rgba(255,255,255,0.85)" : "#0a1f1e",
+              fontFamily: "system-ui",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {showMiggyCheckIns ? "Hide" : "Show"}
+          </button>
+        </div>
+      )}
+
       {/* ── Check-in Log Panel ── */}
       <div style={{ marginBottom: "16px" }}>
         <button
@@ -3582,8 +3644,8 @@ function CheckInsTab({ clients, onClientClick, pomCheckIn }: { clients: Client[]
 
       {/* ── Enhanced Compliance Card ── */}
       {(() => {
-        const ontimeCount = Object.values(weekData).filter(s => s === "ontime").length;
-        const notSubmittedCount = Object.values(weekData).filter(s => s === "not-submitted").length;
+        const ontimeCount = Object.entries(weekData).filter(([id, s]) => inMyRoster([id, s]) && s === "ontime").length;
+        const notSubmittedCount = Object.entries(weekData).filter(([id, s]) => inMyRoster([id, s]) && s === "not-submitted").length;
         const remainingCount = activeClients.filter(c => !weekData[c.id]).length;
         const total = activeClients.length;
         const progressPct = total > 0 ? Math.round(((ontimeCount + submittedCount + lateCount + notSubmittedCount) / total) * 100) : 0;
@@ -5454,8 +5516,8 @@ const P_SEED = [
   },
   {
     id: "2",
-    title: "Mission Control v2",
-    desc: "Build and launch Mission Control v2 with all new features",
+    title: "Invictus Dashboard v2",
+    desc: "Build and launch the Invictus Dashboard v2 with all new features",
     color: "blue",
     status: "active",
     tag: "Systems",
@@ -6305,7 +6367,7 @@ const funnels = [
         { label: "Instagram Story", sub: "Organic reach", type: "teal" },
         { label: "Links Page", sub: "Bio link destination", type: "teal" },
         { label: "Book Free Consult", sub: "Fillout form submission", type: "teal" },
-        { label: "Lead Pipeline", sub: "Mission Control tracking", type: "green" },
+        { label: "Lead Pipeline", sub: "Dashboard tracking", type: "green" },
       ],
     },
   ];
@@ -6446,6 +6508,9 @@ function ClientsTab({
   pendingClients,
   onActivateClient,
   onRemovePending,
+  dismissedOnboardings,
+  onRestoreOnboarding,
+  onPurgeDismissed,
   clients,
   clientEditForm,
   setClientEditForm,
@@ -6460,11 +6525,17 @@ function ClientsTab({
   setSelectedClient,
   actionPanel,
   setActionPanel,
+  defaultCoach,
+  lockedCoach,
+  mode,
 }: {
   onClientClick: (c: Client) => void;
   pendingClients: PendingClient[];
   onActivateClient: (pc: PendingClient) => void;
   onRemovePending: (id: string) => void;
+  dismissedOnboardings: PendingClient[];
+  onRestoreOnboarding: (id: string) => void;
+  onPurgeDismissed: (id: string) => void;
   clients: Client[];
   clientEditForm: ClientFormState;
   setClientEditForm: React.Dispatch<React.SetStateAction<ClientFormState>>;
@@ -6479,6 +6550,9 @@ function ClientsTab({
   setSelectedClient: React.Dispatch<React.SetStateAction<Client | null>>;
   actionPanel: "menu" | "pause" | "cancel" | "edit" | null;
   setActionPanel: React.Dispatch<React.SetStateAction<"menu" | "pause" | "cancel" | "edit" | null>>;
+  defaultCoach?: "Milzzy" | "Miggy";
+  lockedCoach?: "Milzzy" | "Miggy";
+  mode?: "admin" | "coach";
 }) {
   const form = clientEditForm;
   const setForm = setClientEditForm;
@@ -6489,7 +6563,7 @@ function ClientsTab({
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showCancelled, setShowCancelled] = useState(false);
-  const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">("Milzzy");
+  const [selectedCoach, setSelectedCoach] = useState<"Milzzy" | "Miggy">(lockedCoach ?? "Milzzy");
 
   const searchResults = searchQuery
     ? clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -6507,7 +6581,9 @@ function ClientsTab({
     setForm({
       name: client.name, email: client.email ?? "",
       coach: client.coach, paymentPlatform: client.paymentPlatform ?? "Newie",
-      weeklyCharge: client.weeklyCharge ?? 0, spreadsheetUrl: client.spreadsheetUrl ?? "",
+      weeklyCharge: client.weeklyCharge ?? 0,
+      coachCut: client.coachCut ?? (client.coach === "Milzzy" ? (client.weeklyCharge ?? 0) : Math.round((client.weeklyCharge ?? 0) * 60 / 85)),
+      spreadsheetUrl: client.spreadsheetUrl ?? "",
       status: client.status, pausedUntil: client.pausedUntil ?? "",
       startDate: client.startDate, notes: client.notes ?? "",
       checkInDay: client.checkInDay ?? "",
@@ -6526,7 +6602,7 @@ function ClientsTab({
       const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       if (res.ok) { const newClient: Client = await res.json(); setClients(prev => [...prev, newClient]); }
     }
-    setForm({ name: "", email: "", coach: "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" });
+    setForm({ name: "", email: "", coach: defaultCoach ?? "Milzzy", paymentPlatform: "Newie", weeklyCharge: 0, coachCut: 0, spreadsheetUrl: "", status: "active", pausedUntil: "", startDate: normDate(new Date()), notes: "", checkInDay: "" });
     setShowForm(false);
   };
 
@@ -6555,28 +6631,38 @@ function ClientsTab({
     const [coach, setCoach] = useState<"Milzzy"|"Miggy">(pc.coach);
     const [checkInDay, setCheckInDay] = useState<""|Client["checkInDay"]>(pc.checkInDay);
     const [weeklyCharge, setWeeklyCharge] = useState(pc.weeklyCharge);
-    const [expanded, setExpanded] = useState(false);
+    const [coachCut, setCoachCut] = useState(pc.coachCut);
+    const [spreadsheetUrl, setSpreadsheetUrl] = useState(pc.spreadsheetUrl);
+    const [expanded, setExpanded] = useState(true); // Open by default so it's clearly actionable.
     const isComplete = !!(coach && checkInDay && weeklyCharge > 0);
+
+    // When the coach changes, snap coachCut to the default split so Miggy's
+    // cut stays accurate if the user hasn't manually set it.
+    function handleCoachChange(next: "Milzzy"|"Miggy") {
+      setCoach(next);
+      setCoachCut(next === "Milzzy" ? weeklyCharge : Math.round(weeklyCharge * 60 / 85));
+    }
 
     return (
       <div style={{ borderBottom: "1px solid rgba(10,186,181,0.08)", padding: "14px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: expanded ? "12px" : "0" }}>
           <div>
             <div style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.90)" }}>{pc.name}</div>
-            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pc.source} · Converted {pc.convertedAt}</div>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>{pc.source} · Onboarded {pc.convertedAt}</div>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             {!isComplete && <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(251,191,36,0.70)", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "999px", padding: "2px 8px" }}>Incomplete</span>}
+            {isComplete && <span style={{ fontFamily: "system-ui", fontSize: "10px", color: "#6ee7b7", background: "rgba(52,211,153,0.10)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "999px", padding: "2px 8px" }}>Ready</span>}
             <button onClick={() => setExpanded(e => !e)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "6px 12px", color: "rgba(255,255,255,0.60)", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>{expanded ? "Hide" : "Edit"}</button>
             <button onClick={() => onRemove(pc.id)} style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "6px 10px", color: "#f87171", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui" }}>✕</button>
           </div>
         </div>
         {expanded && (
           <div style={{ background: "rgba(0,0,0,0.20)", borderRadius: "12px", padding: "14px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "10px", alignItems: "end" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
               <div>
                 <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label>
-                <select value={coach} onChange={e => setCoach(e.target.value as "Milzzy"|"Miggy")} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
+                <select value={coach} onChange={e => handleCoachChange(e.target.value as "Milzzy"|"Miggy")} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }}>
                   <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option>
                 </select>
               </div>
@@ -6588,14 +6674,29 @@ function ClientsTab({
                 </select>
               </div>
               <div>
-                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label>
-                <input type="number" value={weeklyCharge} onChange={e => setWeeklyCharge(Number(e.target.value))} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly Price ($)</label>
+                <input type="number" value={weeklyCharge} onChange={e => { const v = Number(e.target.value); setWeeklyCharge(v); setCoachCut(coach === "Milzzy" ? v : Math.round(v * 60 / 85)); }} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
               </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+              <div>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>{coach === "Milzzy" ? "Your Cut" : "Coach Cut"} ($)</label>
+                <input type="number" value={coachCut} onChange={e => setCoachCut(Number(e.target.value))} style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
+                <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.30)", margin: "3px 0 0" }}>
+                  Default: {coach === "Milzzy" ? "100% of weekly" : `≈70% of weekly (60/85)`}
+                </p>
+              </div>
+              <div>
+                <label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Spreadsheet URL</label>
+                <input type="url" value={spreadsheetUrl} onChange={e => setSpreadsheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/..." style={{ width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "white", padding: "8px 10px", fontSize: "13px", fontFamily: "system-ui" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button
-                onClick={() => isComplete ? onActivate({ ...pc, coach, checkInDay, weeklyCharge }) : undefined}
+                onClick={() => isComplete ? onActivate({ ...pc, coach, checkInDay, weeklyCharge, coachCut, spreadsheetUrl }) : undefined}
                 disabled={!isComplete}
-                style={{ background: isComplete ? TiffanySoft : "rgba(255,255,255,0.04)", border: isComplete ? `1px solid ${TiffanyBorder}` : "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 18px", color: isComplete ? Tiffany : "rgba(255,255,255,0.20)", fontSize: "13px", cursor: isComplete ? "pointer" : "not-allowed", fontFamily: "system-ui", fontWeight: 600, opacity: isComplete ? 1 : 0.5 }}>
-                Activate
+                style={{ background: isComplete ? TiffanySoft : "rgba(255,255,255,0.04)", border: isComplete ? `1px solid ${TiffanyBorder}` : "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "10px 22px", color: isComplete ? Tiffany : "rgba(255,255,255,0.20)", fontSize: "13px", cursor: isComplete ? "pointer" : "not-allowed", fontFamily: "system-ui", fontWeight: 700, opacity: isComplete ? 1 : 0.5 }}>
+                Activate client →
               </button>
             </div>
           </div>
@@ -6625,35 +6726,190 @@ function ClientsTab({
         )}
       </div>
 
-      {/* Header + Add */}
-      <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
-        COACH FILTER
-      </p>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-        <div style={{ display: "flex", gap: "8px" }}>
-          {(["Milzzy","Miggy"] as const).map(c => (
-            <button key={c} onClick={() => setSelectedCoach(c)}
-              style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
-              {c} {c === "Milzzy" ? `(${milzzyClients.filter(cl=>cl.status!=="cancelled").length})` : `(${miggyClients.filter(cl=>cl.status!=="cancelled").length})`}
-            </button>
+      {/* ── Onboarding queue (newly onboarded clients waiting for activation) ─── */}
+      {pendingClients.length > 0 && (
+        <div style={{
+          background: "rgba(10,186,181,0.06)",
+          border: "1px solid rgba(10,186,181,0.35)",
+          borderRadius: "16px",
+          overflow: "hidden",
+          marginBottom: "16px",
+          boxShadow: "0 0 24px rgba(10,186,181,0.10)",
+        }}>
+          <div style={{
+            background: "rgba(10,186,181,0.10)",
+            borderBottom: "1px solid rgba(10,186,181,0.20)",
+            padding: "14px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>📥</span>
+              <div>
+                <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px", fontWeight: 700 }}>Onboarding queue</div>
+                <div style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>
+                  {pendingClients.length} client{pendingClients.length === 1 ? "" : "s"} waiting to activate
+                </div>
+              </div>
+            </div>
+            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.70)", fontWeight: 600 }}>
+              Fill in coach, check-in day, price & spreadsheet to activate
+            </span>
+          </div>
+
+          {pendingClients.map(pc => (
+            <PendingClientRow
+              key={pc.id}
+              pc={pc}
+              onActivate={onActivateClient}
+              onRemove={onRemovePending}
+            />
           ))}
         </div>
+      )}
+
+      {/* Dismissed onboardings — recoverable trash bin */}
+      {dismissedOnboardings.length > 0 && (
+        <details style={{ marginBottom: "16px" }}>
+          <summary style={{
+            cursor: "pointer",
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "10px",
+            padding: "10px 16px",
+            fontFamily: "system-ui",
+            fontSize: "12px",
+            color: "rgba(255,255,255,0.55)",
+            fontWeight: 600,
+            listStyle: "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <span>↩ Dismissed onboardings ({dismissedOnboardings.length}) — recoverable</span>
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.30)" }}>click to expand</span>
+          </summary>
+          <div style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "10px",
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+            overflow: "hidden",
+            marginTop: "-1px",
+          }}>
+            {dismissedOnboardings.map(pc => (
+              <div key={pc.id} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 16px",
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                opacity: 0.7,
+              }}>
+                <div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{pc.name}</div>
+                  <div style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>
+                    {pc.coach} · onboarded {pc.convertedAt}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button onClick={() => onRestoreOnboarding(pc.id)} style={{
+                    background: "rgba(52,211,153,0.12)",
+                    border: "1px solid rgba(52,211,153,0.30)",
+                    borderRadius: "8px", padding: "6px 12px",
+                    color: "#6ee7b7", fontSize: "11px", cursor: "pointer",
+                    fontFamily: "system-ui", fontWeight: 600,
+                  }}>↩ Restore</button>
+                  <button onClick={() => onPurgeDismissed(pc.id)} style={{
+                    background: "rgba(248,113,113,0.10)",
+                    border: "1px solid rgba(248,113,113,0.25)",
+                    borderRadius: "8px", padding: "6px 10px",
+                    color: "#f87171", fontSize: "11px", cursor: "pointer",
+                    fontFamily: "system-ui",
+                  }}>Delete forever</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* Coach stats card (coach view only) */}
+      {mode === "coach" && (() => {
+        const active = coachFiltered.filter(c => c.status === "active");
+        // Coach cut = per-client coachCut if set, else fall back to weeklyCharge
+        const weeklyRev = active.reduce((s, c) => s + (c.coachCut ?? c.weeklyCharge ?? 0), 0);
+        const annualRev = weeklyRev * 52;
+        return (
+          <div style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "16px",
+            padding: "16px 20px",
+            marginBottom: "20px",
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "12px",
+          }}>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>Total Clients</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "26px", fontWeight: 700, color: "#0abab5", margin: 0, lineHeight: 1 }}>{active.length}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>Weekly</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "26px", fontWeight: 700, color: "#0abab5", margin: 0, lineHeight: 1 }}>${weeklyRev.toLocaleString()}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>Yearly</p>
+              <p style={{ fontFamily: "system-ui", fontSize: "26px", fontWeight: 700, color: "#0abab5", margin: 0, lineHeight: 1 }}>${annualRev.toLocaleString()}</p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Header + Add */}
+      {mode !== "coach" && (
+        <>
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+            COACH FILTER
+          </p>
+        </>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+        {mode !== "coach" && (
+          <div style={{ display: "flex", gap: "8px" }}>
+            {(["Milzzy","Miggy"] as const).map(c => (
+              <button key={c} onClick={() => setSelectedCoach(c)}
+                style={{ background: selectedCoach === c ? TiffanySoft : "rgba(255,255,255,0.05)", border: selectedCoach === c ? `1px solid ${TiffanyBorder}` : `1px solid ${GlassBorder}`, borderRadius: "999px", padding: "6px 18px", fontSize: "12px", cursor: "pointer", fontFamily: "system-ui", fontWeight: selectedCoach === c ? 600 : 400, color: selectedCoach === c ? Tiffany : "rgba(255,255,255,0.50)", transition: "all 0.15s" }}>
+                {c} {c === "Milzzy" ? `(${milzzyClients.filter(cl=>cl.status!=="cancelled").length})` : `(${miggyClients.filter(cl=>cl.status!=="cancelled").length})`}
+              </button>
+            ))}
+          </div>
+        )}
         <button onClick={() => { setShowForm(!showForm); setEditingId(null); }}
           style={{ background: TiffanySoft, border: `1px solid ${TiffanyBorder}`, borderRadius: "12px", padding: "8px 18px", color: Tiffany, fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600 }}>
           {showForm ? "Cancel" : "+ Add Client"}
         </button>
-        <a href="https://docs.google.com/spreadsheets/d/1c3PuGmw3LddG_edWagTCoMIq8AhQqqwOBmHqjnuWKGM/edit?gid=1541591503#gid=1541591503" target="_blank" rel="noopener noreferrer"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "8px 18px", color: "rgba(255,255,255,0.75)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          📋 Fresh Sheet
-        </a>
+        {mode !== "coach" && (
+          <a href="https://docs.google.com/spreadsheets/d/1c3PuGmw3LddG_edWagTCoMIq8AhQqqwOBmHqjnuWKGM/edit?gid=1541591503#gid=1541591503" target="_blank" rel="noopener noreferrer"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "8px 18px", color: "rgba(255,255,255,0.75)", fontSize: "13px", cursor: "pointer", fontFamily: "system-ui", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            📋 Fresh Sheet
+          </a>
+        )}
       </div>
 
-      {/* Stats row — 3 coach cards */}
-      {(() => {
+      {/* Stats row — 3 coach cards (admin only; coach view sees their own earnings elsewhere) */}
+      {mode !== "coach" && (() => {
         const totalClients = clients.filter(c => c.status !== "cancelled").length;
         const _milzzyRevWk = clients.filter(c => c.status !== "cancelled" && c.coach === "Milzzy").reduce((s, c) => s + (c.weeklyCharge || 0), 0);
         const _miggyRevWk = clients.filter(c => c.status !== "cancelled" && c.coach === "Miggy").reduce((s, c) => s + (c.weeklyCharge || 0), 0);
         const totalRevWk = _milzzyRevWk + _miggyRevWk;
+        // Per-client cut for Miggy's roster (with fallback to default 60/85 split)
+        const miggyActive = miggyClients.filter(c => c.status === "active");
+        const _miggyCutWk = miggyActive.reduce((s, c) => s + (c.coachCut ?? Math.round((c.weeklyCharge || 0) * 60 / 85)), 0);
+        const _milzzyLeftoverWk = miggyActive.reduce((s, c) => s + Math.max(0, (c.weeklyCharge || 0) - (c.coachCut ?? Math.round((c.weeklyCharge || 0) * 60 / 85))), 0);
         const cards = [
           {
             label: "Milzzy",
@@ -6672,6 +6928,10 @@ function ClientsTab({
             paused: miggyClients.filter(c => c.status === "paused").length,
             revWk: _miggyRevWk,
             revAnnual: _miggyRevWk * 52,
+            cutWk: _miggyCutWk,
+            cutAnnual: _miggyCutWk * 52,
+            yourWk: _milzzyLeftoverWk,
+            yourAnnual: _milzzyLeftoverWk * 52,
           },
           {
             label: "Total",
@@ -6685,29 +6945,53 @@ function ClientsTab({
         ];
         return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
-            {cards.map(card => (
-              <div key={card.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${card.border}`, borderRadius: "16px", padding: "20px 16px" }}>
-                {/* Coach name */}
-                <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: card.color, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</p>
-                {/* Clients */}
-                <div style={{ marginBottom: "10px" }}>
-                  <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1 }}>{card.clients}</p>
-                  <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>clients{card.paused > 0 ? ` · ${card.paused} paused` : ""}</p>
+            {cards.map(card => {
+              const showSplit = card.label === "Miggy";
+              return (
+                <div key={card.label} style={{ background: GlassBg, backdropFilter: GlassBlur, border: `1px solid ${card.border}`, borderRadius: "16px", padding: "20px 16px" }}>
+                  {/* Coach name */}
+                  <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: card.color, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</p>
+                  {/* Clients */}
+                  <div style={{ marginBottom: "10px" }}>
+                    <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "white", margin: 0, lineHeight: 1 }}>{card.clients}</p>
+                    <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>clients{card.paused > 0 ? ` · ${card.paused} paused` : ""}</p>
+                  </div>
+                  {/* Divider */}
+                  <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "10px 0" }} />
+                  <div style={{ display: "grid", gridTemplateColumns: showSplit ? "1fr 1fr" : "1fr", gap: "12px" }}>
+                    {/* Left: Total revenue */}
+                    <div>
+                      <div style={{ marginBottom: "6px" }}>
+                        <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: card.color, margin: 0, lineHeight: 1 }}>${card.revWk.toLocaleString()}</p>
+                        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
+                      </div>
+                      <div>
+                        <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.50)", margin: 0 }}>${card.revAnnual.toLocaleString()}</p>
+                        <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ year</p>
+                      </div>
+                    </div>
+                    {/* Right: Cut split (Miggy card only) */}
+                    {showSplit && (
+                      <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: "12px" }}>
+                        <div style={{ marginBottom: "10px" }}>
+                          <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.35)", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Miggy cut</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "#a855f7", margin: 0, lineHeight: 1 }}>${card.cutWk!.toLocaleString()}</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.45)", margin: "4px 0 0" }}>${card.cutAnnual!.toLocaleString()}<span style={{ color: "rgba(255,255,255,0.30)", fontWeight: 400, textTransform: "uppercase", fontSize: "9px", letterSpacing: "0.06em", marginLeft: "4px" }}>/ yr</span></p>
+                        </div>
+                        <div style={{ height: "1px", background: "rgba(255,255,255,0.04)", margin: "8px 0" }} />
+                        <div>
+                          <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.35)", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em" }}>You take</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: 0, lineHeight: 1 }}>${card.yourWk!.toLocaleString()}</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "9px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
+                          <p style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.45)", margin: "4px 0 0" }}>${card.yourAnnual!.toLocaleString()}<span style={{ color: "rgba(255,255,255,0.30)", fontWeight: 400, textTransform: "uppercase", fontSize: "9px", letterSpacing: "0.06em", marginLeft: "4px" }}>/ yr</span></p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {/* Divider */}
-                <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "10px 0" }} />
-                {/* Rev/Wk */}
-                <div style={{ marginBottom: "6px" }}>
-                  <p style={{ fontFamily: "system-ui", fontSize: "20px", fontWeight: 700, color: card.color, margin: 0, lineHeight: 1 }}>${card.revWk.toLocaleString()}</p>
-                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ week</p>
-                </div>
-                {/* Rev/Annual */}
-                <div>
-                  <p style={{ fontFamily: "system-ui", fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.50)", margin: 0 }}>${card.revAnnual.toLocaleString()}</p>
-                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: "2px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>/ year</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })()}
@@ -6797,7 +7081,11 @@ function ClientsTab({
                         <td style={{ padding: "8px 10px" }}>
                           <span style={{ background: `${platformColors[client.paymentPlatform]}18`, color: platformColors[client.paymentPlatform], border: `1px solid ${platformColors[client.paymentPlatform]}40`, borderRadius: "999px", padding: "1px 7px", fontSize: "10px", fontFamily: "system-ui", fontWeight: 500 }}>{client.paymentPlatform}</span>
                         </td>
-                        <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>{client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"}</td>
+                        <td style={{ padding: "8px 10px", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.70)" }}>
+                          {mode === "coach"
+                            ? (client.coachCut ? `$${client.coachCut}/wk` : (client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—"))
+                            : (client.weeklyCharge ? `$${client.weeklyCharge}/wk` : "—")}
+                        </td>
                         <td style={{ padding: "8px 10px" }}>{statusPill(client)}</td>
                         <td style={{ padding: "8px 10px", width: "40px", minWidth: "40px", textAlign: "center" }}>
                           <button onClick={() => { onClientClick?.(client); }}
@@ -6827,13 +7115,22 @@ function ClientsTab({
             <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</label>
               <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="client@email.com" /></div>
             <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Coach</label>
-              <select value={form.coach} onChange={e => setForm({...form, coach: e.target.value as "Milzzy"|"Miggy"})} style={{ ...inputStyle, marginTop: "4px" }}>
-                <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+              {lockedCoach ? (
+                <div style={{ ...inputStyle, marginTop: "4px", display: "flex", alignItems: "center", color: "rgba(255,255,255,0.92)", cursor: "default" }}>
+                  {lockedCoach}
+                </div>
+              ) : (
+                <select value={form.coach} onChange={e => { const next = e.target.value as "Milzzy"|"Miggy"; setForm({...form, coach: next, coachCut: next === "Milzzy" ? form.weeklyCharge : Math.round(form.weeklyCharge * 60 / 85)}); }} style={{ ...inputStyle, marginTop: "4px" }}>
+                  <option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select>
+              )}
+            </div>
             <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Payment Platform</label>
               <select value={form.paymentPlatform} onChange={e => setForm({...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship"})} style={{ ...inputStyle, marginTop: "4px" }}>
                 <option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
             <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Weekly Charge ($)</label>
               <input type="number" value={form.weeklyCharge} onChange={e => setForm({...form, weeklyCharge: Number(e.target.value)})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="0" /></div>
+            <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{form.coach === "Milzzy" ? "Your Cut ($)" : "Coach Cut ($)"} <span style={{ textTransform: "none", letterSpacing: 0, fontSize: "9px", color: "rgba(255,255,255,0.30)" }}>· defaults to {form.coach === "Milzzy" ? "100%" : "≈70%"} of weekly</span></label>
+              <input type="number" value={form.coachCut ?? 0} onChange={e => setForm({...form, coachCut: Number(e.target.value)})} style={{ ...inputStyle, marginTop: "4px" }} placeholder="0" /></div>
             <div><label style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Check-in Day</label>
               <select value={form.checkInDay} onChange={e => setForm({...form, checkInDay: e.target.value as ""|Client["checkInDay"]})} style={{ ...inputStyle, marginTop: "4px" }}>
                 <option value="">— Select day —</option>
@@ -6858,8 +7155,8 @@ function ClientsTab({
         </div>
       )}
 
-      {/* ── Cancelled Clients ────────────────────────────────────── */}
-      {cancelledClients.length > 0 && (
+      {/* ── Cancelled Clients (admin only) ──────────────────────────── */}
+      {mode !== "coach" && cancelledClients.length > 0 && (
         <div style={{
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.08)',
@@ -6946,43 +7243,6 @@ function ClientsTab({
         </div>
       )}
 
-      {/* ── New Clients (pending activation) ─────────────────────── */}
-      {pendingClients.length > 0 && (
-        <div style={{
-          background: "rgba(10,186,181,0.06)",
-          border: "1px solid rgba(10,186,181,0.25)",
-          borderRadius: "16px",
-          overflow: "hidden",
-          marginTop: "12px",
-        }}>
-          <div style={{
-            background: "rgba(10,186,181,0.08)",
-            borderBottom: "1px solid rgba(10,186,181,0.15)",
-            padding: "14px 20px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}>
-            <div>
-              <div style={{ fontFamily: "system-ui", fontSize: "11px", color: Tiffany, textTransform: "uppercase", letterSpacing: "0.10em", marginBottom: "2px" }}>Leads</div>
-              <div style={{ fontFamily: "system-ui", fontSize: "15px", fontWeight: 700, color: "rgba(255,255,255,0.90)" }}>
-                New Clients — {pendingClients.length}
-              </div>
-            </div>
-            <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(10,186,181,0.60)" }}>Fill in details to activate</span>
-          </div>
-
-          {pendingClients.map(pc => (
-            <PendingClientRow
-              key={pc.id}
-              pc={pc}
-              onActivate={onActivateClient}
-              onRemove={onRemovePending}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Action Modal */}
       {selectedClient && (
         <GlassModal onClose={() => setSelectedClient(null)}>
@@ -6997,7 +7257,7 @@ function ClientsTab({
                 👤 View Profile
               </button>
               <button onClick={() => {
-                setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
+                setForm({ name: selectedClient.name, email: selectedClient.email ?? "", coach: selectedClient.coach, paymentPlatform: selectedClient.paymentPlatform ?? "Newie", weeklyCharge: selectedClient.weeklyCharge ?? 0, coachCut: selectedClient.coachCut ?? (selectedClient.coach === "Milzzy" ? (selectedClient.weeklyCharge ?? 0) : Math.round((selectedClient.weeklyCharge ?? 0) * 60 / 85)), spreadsheetUrl: selectedClient.spreadsheetUrl ?? "", status: selectedClient.status, pausedUntil: selectedClient.pausedUntil ?? "", startDate: selectedClient.startDate, notes: selectedClient.notes ?? "", checkInDay: selectedClient.checkInDay ?? "" });
                 setEditingId(selectedClient.id);
                 setActionPanel("edit");
               }}
@@ -7139,9 +7399,10 @@ function ClientsTab({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Name</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} /></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Email</label><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="client@email.com" /></div>
-                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label><select value={form.coach} onChange={e => setForm({ ...form, coach: e.target.value as "Milzzy"|"Miggy" })} style={inputStyle}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Coach</label><select value={form.coach} onChange={e => { const next = e.target.value as "Milzzy"|"Miggy"; setForm({ ...form, coach: next, coachCut: next === "Milzzy" ? form.weeklyCharge : Math.round(form.weeklyCharge * 60 / 85) }); }} style={inputStyle}><option value="Milzzy">Milzzy</option><option value="Miggy">Miggy</option></select></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Platform</label><select value={form.paymentPlatform} onChange={e => setForm({ ...form, paymentPlatform: e.target.value as "Newie"|"Upfront"|"Mentorship" })} style={inputStyle}><option value="Newie">Newie</option><option value="Upfront">Upfront</option><option value="Mentorship">Mentorship</option></select></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Weekly ($)</label><input type="number" value={form.weeklyCharge} onChange={e => setForm({ ...form, weeklyCharge: Number(e.target.value) })} style={inputStyle} /></div>
+                <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>{form.coach === "Milzzy" ? "Your Cut ($)" : "Coach Cut ($)"} <span style={{ textTransform: "none", letterSpacing: 0, fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>· defaults to {form.coach === "Milzzy" ? "100%" : "≈70%"} of price</span></label><input type="number" value={form.coachCut ?? 0} onChange={e => setForm({ ...form, coachCut: Number(e.target.value) })} style={inputStyle} /></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Check-in Day</label><select value={form.checkInDay} onChange={e => setForm({ ...form, checkInDay: e.target.value as ""|Client["checkInDay"] })} style={inputStyle}><option value="">— Select —</option>{DAY_ORDER.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Start Date</label><input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} style={inputStyle} /></div>
                 <div><label style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "4px" }}>Status</label><select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Client["status"] })} style={inputStyle}><option value="active">Active</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option></select></div>
@@ -7168,10 +7429,64 @@ function ClientsTab({
 }
 
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// ─── Main Page (MissionControl) ──────────────────────────────────────────────
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+type MissionMode = "admin" | "coach";
+
+const ADMIN_SIDEBAR: { label: string; items: { id: Tab; label: string }[] }[] = [
+  {
+    label: "Business",
+    items: [
+      { id: "dashboard", label: "Dashboard" },
+      { id: "clients", label: "Clients" },
+      { id: "checkins", label: "Check-Ins" },
+      { id: "tasks", label: "Tasks" },
+      { id: "leads", label: "Leads" },
+      { id: "retention", label: "Retention" },
+      { id: "referrals", label: "Referrals" },
+      { id: "content", label: "Content" },
+      { id: "projects", label: "Projects" },
+    ],
+  },
+  {
+    label: "Lead Magnets",
+    items: [
+      { id: "macro-calculator", label: "Macro Calculator" },
+      { id: "pages", label: "Pages" },
+      { id: "Funnel", label: "Lead Gen Funnel" },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { id: "agents", label: "Agents" },
+      { id: "memory", label: "Memory" },
+      { id: "team", label: "Team" },
+      { id: "gym", label: "Gym" },
+    ],
+  },
+];
+
+const COACH_SIDEBAR: { label: string; items: { id: Tab; label: string }[] }[] = [
+  {
+    label: "My Coaching",
+    items: [
+      { id: "dashboard", label: "Dashboard" },
+      { id: "clients", label: "My Clients" },
+      { id: "checkins", label: "Check-Ins" },
+      { id: "content", label: "Content" },
+    ],
+  },
+];
+
+function CoachDashboardInline() {
+  // Dashboard expects an onSignOut callback; inside MissionControl we
+  // don't have one (sign-out lives on the parent coach page). Pass a noop.
+  return <CoachDashboard onSignOut={() => {}} />;
+}
+
+export function MissionControl({ mode, coachId }: { mode: MissionMode; coachId?: "Milzzy" | "Miggy" }) {
+  const [activeTab, setActiveTab] = useState<Tab>(mode === "coach" ? "dashboard" : "dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -7197,10 +7512,14 @@ export default function Home() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [actionPanel, setActionPanel] = useState<"menu" | "pause" | "cancel" | "edit" | null>("menu");
+
+  // Default coach for the Add Client form (so when Miggy clicks Add Client, the coach field is pre-filled with himself)
+  const defaultCoach: "Milzzy" | "Miggy" = mode === "coach" && coachId ? coachId : "Milzzy";
+
   const [clientEditForm, setClientEditForm] = useState<ClientFormState>({
-    name: "", email: "", coach: "Milzzy",
+    name: "", email: "", coach: defaultCoach,
     paymentPlatform: "Newie",
-    weeklyCharge: 0, spreadsheetUrl: "", status: "active",
+    weeklyCharge: 0, coachCut: 0, spreadsheetUrl: "", status: "active",
     pausedUntil: "", startDate: normDate(new Date()),
     notes: "", checkInDay: "",
   });
@@ -7213,10 +7532,21 @@ export default function Home() {
     catch { return []; }
   });
 
+  // Dismissed onboardings — recoverable so accidental clicks don't lose state.
+  const [dismissedOnboardings, setDismissedOnboardings] = useState<PendingClient[]>(() => {
+    try { return JSON.parse(localStorage.getItem("mc_dismissed_onboardings") ?? "[]"); }
+    catch { return []; }
+  });
+
   // Sync pendingClients to localStorage
   useEffect(() => {
     try { localStorage.setItem("mc_pending_clients", JSON.stringify(pendingClients)); } catch { /* */ }
   }, [pendingClients]);
+
+  // Sync dismissedOnboardings to localStorage
+  useEffect(() => {
+    try { localStorage.setItem("mc_dismissed_onboardings", JSON.stringify(dismissedOnboardings)); } catch { /* */ }
+  }, [dismissedOnboardings]);
 
   const totalRevenuePerWeek = clients
     .filter(c => c.status !== "cancelled")
@@ -7255,44 +7585,19 @@ export default function Home() {
     setClients(prev => prev.filter(c => c.id !== id));
   }
 
-  const sidebarSections: { label: string; items: { id: Tab; label: string }[] }[] = [
-    {
-      label: "Business",
-      items: [
-        { id: "dashboard", label: "Dashboard" },
-        { id: "clients", label: "Clients" },
-        { id: "checkins", label: "Check-Ins" },
-        { id: "tasks", label: "Tasks" },
-        { id: "leads", label: "Leads" },
-        { id: "retention", label: "Retention" },
-        { id: "referrals", label: "Referrals" },
-        { id: "content", label: "Content" },
-        { id: "projects", label: "Projects" },
-      ],
-    },
-    {
-      label: "Lead Magnets",
-      items: [
-        { id: "macro-calculator", label: "Macro Calculator" },
-        { id: "pages", label: "Pages" },
-        { id: "Funnel", label: "Lead Gen Funnel" },
-      ],
-    },
-    {
-      label: "AI",
-      items: [
-        { id: "agents", label: "Agents" },
-        { id: "memory", label: "Memory" },
-        { id: "team", label: "Team" },
-        { id: "gym", label: "Gym" },
-      ],
-    },
-  ];
+  const sidebarSections: { label: string; items: { id: Tab; label: string }[] }[] =
+    mode === "coach" ? COACH_SIDEBAR : ADMIN_SIDEBAR;
+
+  // Coach view only sees their own clients
+  const visibleClients = mode === "coach" && coachId
+    ? clients.filter(c => c.coach === coachId)
+    : clients;
 
   // ─── ClientsTab moved to module scope (see above) ─────────────────────────────
 
   // ─── LeadsTab ─────────────────────────────────────────────────────────────
-  function LeadsTab({ onConvertLead }: { onConvertLead: (lead: Lead) => void }) {
+  function LeadsTab({ onMarkOnboarded }: { onMarkOnboarded: (lead: Lead) => void }) {
+    const [showArchived, setShowArchived] = useState(false);
     const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [dragOverStage, setDragOverStage] = useState<string | null>(null);
@@ -7361,9 +7666,8 @@ export default function Home() {
       if (res.ok) {
         const updated: Lead = await res.json();
         setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
-        if (newStage === "signed") {
-          onConvertLead(lead);
-        }
+        // No longer auto-converts to pending client on "Signed".
+        // Use the "Client onboarded" button in the lead detail panel to push to onboarding queue.
       }
     }
 
@@ -7375,6 +7679,15 @@ export default function Home() {
     const signedCount = coachingLeads.filter(l => l.stage === "signed").length;
     const lostCount = coachingLeads.filter(l => l.stage === "lost").length;
     const conversionRate = totalLeads > 0 ? Math.round((signedCount / totalLeads) * 100) : 0;
+
+    // Archived = older than 30 days AND in a closed stage.
+    // Still tracked in stats above; just hidden from the kanban by default.
+    const isArchived = (l: Lead): boolean => {
+      const days = daysAgo(l.createdAt);
+      return days > 30 && (l.stage === "signed" || l.stage === "lost" || l.stage === "no-show");
+    };
+    const archivedCount = coachingLeads.filter(isArchived).length;
+    const visibleLeads = showArchived ? coachingLeads : coachingLeads.filter(l => !isArchived(l));
 
     function daysAgo(iso: string): number {
       return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
@@ -7390,6 +7703,15 @@ export default function Home() {
         <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color, margin: 0 }}>{value}</p>
         <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.38)", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
       </div>
+    );
+
+    const PipelineChip = ({ label, color }: { label: string; color: string }) => (
+      <span style={{
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${color}55`,
+        borderRadius: 999, padding: "2px 10px",
+        fontSize: 11, color, fontWeight: 600,
+      }}>{label}</span>
     );
 
     const Tiffany2 = "#0abab5";
@@ -7543,6 +7865,35 @@ export default function Home() {
 
               {saveError && <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", padding: "8px 12px", margin: 0 }}>⚠ {saveError}</p>}
 
+              {/* Onboarded — push to onboarding queue */}
+              <button
+                onClick={() => {
+                  onMarkOnboarded({
+                    ...lead,
+                    name: form.name.trim() || lead.name,
+                    email: form.email.trim() || lead.email,
+                    assignedTo: form.assignedTo as "Milzzy" | "Miggy",
+                  });
+                  onClose();
+                }}
+                style={{
+                  width: "100%",
+                  background: "linear-gradient(135deg, rgba(52,211,153,0.20) 0%, rgba(52,211,153,0.10) 100%)",
+                  border: "1px solid rgba(52,211,153,0.45)",
+                  borderRadius: "10px", padding: "12px",
+                  color: "#6ee7b7",
+                  fontFamily: "system-ui", fontSize: "13px", fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                }}
+              >
+                <span style={{ fontSize: 16 }}>✅</span>
+                Client onboarded — add to onboarding queue
+              </button>
+              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", margin: 0, textAlign: "center" }}>
+                Lead will appear in the onboarding banner on the Clients tab.
+              </p>
+
               {/* Actions */}
               <div style={{ display: "flex", gap: "8px", paddingTop: "4px" }}>
                 <button onClick={saveLead} disabled={saving} style={{ flex: 1, background: Tiffany2, border: "none", borderRadius: "10px", padding: "11px", color: "#000", fontFamily: "system-ui", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save Lead"}</button>
@@ -7568,6 +7919,52 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Miggy's pipeline summary */}
+        {(() => {
+          const miggyLeads = coachingLeads.filter(l => (l.assignedTo ?? "Milzzy") === "Miggy");
+          if (miggyLeads.length === 0) return null;
+          const m = {
+            new:       miggyLeads.filter(l => l.stage === "new-lead").length,
+            contacted: miggyLeads.filter(l => l.stage === "consult-call" || l.stage === "book-consult" || l.stage === "follow-up").length,
+            signed:    miggyLeads.filter(l => l.stage === "signed").length,
+            lost:      miggyLeads.filter(l => l.stage === "lost").length,
+          };
+          const recent = [...miggyLeads].sort((a, b) => new Date(b.lastUpdated ?? b.createdAt ?? 0).getTime() - new Date(a.lastUpdated ?? a.createdAt ?? 0).getTime()).slice(0, 3);
+          return (
+            <div style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderLeft: `3px solid ${Tiffany}`,
+              borderRadius: 14,
+              padding: "14px 18px",
+              marginBottom: 14,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    fontSize: 11, letterSpacing: "0.20em", color: Tiffany,
+                    textTransform: "uppercase", fontWeight: 600,
+                  }}>Miggy's pipeline</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <PipelineChip label={`${m.new} new`} color="rgba(10,186,181,0.85)" />
+                    <PipelineChip label={`${m.contacted} contacted`} color="rgba(250,204,21,0.85)" />
+                    <PipelineChip label={`${m.signed} signed`} color="#34d399" />
+                    <PipelineChip label={`${m.lost} lost`} color="#f87171" />
+                  </div>
+                </div>
+                {recent[0] && (
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
+                    Last update: <span style={{ color: "rgba(255,255,255,0.75)" }}>{recent[0].name}</span>{" "}
+                    <span style={{ marginLeft: 6, padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                      {recent[0].stage ?? "new-lead"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "20px" }}>
           {card("Total Leads", totalLeads, "rgba(255,255,255,0.75)")}
@@ -7576,11 +7973,30 @@ export default function Home() {
           {card("Conversion Rate", `${conversionRate}%`, "rgba(168,85,247,0.85)")}
         </div>
 
+        {/* Archive toggle */}
+        {archivedCount > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px" }}>
+            <div style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.55)" }}>
+              <strong style={{ color: "rgba(255,255,255,0.75)" }}>{archivedCount}</strong> archived lead{archivedCount === 1 ? "" : "s"} (closed stage, &gt;30 days old)
+              <span style={{ color: "rgba(255,255,255,0.30)", marginLeft: 8 }}>· still counted in stats above</span>
+            </div>
+            <button onClick={() => setShowArchived(s => !s)} style={{
+              background: showArchived ? "rgba(10,186,181,0.15)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${showArchived ? "rgba(10,186,181,0.40)" : "rgba(255,255,255,0.12)"}`,
+              borderRadius: "8px", padding: "6px 12px",
+              color: showArchived ? Tiffany : "rgba(255,255,255,0.65)",
+              fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, cursor: "pointer",
+            }}>
+              {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+            </button>
+          </div>
+        )}
+
         {/* Kanban Board */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "12px" }}>
 
           {COLUMNS.map(col => {
-            const colLeads = coachingLeads.filter(l => col.stageKeys.includes(l.stage));
+            const colLeads = visibleLeads.filter(l => col.stageKeys.includes(l.stage));
             const isDragOver = dragOverStage === col.key;
 
             return (
@@ -7863,15 +8279,15 @@ return (
               </svg>
             </button>
 
-            {activeTab === "dashboard" ? <DashboardTab clients={clients} onTabChange={setActiveTab} onClientClick={setSelectedClient} onEditClient={(c) => { setSelectedClient(c); setActionPanel("edit"); }} /> :
+            {activeTab === "dashboard" ? (mode === "coach" ? <CoachDashboardInline /> : <DashboardTab clients={visibleClients} onTabChange={setActiveTab} onClientClick={setSelectedClient} onEditClient={(c) => { setSelectedClient(c); setActionPanel("edit"); }} />) :
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
-             activeTab === "tasks" ? <TasksTab clients={clients} /> :
+             activeTab === "tasks" ? <TasksTab clients={visibleClients} lockedOwner={mode === "coach" && coachId ? coachId : undefined} /> :
              activeTab === "clients" ? <ClientsTab
                 onClientClick={setSelectedClient}
                 pendingClients={pendingClients}
-                clients={clients}
+                clients={visibleClients}
                 clientEditForm={clientEditForm}
                 setClientEditForm={setClientEditForm}
                 clientEditingId={clientEditingId}
@@ -7885,6 +8301,8 @@ return (
                 setSelectedClient={setSelectedClient}
                 actionPanel={actionPanel}
                 setActionPanel={setActionPanel}
+                lockedCoach={mode === "coach" && coachId ? coachId : undefined}
+                mode={mode}
                 onActivateClient={async (pc) => {
                   const newClient: Client = {
                     id: pc.id,
@@ -7893,10 +8311,11 @@ return (
                     coach: pc.coach,
                     paymentPlatform: "Newie",
                     weeklyCharge: pc.weeklyCharge,
-                    spreadsheetUrl: "",
+                    coachCut: pc.coachCut,
+                    spreadsheetUrl: pc.spreadsheetUrl,
                     status: "active",
                     startDate: pc.convertedAt,
-                    notes: `Converted from lead (source: ${pc.source})`,
+                    notes: `Onboarded from lead (source: ${pc.source})`,
                     checkInDay: pc.checkInDay as Client["checkInDay"],
                   };
                   await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newClient) });
@@ -7904,31 +8323,49 @@ return (
                   setPendingClients(prev => prev.filter(p => p.id !== pc.id));
                   addToast(`${pc.name} activated ✅`, "success");
                 }}
-                onRemovePending={(id) => setPendingClients(prev => prev.filter(p => p.id !== id))}
+                onRemovePending={(id) => {
+                  const pc = pendingClients.find(p => p.id === id);
+                  if (!pc) return;
+                  setPendingClients(prev => prev.filter(p => p.id !== id));
+                  setDismissedOnboardings(prev => [{ ...pc, dismissedAt: new Date().toISOString() } as PendingClient & { dismissedAt: string }, ...prev]);
+                  addToast(`${pc.name} dismissed — restore from "Dismissed" section below.`, "info");
+                }}
+                dismissedOnboardings={dismissedOnboardings}
+                onRestoreOnboarding={(id) => {
+                  const pc = dismissedOnboardings.find(p => p.id === id);
+                  if (!pc) return;
+                  setDismissedOnboardings(prev => prev.filter(p => p.id !== id));
+                  setPendingClients(prev => [...prev, pc]);
+                  addToast(`${pc.name} restored to onboarding queue.`, "success");
+                }}
+                onPurgeDismissed={(id) => setDismissedOnboardings(prev => prev.filter(p => p.id !== id))}
               /> :
-             activeTab === "checkins" ? <CheckInsTab clients={clients} onClientClick={setSelectedClient} pomCheckIn={pomCheckIn} /> :
+             activeTab === "checkins" ? <CheckInsTab clients={visibleClients} onClientClick={setSelectedClient} pomCheckIn={pomCheckIn} mode={mode} /> :
              activeTab === "referrals" ? <ReferralsTab /> :
-             activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={clients} /> :
-             activeTab === "retention" ? <RetentionTab clients={clients} /> :
+             activeTab === "finance" ? <FinanceTab revPerWeek={totalRevenuePerWeek} clients={visibleClients} /> :
+             activeTab === "retention" ? <RetentionTab clients={visibleClients} /> :
              activeTab === "macro-calculator" ? <MacroCalculatorTab leads={leads} /> :
              activeTab === "content" ? <ContentTab /> :
              activeTab === "projects" ? <ProjectsTab /> :
              activeTab === "pages" ? <PagesTab /> :
              activeTab === "Funnel" ? <FunnelTab /> :
              activeTab === "gym" ? <GymTab /> :
-<LeadsTab onConvertLead={(lead) => {
+<LeadsTab onMarkOnboarded={(lead) => {
+             const wc = lead.assignedTo === "Miggy" ? 85 : 100;
              const newPending: PendingClient = {
                id: `pending-${lead.id}`,
                name: lead.name,
                email: lead.email,
                source: lead.source,
                convertedAt: (() => { const d = new Date(); const dd = String(d.getDate()).padStart(2,"0"); const mm = String(d.getMonth()+1).padStart(2,"0"); const yyyy = d.getFullYear(); return `${yyyy}-${mm}-${dd}`; })(),
-               coach: lead.assignedTo,
+               coach: lead.assignedTo ?? "Milzzy",
                checkInDay: "",
-               weeklyCharge: lead.assignedTo === "Miggy" ? 85 : 100,
+               weeklyCharge: wc,
+               coachCut: lead.assignedTo === "Miggy" ? Math.round(wc * 60 / 85) : wc,
+               spreadsheetUrl: "",
              };
              setPendingClients(prev => [...prev, newPending]);
-             addToast(`${lead.name} moved to Signed — fill in details to activate`, "success");
+             addToast(`${lead.name} → Onboarding queue. Fill in spreadsheet, day & price to activate.`, "success");
            }} />}
           </div>
         </main>
@@ -7953,4 +8390,10 @@ return (
       </div>
     </div>
   );
+}
+
+// ─── Default export: admin MissionControl at "/" ─────────────────────────────
+
+export default function Home() {
+  return <MissionControl mode="admin" />;
 }
