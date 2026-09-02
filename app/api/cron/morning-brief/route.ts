@@ -179,7 +179,7 @@ export async function POST() {
 
     const message = [
       `<code>${divider}</code>`,
-      `<b>🤖 JARVIS — MORNING BRIEF</b>`,
+      `<b>📊 INVICTUS DASHBOARD — MORNING BRIEF</b>`,
       `<code>${dateStr}</code>`,
       `<code>${divider}</code>`,
       "",

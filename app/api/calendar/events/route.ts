@@ -84,7 +84,25 @@ export async function GET(req: NextRequest) {
   }
 
   const data = await calendarRes.json();
-  const events = (data.items || []).map((e: any) => ({
+  const allItems = data.items || [];
+
+  // Filter to meetings/calls only.
+  // Definition of "meeting/call":
+  //   - has a Google Meet link (hangoutLink)
+  //   - has any conferenceData (Zoom / Teams / other 3rd-party conferencing)
+  //   - has any attendees invited (real meeting with another person)
+  //   - OR the title strongly suggests a meeting (call/meet/consult/zoom/teams/sync/standup/interview/1:1)
+  const MEETING_TITLE_RE = /\b(call|meet|meeting|consult|consultation|consulting|zoom|teams|sync|standup|stand-up|interview|chat|1[\s-]?on[\s-]?1)\b/i;
+  const isMeeting = (e: any): boolean => {
+    if (e.hangoutLink) return true;
+    if (e.conferenceData?.entryPoints?.length) return true;
+    if (Array.isArray(e.attendees) && e.attendees.length > 0) return true;
+    if (typeof e.summary === "string" && MEETING_TITLE_RE.test(e.summary)) return true;
+    return false;
+  };
+
+  const meetings = allItems.filter(isMeeting);
+  const events = meetings.map((e: any) => ({
     id: e.id,
     title: e.summary || "(No title)",
     start: e.start?.dateTime || e.start?.date,
@@ -93,5 +111,8 @@ export async function GET(req: NextRequest) {
     meetLink: e.hangoutLink || null,
   }));
 
-  return NextResponse.json({ events });
+  return NextResponse.json({
+    events,
+    filteredOut: Math.max(0, allItems.length - events.length),
+  });
 }

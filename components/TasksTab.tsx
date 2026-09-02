@@ -243,14 +243,14 @@ function useIsMobile(breakpoint = 768): boolean {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function TasksTab({ clients }: { clients: Client[] }) {
+export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOwner?: "Milzzy" | "Miggy" }) {
   const isMobile = useIsMobile();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState<"normal" | "tdl">("normal");
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<"all" | "today" | "upcoming" | "overdue" | "completed">("all");
-  const [ownerFilter, setOwnerFilter] = useState<"all" | "Milzzy" | "Miggy">("all");
+  const [ownerFilter, setOwnerFilter] = useState<"all" | "Milzzy" | "Miggy">(lockedOwner ?? "all");
   const [tdlWeekSunday, setTdlWeekSunday] = useState<Date>(() => getSundayOf(new Date()));
   const [drawerTask, setDrawerTask] = useState<Partial<Task> | null>(null);
   const [drawerIsNew, setDrawerIsNew] = useState(false);
@@ -975,20 +975,31 @@ export function TasksTab({ clients }: { clients: Client[] }) {
           })}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          {([["all","All coaches"], ["Milzzy","Milzzy"], ["Miggy","Miggy"]] as const).map(([v, lbl]) => {
-            const cnt = v === "all" ? undefined : counts.oc[v];
-            const active = ownerFilter === v;
-            return (
-              <button key={v} onClick={() => setOwnerFilter(v)} style={{
-                padding: "6px 12px", borderRadius: 8, border: `1px solid ${active ? TBorder : BORDER}`,
-                background: active ? TSoft : CARD, color: active ? T : MUTED,
-                fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5,
-              }}>
-                {lbl}
-                {cnt !== undefined && <span style={{ background: "rgba(255,255,255,0.1)", borderRadius: 5, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}
-              </button>
-            );
-          })}
+          {lockedOwner ? (
+            <div style={{
+              padding: "6px 12px", borderRadius: 8, border: `1px solid ${TBorder}`,
+              background: TSoft, color: T, fontSize: 12, fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              {lockedOwner}
+              <span style={{ background: "rgba(255,255,255,0.1)", borderRadius: 5, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>{counts.oc[lockedOwner] ?? 0}</span>
+            </div>
+          ) : (
+            ([["all","All coaches"], ["Milzzy","Milzzy"], ["Miggy","Miggy"]] as const).map(([v, lbl]) => {
+              const cnt = v === "all" ? undefined : counts.oc[v];
+              const active = ownerFilter === v;
+              return (
+                <button key={v} onClick={() => setOwnerFilter(v)} style={{
+                  padding: "6px 12px", borderRadius: 8, border: `1px solid ${active ? TBorder : BORDER}`,
+                  background: active ? TSoft : CARD, color: active ? T : MUTED,
+                  fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5,
+                }}>
+                  {lbl}
+                  {cnt !== undefined && <span style={{ background: "rgba(255,255,255,0.1)", borderRadius: 5, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -1323,8 +1334,9 @@ export function TasksTab({ clients }: { clients: Client[] }) {
 
   // ─── Onboarding inbox ─────────────────────────────────────────────────────
   const renderOnboardingInbox = () => {
-    if (onboardingSubs.length === 0) return null;
-    const subs = onboardingExpanded ? onboardingSubs : onboardingSubs.slice(0, 3);
+    const visibleSubs = lockedOwner ? onboardingSubs.filter(s => s.coach === lockedOwner) : onboardingSubs;
+    if (visibleSubs.length === 0) return null;
+    const subs = onboardingExpanded ? visibleSubs : visibleSubs.slice(0, 3);
     const ownerStyle = (coach: string) =>
       coach === "Miggy"
         ? { bg: "rgba(249,115,22,0.15)", border: "rgba(249,115,22,0.40)", text: "#f97316" }
@@ -1348,11 +1360,11 @@ export function TasksTab({ clients }: { clients: Client[] }) {
             }}>📥</div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: 0 }}>New onboarding submissions</h2>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: 0 }}>{lockedOwner ? `New ${lockedOwner} onboarding submissions` : "New onboarding submissions"}</h2>
                 <span style={{
                   background: T, color: "#000", borderRadius: 999, padding: "2px 9px",
                   fontSize: 11, fontWeight: 800,
-                }}>{onboardingSubs.length}</span>
+                }}>{visibleSubs.length}</span>
               </div>
               <p style={{ fontSize: 11, color: MUTED, margin: "2px 0 0" }}>
                 Clients who just completed the onboarding form. Pick a day to schedule their kickoff.
@@ -1367,12 +1379,12 @@ export function TasksTab({ clients }: { clients: Client[] }) {
             }}>
               {onboardingRefreshing ? "…" : "↻ Refresh"}
             </button>
-            {onboardingSubs.length > 3 && (
+            {visibleSubs.length > 3 && (
               <button onClick={() => setOnboardingExpanded((e) => !e)} style={{
                 background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 8,
                 padding: "6px 12px", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
               }}>
-                {onboardingExpanded ? "Show less" : `Show all (${onboardingSubs.length})`}
+                {onboardingExpanded ? "Show less" : `Show all (${visibleSubs.length})`}
               </button>
             )}
           </div>

@@ -15,10 +15,10 @@ import FunnelTab from "@/components/FunnelTab";
 import { ContentTab } from "@/components/ContentTab";
 import { TasksTab } from "@/components/TasksTab";
 import { GymTab } from "@/components/GymTab";
+import { CoachKPIsTab } from "@/components/CoachKPIsTab";
 import { Dashboard as CoachDashboard } from "./coach/dashboard/page";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import FloatingPomodoro from "@/components/FloatingPomodoro";
-import { RevenueTrend } from "@/components/RevenueTrend";
 
 // ─── Design System Constants ─────────────────────────────────────────────────
 const Tiffany = "#0abab5";
@@ -155,7 +155,19 @@ export interface PendingClient {
   spreadsheetUrl: string;
 }
 
-type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks" | "gym";
+export interface OnboardingSubmission {
+  id: string;
+  coach: "Milzzy" | "Miggy";
+  name: string;
+  email: string;
+  phone: string;
+  submittedAt: string;
+  goal?: string;
+  service?: string;
+  filloutUrl: string;
+}
+
+type Tab = "dashboard" | "agents" | "memory" | "team" | "clients" | "checkins" | "finance" | "retention" | "leads" | "referrals" | "macro-calculator" | "content" | "projects" | "pages" | "Funnel" | "tasks" | "gym" | "kpis";
 
 // ─── Dashboard Types ──────────────────────────────────────────────────────────
 
@@ -335,6 +347,7 @@ function Header({ activeTab }: { activeTab: Tab }) {
     pages: "Pages",
     Funnel: "Funnel",
     gym: "Gym",
+    kpis: "Coach KPIs",
   };
 
   const [time, setTime] = useState(() => new Date());
@@ -513,7 +526,8 @@ function Sidebar({
                      item.id === "content" ? "✨" :
                      item.id === "projects" ? "📋" :
                      item.id === "pages" ? "◎" :
-                     item.id === "Funnel" ? "◎" : "◨"}
+                     item.id === "Funnel" ? "◎" :
+                     item.id === "kpis" ? "◑" : "◨"}
                   </span>
                   <span>{item.label}</span>
                 </button>
@@ -542,19 +556,32 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [draggingTask, setDraggingTask] = useState<{ id: string; fromDay: string } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [onboardings, setOnboardings] = useState<OnboardingSubmission[]>([]);
+  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
+  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+
+  // Admin-specific dismissal tracking. Per-device — when Milzzy marks an
+  // onboarding as handled, we hide BOTH the lead and the onboarding submission.
+  const [dismissedOnboardingIds, setDismissedOnboardingIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("admin_dismissed_onboardings") ?? "[]"); }
+    catch { return []; }
+  });
+  const [dismissedLeadIds, setDismissedLeadIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("admin_dismissed_leads") ?? "[]"); }
+    catch { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem("admin_dismissed_onboardings", JSON.stringify(dismissedOnboardingIds)); } catch {} }, [dismissedOnboardingIds]);
+  useEffect(() => { try { localStorage.setItem("admin_dismissed_leads", JSON.stringify(dismissedLeadIds)); } catch {} }, [dismissedLeadIds]);
+
+  function markOnboarded(onboardingId: string, leadId?: string) {
+    setDismissedOnboardingIds(prev => prev.includes(onboardingId) ? prev : [...prev, onboardingId]);
+    if (leadId) setDismissedLeadIds(prev => prev.includes(leadId) ? prev : [...prev, leadId]);
+  }
 
   const [checkIns, setCheckIns] = useState<CheckInStore>({});
   const [calendarEvents, setCalendarEvents] = useState<{id: string; title: string; start: string; meetLink: string | null}[]>([]);
+  const [calendarFilteredOut, setCalendarFilteredOut] = useState(0);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [revenueData, setRevenueData] = useState<any>(null);
-
-  // Load revenue snapshot from API
-  useEffect(() => {
-    fetch('/api/revenue')
-      .then(r => r.json())
-      .then(d => setRevenueData(d))
-      .catch(() => setRevenueData(null));
-  }, []);
 
   // Load check-in data from API (server-synced)
   useEffect(() => {
@@ -589,13 +616,44 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
       .then(data => {
         if (data.error === "not_authorized") {
           setGoogleConnected(false);
+          setCalendarEvents([]);
+          setCalendarFilteredOut(0);
         } else {
           setGoogleConnected(true);
           setCalendarEvents(data.events || []);
+          setCalendarFilteredOut(typeof data.filteredOut === "number" ? data.filteredOut : 0);
         }
       })
-      .catch(() => setGoogleConnected(false));
+      .catch(() => { setGoogleConnected(false); setCalendarEvents([]); setCalendarFilteredOut(0); });
   }, []);
+
+  // Load onboarding submissions
+  useEffect(() => {
+    fetch("/api/onboarding", { cache: "no-store" })
+      .then(r => r.json())
+      .then(data => {
+        setOnboardings(Array.isArray(data?.unacked) ? data.unacked : []);
+      })
+      .catch(() => { /* ignore */ });
+  }, []);
+
+  async function updateLeadStage(leadId: string, stage: string) {
+    setUpdatingLeadId(leadId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      if (res.ok) {
+        setLeads(curr => curr.map(l => l.id === leadId ? { ...l, stage: stage as Lead["stage"], lastUpdated: new Date().toISOString() } : l));
+      }
+    } catch {
+      /* network error — auto refresh on next tick will reconcile */
+    } finally {
+      setUpdatingLeadId(null);
+    }
+  }
 
   // Helper// Helper to get week key for current week (same logic as CheckInsTab)
   function getDashboardWeekKey(offset = 0) {
@@ -667,35 +725,16 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   }
 
   const activeClients = clients.filter((c) => c.status === "active");
-  const activeCount = activeClients.length;
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const newThisMonthRaw = clients.filter(c => c.startDate && c.startDate.startsWith(thisMonth)).length;
-  const totalClients = clients.filter((c) => c.status !== "cancelled").length;
-  // If newThisMonth equals total clients, all were imported on same day — show — instead
-  const newThisMonth = (newThisMonthRaw === totalClients && totalClients > 0) ? null : newThisMonthRaw;
-  const totalRevenuePerWeek = clients
-    .filter(c => c.status !== "cancelled")
-    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
-  const milzzyRevenuePerWeek = clients
-    .filter(c => c.status !== "cancelled" && c.coach === "Milzzy")
-    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
-  const miggyRevenuePerWeek = clients
-    .filter(c => c.status !== "cancelled" && c.coach === "Miggy")
-    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
-  const milzzyPausedRev = clients
-    .filter(c => c.status === "paused" && c.coach === "Milzzy")
-    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
-  const miggyPausedRev = clients
-    .filter(c => c.status === "paused" && c.coach === "Miggy")
-    .reduce((sum, c) => sum + (c.weeklyCharge || 0), 0);
   const totalLeads = leads.length;
   const conversions = leads.filter(l => l.stage === "signed").length;
-  const convRate = totalLeads > 0 ? Math.round((conversions / totalLeads) * 100) : null;
 
-
-
-
-
+  // Admin's view: show all leads (regardless of coach) that are not in a
+  // terminal stage and not dismissed. Same logic for onboardings.
+  const activeLeadsExcludingDismissed = leads.filter(l =>
+    !dismissedLeadIds.includes(l.id) &&
+    l.stage !== "signed" && l.stage !== "lost" && l.stage !== "no-show"
+  );
+  const adminOnboardingsExcludingDismissed = onboardings.filter(o => !dismissedOnboardingIds.includes(o.id));
 
   return (
     <div style={{ padding: "0 4px", width: "100%", boxSizing: "border-box" }}>
@@ -849,10 +888,17 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
       {/* ── Google Calendar — Consultations (2 Weeks) ── */}
       <section style={{ marginBottom: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <p style={sectionHeaderStyle}>Consultations (2 Weeks)</p>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+            <p style={sectionHeaderStyle}>Meetings & Calls (2 Weeks)</p>
+            {calendarFilteredOut > 0 && googleConnected && (
+              <span style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }} title="Personal events, focus blocks, OOO, etc. — hidden">
+                {calendarFilteredOut} non-meeting event{calendarFilteredOut !== 1 ? "s" : ""} hidden
+              </span>
+            )}
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             {calendarEvents.length > 0 && (
-              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? "s" : ""}</span>
+              <span style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>{calendarEvents.length} meeting{calendarEvents.length !== 1 ? "s" : ""}</span>
             )}
             {!googleConnected && (
               <a href="/api/auth/google" style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "#ffffff", background: "rgba(66,133,244,0.80)", borderRadius: "8px", padding: "5px 12px", textDecoration: "none" }}>
@@ -1124,127 +1170,331 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
             );
           })}
         </div>
-      
-      {/* ── Revenue Snapshot ── */}
-      <section style={{ marginBottom: "28px" }}>
-        <p style={sectionHeaderStyle}>Revenue Snapshot</p>
+      </section>
 
-        {/* Weekly progress bar — this week vs $8,500 target */}
-        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 20px", marginBottom: "14px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "8px", gap: "12px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>This Week</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: Tiffany, margin: 0 }}>${totalRevenuePerWeek.toLocaleString()}</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "#0abab5", margin: "2px 0 0" }}>Mz ${milzzyRevenuePerWeek.toLocaleString()}${milzzyPausedRev > 0 ? ` (${milzzyPausedRev} paused)` : ""} · Mg $${miggyRevenuePerWeek.toLocaleString()}${miggyPausedRev > 0 ? ` (${miggyPausedRev} paused)` : ""}</p>
+      {/* ── New leads ── */}
+      <section style={{ marginBottom: "16px" }}>
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "18px",
+          padding: "20px 22px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(10,186,181,0.15)", border: "1px solid rgba(10,186,181,0.40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📥</div>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: "white", margin: 0 }}>New leads</h2>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>All enquiry submissions — click to update status</p>
+              </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Weekly Target</p>
-              <p style={{ fontFamily: "system-ui", fontSize: "28px", fontWeight: 700, color: "rgba(255,255,255,0.30)", margin: 0 }}>$8,500</p>
+            <span style={{ background: activeLeadsExcludingDismissed.length > 0 ? "#0abab5" : "rgba(255,255,255,0.10)", color: activeLeadsExcludingDismissed.length > 0 ? "white" : "rgba(255,255,255,0.45)", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>{activeLeadsExcludingDismissed.length}</span>
+          </div>
+          {activeLeadsExcludingDismissed.length === 0 ? (
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>No active leads yet — when someone fills out the enquiry form, they'll show up here.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {activeLeadsExcludingDismissed.slice(0, 8).map(l => (
+                <AdminLeadCard
+                  key={l.id}
+                  lead={l}
+                  expanded={expandedLeadId === l.id}
+                  onToggle={() => setExpandedLeadId(curr => curr === l.id ? null : l.id)}
+                  onSetStage={(s) => updateLeadStage(l.id, s)}
+                  busy={updatingLeadId === l.id}
+                />
+              ))}
             </div>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "999px", height: "8px", overflow: "hidden" }}>
-            <div style={{
-              width: Math.min(100, Math.round((totalRevenuePerWeek / 8500) * 100)) + "%",
-              height: "100%",
-              background: totalRevenuePerWeek >= 8500
-                ? "linear-gradient(90deg, #0abab5, #34d399)"
-                : "linear-gradient(90deg, #f87171, #fbbf24)",
-              borderRadius: "999px",
-              transition: "width 0.6s ease",
-            }} />
-          </div>
-          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: totalRevenuePerWeek >= 8500 ? "#34d399" : "#fbbf24", margin: "8px 0 0", textAlign: "right" }}>
-            ${totalRevenuePerWeek.toLocaleString()} of $8,500
-          </p>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
-          {/* MTD */}
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>MTD Revenue</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: "0 0 2px" }}>
-              ${revenueData ? revenueData.mtdRevenue.toLocaleString() : "—"}
-            </p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
-              {revenueData ? `${revenueData.pctOfMonth}% of month · day ${revenueData.dayOfMonth}/${revenueData.daysInMonth}` : "loading..."}
-            </p>
-          </div>
-
-          {/* EOFM Projection */}
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>EOFM Projection</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: Tiffany, margin: "0 0 2px" }}>
-              ${revenueData ? revenueData.eofmProjection.toLocaleString() : "—"}
-            </p>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
-              {revenueData ? `${revenueData.activeClients} clients x $${Math.round(revenueData.weeklyTotal / revenueData.activeClients)}/wk avg` : "loading..."}
-            </p>
-          </div>
-
-          {/* vs Last Month */}
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "16px 18px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>vs Last Month</p>
-            {revenueData ? (
-              revenueData.lastMonthRevenue !== null ? (
-                (() => {
-                  const diff = revenueData.mtdRevenue - revenueData.lastMonthRevenue;
-                  const pct = Math.round((diff / revenueData.lastMonthRevenue) * 100);
-                  const isUp = diff >= 0;
-                  return (
-                    <>
-                      <p style={{ fontFamily: "system-ui", fontSize: "22px", fontWeight: 700, color: isUp ? "#34d399" : "#f87171", margin: "0 0 2px" }}>
-                        {isUp ? "+" : ""}${Math.abs(diff).toLocaleString()}
-                      </p>
-                      <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.30)", margin: 0 }}>
-                        {isUp ? "+" : ""}{pct}% vs {revenueData.lastMonthLabel}
-                      </p>
-                    </>
-                  );
-                })()
-              ) : (
-                <>
-                  <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.40)", margin: "0 0 2px" }}>No data</p>
-                  <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.25)", margin: 0 }}>Record last month to compare</p>
-                </>
-              )
-            ) : (
-              <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.30)", margin: 0 }}>loading...</p>
-            )}
-          </div>
-        </div>
-
-        {/* Week-by-week bar strip */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>This Week</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${totalRevenuePerWeek.toLocaleString()}</p>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Monthly (run rate)</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: "rgba(255,255,255,0.60)", margin: "0" }}>${revenueData ? revenueData.monthlyRate.toLocaleString() : "—"}</p>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "12px 14px" }}>
-            <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Annual Run Rate</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "16px", fontWeight: 700, color: Tiffany, margin: "0" }}>${revenueData ? Math.round(revenueData.monthlyRate * 12).toLocaleString() : "—"}</p>
-          </div>
+          )}
         </div>
       </section>
-</section>
 
-      {/* ── Business Stats ── */}
-      <section style={{ marginBottom: "32px" }}>
-        <p style={sectionHeaderStyle}>Business Stats</p>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <StatCard value={totalClients} label="Clients" color="#34d399" />
-          <StatCard value={`$${totalRevenuePerWeek.toLocaleString()}`} label="Rev / wk" color={Tiffany} />
-          <StatCard value={newThisMonth !== null ? `+${newThisMonth}` : "—"} label="New this mo" color="#a855f7" />
-          <StatCard value={convRate !== null ? `${convRate}%` : "—"} label="Conv." color={convRate !== null ? "#34d399" : "rgba(255,255,255,0.50)"} />
+      {/* ── New onboardings ── */}
+      <section style={{ marginBottom: "24px" }}>
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "18px",
+          padding: "20px 22px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(10,186,181,0.15)", border: "1px solid rgba(10,186,181,0.40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✅</div>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: "white", margin: 0 }}>New onboardings</h2>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Clients who just filled out the onboarding form</p>
+              </div>
+            </div>
+            <span style={{ background: adminOnboardingsExcludingDismissed.length > 0 ? "#0abab5" : "rgba(255,255,255,0.10)", color: adminOnboardingsExcludingDismissed.length > 0 ? "white" : "rgba(255,255,255,0.45)", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>{adminOnboardingsExcludingDismissed.length}</span>
+          </div>
+          {adminOnboardingsExcludingDismissed.length === 0 ? (
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>No pending onboardings.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {adminOnboardingsExcludingDismissed.slice(0, 8).map(o => {
+                const matchedLead = leads.find(l =>
+                  l.email &&
+                  o.email &&
+                  l.email.toLowerCase().trim() === o.email.toLowerCase().trim() &&
+                  !dismissedLeadIds.includes(l.id)
+                );
+                return (
+                  <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <AdminOnboardingRow
+                        submission={o}
+                      />
+                    </div>
+                    <button
+                      onClick={() => markOnboarded(o.id, matchedLead?.id)}
+                      title="Hide this lead + onboarding from your view."
+                      style={{
+                        background: "rgba(52,211,153,0.10)",
+                        border: "1px solid rgba(52,211,153,0.30)",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        color: "#6ee7b7",
+                        fontSize: 11, fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✓ Onboarded
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
 
     </div>
   );
+}
+
+// ─── Admin Dashboard Sub-components ─────────────────────────────────────────────
+
+const ADMIN_STAGE_LABEL: Record<string, string> = {
+  "new-lead": "New",
+  "book-consult": "Booked consult",
+  "consult-call": "Contacted",
+  "follow-up": "Following up",
+  "signed": "Client signed",
+  "lost": "Client lost",
+  "no-show": "No-show",
+};
+
+const ADMIN_STAGE_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+  "new-lead":      { bg: "rgba(10,186,181,0.15)", text: "#5fd5d1", border: "rgba(10,186,181,0.30)" },
+  "book-consult":  { bg: "rgba(96,165,250,0.15)", text: "#93c5fd", border: "rgba(96,165,250,0.30)" },
+  "consult-call":  { bg: "rgba(250,204,21,0.15)", text: "#fde68a", border: "rgba(250,204,21,0.30)" },
+  "follow-up":     { bg: "rgba(168,85,247,0.15)", text: "#c4a5f7", border: "rgba(168,85,247,0.30)" },
+  "signed":        { bg: "rgba(52,211,153,0.18)", text: "#6ee7b7", border: "rgba(52,211,153,0.35)" },
+  "lost":          { bg: "rgba(248,113,113,0.15)", text: "#fca5a5", border: "rgba(248,113,113,0.30)" },
+  "no-show":       { bg: "rgba(255,255,255,0.06)", text: "rgba(255,255,255,0.55)", border: "rgba(255,255,255,0.10)" },
+};
+
+// All stages available to the admin (full pipeline control).
+const ADMIN_QUICK_STAGES: { stage: string; label: string; tone: "positive" | "neutral" | "negative" | "warn" | "info" }[] = [
+  { stage: "new-lead",     label: "New",           tone: "info" },
+  { stage: "book-consult", label: "Book consult",  tone: "info" },
+  { stage: "consult-call", label: "Contacted",     tone: "warn" },
+  { stage: "follow-up",    label: "Follow up",     tone: "neutral" },
+  { stage: "signed",       label: "Signed",        tone: "positive" },
+  { stage: "lost",         label: "Lost",          tone: "negative" },
+  { stage: "no-show",      label: "No-show",       tone: "neutral" },
+];
+
+function adminStageTone(tone: "positive" | "neutral" | "negative" | "warn" | "info") {
+  return tone === "positive"
+    ? { bg: "rgba(52,211,153,0.18)", text: "#6ee7b7", border: "rgba(52,211,153,0.40)" }
+    : tone === "negative"
+    ? { bg: "rgba(248,113,113,0.15)", text: "#fca5a5", border: "rgba(248,113,113,0.35)" }
+    : tone === "warn"
+    ? { bg: "rgba(250,204,21,0.15)", text: "#fde68a", border: "rgba(250,204,21,0.35)" }
+    : tone === "info"
+    ? { bg: "rgba(96,165,250,0.15)", text: "#93c5fd", border: "rgba(96,165,250,0.35)" }
+    : { bg: "rgba(255,255,255,0.04)", text: "rgba(255,255,255,0.70)", border: "rgba(255,255,255,0.10)" };
+}
+
+function AdminLeadCard({
+  lead,
+  expanded,
+  onToggle,
+  onSetStage,
+  busy,
+}: {
+  lead: Lead;
+  expanded: boolean;
+  onToggle: () => void;
+  onSetStage: (stage: string) => void;
+  busy: boolean;
+}) {
+  const stage = lead.stage ?? "new-lead";
+  const sc = ADMIN_STAGE_COLOR[stage] ?? ADMIN_STAGE_COLOR["new-lead"];
+  const coachColor = lead.assignedTo === "Miggy" ? "#c4a5f7" : "#5fd5d1";
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderLeft: `3px solid ${sc.text}`,
+      borderRadius: 12,
+      overflow: "hidden",
+      transition: "all 0.15s",
+    }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          padding: "12px 14px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          textAlign: "left",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "white", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {lead.name || "Unnamed"}{" "}
+            <span style={{ fontSize: 10, color: coachColor, fontWeight: 700, marginLeft: 4 }}>{lead.assignedTo ?? "Milzzy"}</span>
+          </p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {lead.email || "—"}{lead.phone ? ` · ${lead.phone}` : ""}{lead.createdAt ? ` · ${timeAgo(lead.createdAt)}` : ""}
+          </p>
+        </div>
+        <span style={{
+          background: sc.bg, color: sc.text,
+          border: `1px solid ${sc.border}`,
+          borderRadius: 999, padding: "2px 9px",
+          fontSize: 10, fontWeight: 700, flexShrink: 0,
+          letterSpacing: "0.02em",
+        }}>{ADMIN_STAGE_LABEL[stage] ?? stage}</span>
+        <span style={{
+          fontSize: 12, color: "rgba(255,255,255,0.30)",
+          flexShrink: 0, transition: "transform 0.15s",
+          transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+          display: "inline-block",
+        }}>▾</span>
+      </button>
+      {expanded && (
+        <div style={{
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          padding: "12px 14px",
+          background: "rgba(0,0,0,0.20)",
+          display: "flex", flexDirection: "column", gap: 10,
+        }}>
+          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.40)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Update status</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {ADMIN_QUICK_STAGES.map(s => {
+              const isCurrent = stage === s.stage;
+              const tone = adminStageTone(s.tone);
+              return (
+                <button
+                  key={s.stage}
+                  disabled={busy || isCurrent}
+                  onClick={() => onSetStage(s.stage)}
+                  style={{
+                    background: isCurrent ? tone.bg : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${isCurrent ? tone.border : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: 10, padding: "10px 12px",
+                    color: isCurrent ? tone.text : "rgba(255,255,255,0.75)",
+                    fontSize: 12, fontWeight: 600,
+                    cursor: (busy || isCurrent) ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    opacity: (busy && !isCurrent) ? 0.5 : 1,
+                    transition: "all 0.15s",
+                  }}
+                >{isCurrent ? `✓ ${s.label}` : s.label}</button>
+              );
+            })}
+          </div>
+          {lead.notes && (
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 12px" }}>
+              <p style={{ fontSize: 10, color: "rgba(255,255,255,0.40)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Notes</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.70)", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{lead.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminOnboardingRow({ submission }: { submission: OnboardingSubmission }) {
+  const coachColor = submission.coach === "Miggy" ? "#c4a5f7" : "#5fd5d1";
+  const meta = [submission.email, submission.phone, submission.service || null, timeAgo(submission.submittedAt)].filter(Boolean).join(" · ");
+  return (
+    <a
+      href={submission.filloutUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ textDecoration: "none" }}
+    >
+      <div style={{
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderLeft: `3px solid ${coachColor}`,
+        borderRadius: 12,
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        cursor: "pointer",
+        transition: "background 0.15s",
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "white", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {submission.name || "Unnamed"}{" "}
+            <span style={{ fontSize: 10, color: coachColor, fontWeight: 700, marginLeft: 4 }}>{submission.coach}</span>
+          </p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</p>
+        </div>
+        {submission.goal && (
+          <span style={{
+            background: "rgba(10,186,181,0.15)",
+            color: "#5fd5d1",
+            border: "1px solid rgba(10,186,181,0.30)",
+            borderRadius: 999,
+            padding: "2px 8px",
+            fontSize: 10,
+            fontWeight: 600,
+            flexShrink: 0,
+            maxWidth: 140,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}>{submission.goal}</span>
+        )}
+      </div>
+    </a>
+  );
+}
+
+function timeAgo(iso?: string): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const min = Math.round(diff / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(diff / 3_600_000);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(diff / 86_400_000);
+  if (day < 7) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 }
 
 // ─── Agents Tab ──────────────────────────────────────────────────────────────
@@ -7457,6 +7707,12 @@ const ADMIN_SIDEBAR: { label: string; items: { id: Tab; label: string }[] }[] = 
     ],
   },
   {
+    label: "Performance",
+    items: [
+      { id: "kpis", label: "Coach KPIs" },
+    ],
+  },
+  {
     label: "AI",
     items: [
       { id: "agents", label: "Agents" },
@@ -8284,6 +8540,7 @@ return (
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
              activeTab === "tasks" ? <TasksTab clients={visibleClients} lockedOwner={mode === "coach" && coachId ? coachId : undefined} /> :
+             activeTab === "kpis" ? <CoachKPIsTab coachOnly={mode === "coach" && coachId ? coachId : undefined} /> :
              activeTab === "clients" ? <ClientsTab
                 onClientClick={setSelectedClient}
                 pendingClients={pendingClients}

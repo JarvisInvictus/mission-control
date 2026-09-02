@@ -30,8 +30,8 @@ export async function PATCH(
 
   const allowedFields = [
     "name", "email", "coach", "paymentPlatform", "weeklyCharge",
-    "spreadsheetUrl", "status", "pausedUntil", "startDate", "notes",
-    "checkInDay", "lastUpdated",
+    "coachCut", "spreadsheetUrl", "status", "pausedUntil", "startDate",
+    "notes", "checkInDay", "lastUpdated",
   ];
   const updates: Record<string, unknown> = {};
   for (const field of allowedFields) {
@@ -71,6 +71,13 @@ export async function PATCH(
       { error: "status must be active, paused, or cancelled" },
       { status: 400 }
     );
+  }
+
+  // Validate coachCut if provided (must be non-negative number)
+  if (updates.coachCut !== undefined) {
+    if (typeof updates.coachCut !== "number" || updates.coachCut < 0 || !Number.isFinite(updates.coachCut)) {
+      return NextResponse.json({ error: "coachCut must be a non-negative number" }, { status: 400 });
+    }
   }
 
   // Clear pausedUntil if status is not paused

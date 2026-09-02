@@ -16,8 +16,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "JARVIS // MISSION CONTROL",
-  description: "Invictus Physiques AI Stack — Operations Dashboard",
+  title: "Invictus Dashboard | Milzzy",
+  description: "Invictus Physiques — Coaching Operations",
 };
 
 export default function RootLayout({
