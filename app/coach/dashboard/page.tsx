@@ -241,7 +241,13 @@ export function Dashboard({ onSignOut: _onSignOut }: { onSignOut: () => void }) 
   }, []);
 
   // Filter to Miggy, then drop any dismissed-by-him IDs so the queue stays clean.
-  const myLeads = leads.filter(l => (l.assignedTo ?? "Milzzy") === "Miggy" && !dismissedLeadIds.includes(l.id));
+  // Coaching leads only — Macro Calculator leads live in their own tab and
+  // shouldn't pollute the coaching pipeline view.
+  const myLeads = leads.filter(l =>
+    (l.assignedTo ?? "Milzzy") === "Miggy" &&
+    l.source !== "Macro Calculator" &&
+    !dismissedLeadIds.includes(l.id)
+  );
   const myOnboardings = onboardings.filter(o => o.coach === "Miggy" && !dismissedOnboardingIds.includes(o.id));
   const myActiveClients = clients.filter(c => c.coach === "Miggy" && c.status === "active");
 

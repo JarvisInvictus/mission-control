@@ -725,12 +725,15 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   }
 
   const activeClients = clients.filter((c) => c.status === "active");
-  const totalLeads = leads.length;
-  const conversions = leads.filter(l => l.stage === "signed").length;
+  // Coaching leads only — Macro Calculator leads live in their own tab and
+  // shouldn't pollute the main dashboard pipeline view.
+  const coachingLeads = leads.filter(l => l.source !== "Macro Calculator");
+  const totalLeads = coachingLeads.length;
+  const conversions = coachingLeads.filter(l => l.stage === "signed").length;
 
-  // Admin's view: show all leads (regardless of coach) that are not in a
+  // Admin's view: show all coaching leads (regardless of coach) that are not in a
   // terminal stage and not dismissed. Same logic for onboardings.
-  const activeLeadsExcludingDismissed = leads.filter(l =>
+  const activeLeadsExcludingDismissed = coachingLeads.filter(l =>
     !dismissedLeadIds.includes(l.id) &&
     l.stage !== "signed" && l.stage !== "lost" && l.stage !== "no-show"
   );
@@ -832,8 +835,8 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "14px 16px" }}>
           <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Leads In Pipeline</p>
           {(() => {
-            const todo = leads.filter(l => l.stage === "new-lead" || l.stage === "book-consult");
-            const inConsult = leads.filter(l => l.stage === "consult-call");
+            const todo = coachingLeads.filter(l => l.stage === "new-lead" || l.stage === "book-consult");
+            const inConsult = coachingLeads.filter(l => l.stage === "consult-call");
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1186,13 +1189,13 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
               <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(10,186,181,0.15)", border: "1px solid rgba(10,186,181,0.40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📥</div>
               <div>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: "white", margin: 0 }}>New leads</h2>
-                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>All enquiry submissions — click to update status</p>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Coaching enquiry submissions — click to update status</p>
               </div>
             </div>
             <span style={{ background: activeLeadsExcludingDismissed.length > 0 ? "#0abab5" : "rgba(255,255,255,0.10)", color: activeLeadsExcludingDismissed.length > 0 ? "white" : "rgba(255,255,255,0.45)", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>{activeLeadsExcludingDismissed.length}</span>
           </div>
           {activeLeadsExcludingDismissed.length === 0 ? (
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>No active leads yet — when someone fills out the enquiry form, they'll show up here.</p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>No active coaching leads — when someone fills out the enquiry form, they'll show up here.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {activeLeadsExcludingDismissed.slice(0, 8).map(l => (
