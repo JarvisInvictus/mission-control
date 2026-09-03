@@ -559,6 +559,9 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const [onboardings, setOnboardings] = useState<OnboardingSubmission[]>([]);
   const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+  // Lead panel filter — "active" (default, excludes terminal stages), "all",
+  // or one of the 7 pipeline stages. Same stage values the LeadsTab uses.
+  const [leadsFilter, setLeadsFilter] = useState<"active" | "all" | Lead["stage"]>("active");
 
   // Admin-specific dismissal tracking. Per-device — when Milzzy marks an
   // onboarding as handled, we hide BOTH the lead and the onboarding submission.
@@ -731,12 +734,16 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
   const totalLeads = coachingLeads.length;
   const conversions = coachingLeads.filter(l => l.stage === "signed").length;
 
-  // Admin's view: show all coaching leads (regardless of coach) that are not in a
-  // terminal stage and not dismissed. Same logic for onboardings.
-  const activeLeadsExcludingDismissed = coachingLeads.filter(l =>
-    !dismissedLeadIds.includes(l.id) &&
-    l.stage !== "signed" && l.stage !== "lost" && l.stage !== "no-show"
-  );
+  // Admin's view: apply stage filter + always exclude dismissed IDs.
+  // - "active"  = not in a terminal stage (signed / lost / no-show)
+  // - "all"     = every coaching lead, any stage
+  // - specific stage = only leads in that stage
+  const activeLeadsExcludingDismissed = coachingLeads.filter(l => {
+    if (dismissedLeadIds.includes(l.id)) return false;
+    if (leadsFilter === "all") return true;
+    if (leadsFilter === "active") return l.stage !== "signed" && l.stage !== "lost" && l.stage !== "no-show";
+    return l.stage === leadsFilter;
+  });
   const adminOnboardingsExcludingDismissed = onboardings.filter(o => !dismissedOnboardingIds.includes(o.id));
 
   return (
@@ -1184,18 +1191,54 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
           borderRadius: "18px",
           padding: "20px 22px",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(10,186,181,0.15)", border: "1px solid rgba(10,186,181,0.40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📥</div>
-              <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(10,186,181,0.15)", border: "1px solid rgba(10,186,181,0.40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📥</div>
+              <div style={{ minWidth: 0 }}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: "white", margin: 0 }}>New leads</h2>
                 <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Coaching enquiry submissions — click to update status</p>
               </div>
             </div>
-            <span style={{ background: activeLeadsExcludingDismissed.length > 0 ? "#0abab5" : "rgba(255,255,255,0.10)", color: activeLeadsExcludingDismissed.length > 0 ? "white" : "rgba(255,255,255,0.45)", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>{activeLeadsExcludingDismissed.length}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <select
+                value={leadsFilter}
+                onChange={(e) => setLeadsFilter(e.target.value as typeof leadsFilter)}
+                title="Filter leads by stage"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  color: "white",
+                  padding: "6px 28px 6px 10px",
+                  fontSize: 11,
+                  fontFamily: "inherit",
+                  fontWeight: 600,
+                  outline: "none",
+                  cursor: "pointer",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path fill='%2381cdf9' d='M5 7L1 3h8z'/></svg>\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 8px center",
+                }}
+              >
+                <option value="active">Active</option>
+                <option value="all">All stages</option>
+                {(["new-lead","book-consult","consult-call","follow-up","signed","lost","no-show"] as Lead["stage"][]).map(s => (
+                  <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+                ))}
+              </select>
+              <span style={{ background: activeLeadsExcludingDismissed.length > 0 ? "#0abab5" : "rgba(255,255,255,0.10)", color: activeLeadsExcludingDismissed.length > 0 ? "white" : "rgba(255,255,255,0.45)", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>{activeLeadsExcludingDismissed.length}</span>
+            </div>
           </div>
           {activeLeadsExcludingDismissed.length === 0 ? (
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>No active coaching leads — when someone fills out the enquiry form, they'll show up here.</p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", margin: 0, fontStyle: "italic" }}>
+              {leadsFilter === "active"
+                ? "No active coaching leads — when someone fills out the enquiry form, they'll show up here."
+                : leadsFilter === "all"
+                ? "No coaching leads yet."
+                : `No leads in "${STAGE_LABELS[leadsFilter] ?? leadsFilter}".`}
+            </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {activeLeadsExcludingDismissed.slice(0, 8).map(l => (
@@ -1283,15 +1326,20 @@ function DashboardTab({ clients, onTabChange, onClientClick, onEditClient }: { c
 
 // ─── Admin Dashboard Sub-components ─────────────────────────────────────────────
 
-const ADMIN_STAGE_LABEL: Record<string, string> = {
+// Stage labels — single source of truth, used by the dashboard filter dropdown,
+// quick stage buttons, lead card chips, the LeadsTab kanban, and the lead
+// edit form. Keep these in sync with Milzzy's preferred wording.
+export const STAGE_LABELS: Record<string, string> = {
   "new-lead": "New",
-  "book-consult": "Booked consult",
+  "book-consult": "Consult Call Booked",
   "consult-call": "Contacted",
-  "follow-up": "Following up",
-  "signed": "Client signed",
-  "lost": "Client lost",
-  "no-show": "No-show",
+  "follow-up": "Followed Up",
+  "signed": "Signed",
+  "lost": "Lost",
+  "no-show": "No show",
 };
+
+const ADMIN_STAGE_LABEL = STAGE_LABELS;
 
 const ADMIN_STAGE_COLOR: Record<string, { bg: string; text: string; border: string }> = {
   "new-lead":      { bg: "rgba(10,186,181,0.15)", text: "#5fd5d1", border: "rgba(10,186,181,0.30)" },
@@ -1305,13 +1353,13 @@ const ADMIN_STAGE_COLOR: Record<string, { bg: string; text: string; border: stri
 
 // All stages available to the admin (full pipeline control).
 const ADMIN_QUICK_STAGES: { stage: string; label: string; tone: "positive" | "neutral" | "negative" | "warn" | "info" }[] = [
-  { stage: "new-lead",     label: "New",           tone: "info" },
-  { stage: "book-consult", label: "Book consult",  tone: "info" },
-  { stage: "consult-call", label: "Contacted",     tone: "warn" },
-  { stage: "follow-up",    label: "Follow up",     tone: "neutral" },
-  { stage: "signed",       label: "Signed",        tone: "positive" },
-  { stage: "lost",         label: "Lost",          tone: "negative" },
-  { stage: "no-show",      label: "No-show",       tone: "neutral" },
+  { stage: "new-lead",     label: STAGE_LABELS["new-lead"],     tone: "info" },
+  { stage: "book-consult", label: STAGE_LABELS["book-consult"], tone: "info" },
+  { stage: "consult-call", label: STAGE_LABELS["consult-call"], tone: "warn" },
+  { stage: "follow-up",    label: STAGE_LABELS["follow-up"],    tone: "neutral" },
+  { stage: "signed",       label: STAGE_LABELS["signed"],       tone: "positive" },
+  { stage: "lost",         label: STAGE_LABELS["lost"],         tone: "negative" },
+  { stage: "no-show",      label: STAGE_LABELS["no-show"],      tone: "neutral" },
 ];
 
 function adminStageTone(tone: "positive" | "neutral" | "negative" | "warn" | "info") {
@@ -7864,24 +7912,24 @@ export function MissionControl({ mode, coachId }: { mode: MissionMode; coachId?:
 
     // Kanban stages
     const BOARD_STAGES = [
-      { key: "new-lead",      label: "New Lead",         color: Tiffany },
-      { key: "book-consult",  label: "Book Consult Call", color: "rgba(139,92,246,0.7)" },
-      { key: "consult-call",   label: "Consultation Call", color: "rgba(139,92,246,0.7)" },
-      { key: "follow-up",     label: "Follow Up",         color: "#f59e0b" },
-      { key: "signed",        label: "Signed",            color: "#34d399" },
-      { key: "lost",          label: "Lost",             color: "rgba(248,113,113,0.6)" },
-      { key: "no-show",       label: "No Shows",          color: "rgba(249,115,22,0.6)" },
+      { key: "new-lead",      label: STAGE_LABELS["new-lead"],     color: Tiffany },
+      { key: "book-consult",  label: STAGE_LABELS["book-consult"], color: "rgba(139,92,246,0.7)" },
+      { key: "consult-call",  label: STAGE_LABELS["consult-call"], color: "rgba(139,92,246,0.7)" },
+      { key: "follow-up",     label: STAGE_LABELS["follow-up"],    color: "#f59e0b" },
+      { key: "signed",        label: STAGE_LABELS["signed"],       color: "#34d399" },
+      { key: "lost",          label: STAGE_LABELS["lost"],         color: "rgba(248,113,113,0.6)" },
+      { key: "no-show",       label: STAGE_LABELS["no-show"],      color: "rgba(249,115,22,0.6)" },
     ] as const;
 
     type BoardKey = "new-lead" | "book-consult" | "consult-call" | "follow-up" | "signed" | "lost" | "no-show";
     const COLUMNS: { key: BoardKey; label: string; stageKeys: string[]; color: string }[] = [
-      { key: "new-lead",      label: "New Lead",          stageKeys: ["new-lead"],        color: Tiffany },
-      { key: "book-consult",  label: "Book Consult",       stageKeys: ["book-consult"],    color: "rgba(139,92,246,0.7)" },
-      { key: "consult-call",  label: "Consult Call",       stageKeys: ["consult-call"],   color: "rgba(139,92,246,0.7)" },
-      { key: "follow-up",     label: "Follow Up",          stageKeys: ["follow-up"],       color: "#f59e0b" },
-      { key: "signed",        label: "Signed",             stageKeys: ["signed"],          color: "#34d399" },
-      { key: "lost",          label: "Lost",               stageKeys: ["lost"],            color: "rgba(248,113,113,0.6)" },
-      { key: "no-show",       label: "No Shows",           stageKeys: ["no-show"],         color: "rgba(249,115,22,0.6)" },
+      { key: "new-lead",      label: STAGE_LABELS["new-lead"],     stageKeys: ["new-lead"],        color: Tiffany },
+      { key: "book-consult",  label: STAGE_LABELS["book-consult"], stageKeys: ["book-consult"],    color: "rgba(139,92,246,0.7)" },
+      { key: "consult-call",  label: STAGE_LABELS["consult-call"], stageKeys: ["consult-call"],   color: "rgba(139,92,246,0.7)" },
+      { key: "follow-up",     label: STAGE_LABELS["follow-up"],    stageKeys: ["follow-up"],       color: "#f59e0b" },
+      { key: "signed",        label: STAGE_LABELS["signed"],       stageKeys: ["signed"],          color: "#34d399" },
+      { key: "lost",          label: STAGE_LABELS["lost"],         stageKeys: ["lost"],            color: "rgba(248,113,113,0.6)" },
+      { key: "no-show",       label: STAGE_LABELS["no-show"],      stageKeys: ["no-show"],         color: "rgba(249,115,22,0.6)" },
     ];
 
     const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -8080,13 +8128,13 @@ export function MissionControl({ mode, coachId }: { mode: MissionMode; coachId?:
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div><label style={lbl}>Pipeline Stage</label>
                   <select style={{ ...sel, color: stageColor[form.stage] ?? "white" }} value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Lead["stage"] }))}>
-                    <option value="new-lead">New Lead</option>
-                    <option value="book-consult">Book Consult</option>
-                    <option value="consult-call">Consult Call</option>
-                    <option value="follow-up">Follow Up</option>
-                    <option value="signed">Signed</option>
-                    <option value="lost">Lost</option>
-                    <option value="no-show">No Show</option>
+                    <option value="new-lead">{STAGE_LABELS["new-lead"]}</option>
+                    <option value="book-consult">{STAGE_LABELS["book-consult"]}</option>
+                    <option value="consult-call">{STAGE_LABELS["consult-call"]}</option>
+                    <option value="follow-up">{STAGE_LABELS["follow-up"]}</option>
+                    <option value="signed">{STAGE_LABELS["signed"]}</option>
+                    <option value="lost">{STAGE_LABELS["lost"]}</option>
+                    <option value="no-show">{STAGE_LABELS["no-show"]}</option>
                   </select>
                 </div>
                 <div><label style={lbl}>Assigned Coach</label>

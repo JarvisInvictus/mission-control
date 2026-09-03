@@ -517,12 +517,12 @@ function ListItem({ title, meta, badge, href }: { title: string; meta: string; b
 // Friendly labels for the stage values stored in /api/leads/[id].
 const STAGE_LABEL: Record<string, string> = {
   "new-lead": "New",
-  "book-consult": "Booked consult",
+  "book-consult": "Consult Call Booked",
   "consult-call": "Contacted",
-  "follow-up": "Following up",
-  "signed": "Client signed",
-  "lost": "Client lost",
-  "no-show": "No-show",
+  "follow-up": "Followed Up",
+  "signed": "Signed",
+  "lost": "Lost",
+  "no-show": "No show",
 };
 
 const STAGE_COLOR: Record<string, { bg: string; text: string; border: string }> = {
@@ -538,10 +538,10 @@ const STAGE_COLOR: Record<string, { bg: string; text: string; border: string }> 
 // The four stages Miggy actually needs from the dashboard.
 // 'follow-up' and 'no-show' exist in the system but aren't first-class buttons here.
 const QUICK_STAGES: { stage: string; label: string; tone: "positive" | "neutral" | "negative" | "warn" }[] = [
-  { stage: "consult-call", label: "Contacted", tone: "warn" },
-  { stage: "signed",       label: "Signed",    tone: "positive" },
-  { stage: "lost",         label: "Lost",      tone: "negative" },
-  { stage: "new-lead",     label: "Reset",     tone: "neutral" },
+  { stage: "consult-call", label: "Contacted",          tone: "warn" },
+  { stage: "signed",       label: STAGE_LABEL["signed"],     tone: "positive" },
+  { stage: "lost",         label: STAGE_LABEL["lost"],       tone: "negative" },
+  { stage: "new-lead",     label: "Reset",              tone: "neutral" },
 ];
 
 function LeadCard({
