@@ -55,10 +55,10 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
     const newTask: Record<string, unknown> = {
-      id: Date.now().toString(),
+      id: body.id || Date.now().toString(),
       title,
       text: title,                            // legacy compat
-      done: false,
+      done: body.done ?? false,
       createdAt: now,
       // Legacy fields
       day: body.day || "",
@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
       dueDate: body.dueDate || null,
       sortOrder: body.sortOrder ?? tasks.length,
       notes: body.notes || "",
+      // Calendar-synced fields
+      meetLink: body.meetLink || null,
+      calendarEventId: body.calendarEventId || null,
+      source: body.source || null,
+      eventStart: body.eventStart || null,
     };
     tasks.push(newTask);
     await redisCommand("SET", "jarvis:tasks", JSON.stringify(tasks));
@@ -94,7 +99,8 @@ export async function PATCH(req: NextRequest) {
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const allowed = ["title", "text", "done", "clientId", "category", "priority",
-                     "owner", "author", "dueDate", "day", "sortOrder", "notes", "completedAt", "archived", "status", "color"];
+                     "owner", "author", "dueDate", "day", "sortOrder", "notes", "completedAt", "archived", "status", "color",
+                     "meetLink", "calendarEventId", "source", "eventStart"];
     const updates: Record<string, unknown> = {};
     for (const k of allowed) {
       if (body[k] !== undefined) updates[k] = body[k];

@@ -84,6 +84,11 @@ interface Task {
   notes?: string;
   createdAt?: string;
   status?: string;
+  // Calendar-synced fields
+  meetLink?: string | null;
+  calendarEventId?: string | null;
+  source?: string | null;
+  eventStart?: string | null;
 }
 
 interface Client {
@@ -205,6 +210,14 @@ function priorityLabel(p?: string): string {
   return "";
 }
 
+/** Format a calendar-sourced event start as a time string (HH:MM) in Sydney tz. */
+function eventTimeStr(eventStart: string | null | undefined): string {
+  if (!eventStart) return "";
+  try {
+    return new Date(eventStart).toLocaleTimeString("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
 function getWeekLabel(weekSunday: Date): string {
   const end = new Date(weekSunday);
   end.setDate(weekSunday.getDate() + 6);
@@ -300,6 +313,29 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
     finally { setLoading(false); }
   }, []);
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // ─── Calendar sync ──────────────────────────────────────────────────────
+  // Pulls today's Google Calendar meetings into tasks on mount. Background-only —
+  // never blocks UI. Refreshes task list if the sync created/updated/archived any.
+  const syncCalendar = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tasks/sync-calendar?days=7", {
+        method: "POST", cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.created > 0 || data.updated > 0 || data.archived > 0) {
+        // Refresh so UI shows the new/updated calendar tasks
+        await fetchTasks();
+      }
+    } catch { /* silent — calendar is a nice-to-have */ }
+  }, [fetchTasks]);
+  useEffect(() => {
+    // First sync after tasks load. Re-sync every 10 min to catch reschedules.
+    const t = setTimeout(syncCalendar, 1500);
+    const interval = setInterval(syncCalendar, 10 * 60 * 1000);
+    return () => { clearTimeout(t); clearInterval(interval); };
+  }, [syncCalendar]);
 
   // ─── Toast helpers ────────────────────────────────────────────────────────
   const showToast = useCallback((message: string, type: Toast["type"] = "success") => {
@@ -1056,6 +1092,11 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
               <span style={{ flex: 1, fontSize: 15, color: WHITE, textDecoration: task.done ? "line-through" : "none", minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {task.title}
               </span>
+              {task.source === "google-calendar" && task.meetLink && (
+                <a href={task.meetLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: "rgba(66,133,244,0.15)", color: "#4285f4", border: "1px solid rgba(66,133,244,0.35)", whiteSpace: "nowrap", fontWeight: 700, textDecoration: "none", flexShrink: 0 }}>
+                  🎥 {eventTimeStr(task.eventStart) || "Join Meet"} ↗
+                </a>
+              )}
               <span style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", marginLeft: 8 }}>{clientName}</span>
               {(task.owner || task.author) === "Miggy" && <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.35)", whiteSpace: "nowrap", fontWeight: 700 }}>Miggy</span>}
               {task.priority && task.priority !== "normal" && task.priority !== "medium" && (
@@ -1177,6 +1218,11 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {task.priority && <span style={{ width: 6, height: 6, borderRadius: "50%", background: pc, display: "inline-block" }} />}
                       {(task.owner || task.author) === "Miggy" && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.35)", fontWeight: 700 }}>Miggy</span>}
+                      {task.source === "google-calendar" && task.meetLink && (
+                        <a href={task.meetLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "rgba(66,133,244,0.15)", color: "#4285f4", border: "1px solid rgba(66,133,244,0.35)", fontWeight: 700, textDecoration: "none", lineHeight: 1.4 }}>
+                          🎥 {eventTimeStr(task.eventStart) || "Meet"}
+                        </a>
+                      )}
                       {isHovered && !isDragging && (
                         <span title="Press C to archive" style={{ marginLeft: "auto", fontSize: 9, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 4px", lineHeight: 1, fontWeight: 700 }}>C</span>
                       )}
