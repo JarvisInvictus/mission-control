@@ -14,6 +14,7 @@ import { MemoryTab } from "@/components/MemoryTab";
 import FunnelTab from "@/components/FunnelTab";
 import { ContentTab } from "@/components/ContentTab";
 import { TasksTab } from "@/components/TasksTab";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GymTab } from "@/components/GymTab";
 import { CoachKPIsTab } from "@/components/CoachKPIsTab";
 import { Dashboard as CoachDashboard } from "./coach/dashboard/page";
@@ -8590,7 +8591,7 @@ return (
              activeTab === "agents" ? <AgentsTab /> :
              activeTab === "memory" ? <MemoryTab /> :
              activeTab === "team" ? <TeamTab /> :
-             activeTab === "tasks" ? <TasksTab clients={visibleClients} lockedOwner={mode === "coach" && coachId ? coachId : undefined} /> :
+             activeTab === "tasks" ? <ErrorBoundary label="Tasks tab"><TasksTab clients={visibleClients} lockedOwner={mode === "coach" && coachId ? coachId : undefined} /></ErrorBoundary> :
              activeTab === "kpis" ? <CoachKPIsTab coachOnly={mode === "coach" && coachId ? coachId : undefined} /> :
              activeTab === "clients" ? <ClientsTab
                 onClientClick={setSelectedClient}
