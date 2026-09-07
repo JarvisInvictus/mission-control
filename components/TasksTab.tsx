@@ -288,15 +288,26 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
   const [onboardingExpanded, setOnboardingExpanded] = useState(false);
   const [onboardingRefreshing, setOnboardingRefreshing] = useState(false);
   // Locally-dismissed onboarding IDs (so we can offer restore + persist across refreshes).
+  // NOTE: Must use a TASK-TAB-specific key — NOT `mc_dismissed_onboardings`,
+  // because that key is already used by the dashboard's MissionControl which stores
+  // full PendingClient objects (not string IDs) and would cause a React #31 crash
+  // when we try to render them as text in the recovery tray.
+  const TASK_TAB_DISMISSED_KEY = "mc_tasks_tab_dismissed_onboarding_ids";
   const [dismissedOnboardingIds, setDismissedOnboardingIds] = useState<string[]>([]);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("mc_dismissed_onboardings");
-      if (raw) setDismissedOnboardingIds(JSON.parse(raw));
+      const raw = localStorage.getItem(TASK_TAB_DISMISSED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Defensive: only accept string[]. If the schema is wrong, dump it.
+        if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
+          setDismissedOnboardingIds(parsed);
+        }
+      }
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
-    try { localStorage.setItem("mc_dismissed_onboardings", JSON.stringify(dismissedOnboardingIds)); } catch { /* ignore */ }
+    try { localStorage.setItem(TASK_TAB_DISMISSED_KEY, JSON.stringify(dismissedOnboardingIds)); } catch { /* ignore */ }
   }, [dismissedOnboardingIds]);
 
   const today = getToday();
@@ -1653,7 +1664,7 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
       {renderOnboardingInbox()}
 
       {/* Dismissed onboardings — recoverable trash bin (mirrors the dashboard pattern) */}
-      {dismissedOnboardingIds.length > 0 && (
+      {dismissedOnboardingIds.filter((x) => typeof x === "string").length > 0 && (
         <details style={{ marginTop: 24 }}>
           <summary style={{
             cursor: "pointer",
@@ -1684,7 +1695,7 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
               Restoring an onboarding pulls it back into the active inbox above.
               Use this if you accidentally dismissed one or need to re-trigger onboarding.
             </p>
-            {dismissedOnboardingIds.map((id) => (
+            {dismissedOnboardingIds.filter((x): x is string => typeof x === "string").map((id) => (
               <div key={id} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "10px 16px",

@@ -105,7 +105,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 // Clear potentially poisoned caches then reset
                 try {
                   localStorage.removeItem("mc_tasks_layout");
+                  localStorage.removeItem("mc_tasks_tab_dismissed_onboarding_ids");
+                  // Older (wrong) keys to scrub if present
                   localStorage.removeItem("mc_dismissed_onboardings");
+                  localStorage.removeItem("admin_dismissed_onboardings");
                 } catch { /* ignore */ }
                 if (typeof window !== "undefined") window.location.reload();
               }}
