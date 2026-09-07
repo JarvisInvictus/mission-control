@@ -119,6 +119,8 @@ interface OnboardingSubmission {
   signatureUrl?: string;
   submittedAt: string;
   filloutUrl: string;
+  /** Local-only: set when the user drags this submission onto a day to schedule. */
+  _scheduledFor?: string;
 }
 
 interface Toast {
@@ -285,6 +287,17 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
   const [onboardingSubs, setOnboardingSubs] = useState<OnboardingSubmission[]>([]);
   const [onboardingExpanded, setOnboardingExpanded] = useState(false);
   const [onboardingRefreshing, setOnboardingRefreshing] = useState(false);
+  // Locally-dismissed onboarding IDs (so we can offer restore + persist across refreshes).
+  const [dismissedOnboardingIds, setDismissedOnboardingIds] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("mc_dismissed_onboardings");
+      if (raw) setDismissedOnboardingIds(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("mc_dismissed_onboardings", JSON.stringify(dismissedOnboardingIds)); } catch { /* ignore */ }
+  }, [dismissedOnboardingIds]);
 
   const today = getToday();
   const activeClients = useMemo(() => clients.filter((c) => c.status === "active"), [clients]);
@@ -373,6 +386,11 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
 
   const dismissOnboarding = useCallback(async (ids: string[]) => {
     setOnboardingSubs((prev) => prev.filter((s) => !ids.includes(s.id)));
+    setDismissedOnboardingIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.add(id);
+      return Array.from(next);
+    });
     try {
       await fetch("/api/onboarding/ack", {
         method: "POST",
@@ -380,8 +398,21 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
         body: JSON.stringify({ ids }),
       });
     } catch { /* ignore */ }
-    showToast(ids.length === 1 ? "Dismissed" : `${ids.length} dismissed`, "info");
+    showToast(ids.length === 1 ? "Onboarded — removed from inbox" : `${ids.length} onboarded`, "info");
   }, [showToast]);
+
+  const restoreOnboarding = useCallback((id: string) => {
+    setDismissedOnboardingIds((prev) => prev.filter((d) => d !== id));
+    // Best-effort unack on the server (so it persists across reloads/devices)
+    fetch("/api/onboarding/ack", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] }),
+    }).catch(() => { /* ignore */ });
+    // Refresh the inbox so the unacked submission reappears
+    fetchOnboarding();
+    showToast("Restored to inbox", "info");
+  }, [fetchOnboarding, showToast]);
 
   const openOnboardTask = useCallback((sub: OnboardingSubmission) => {
     // Try to match to an existing client by email
@@ -864,15 +895,14 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
         });
         if (!res.ok) throw new Error(`Task creation failed (${res.status})`);
         await fetchTasks();
-        // Ack the submission so it disappears from the inbox
-        setOnboardingSubs((prev) => prev.filter((s) => s.id !== sub.id));
-        try {
-          await fetch("/api/onboarding/ack", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: [sub.id] }),
-          });
-        } catch { /* ignore */ }
-        showToast(`Onboard: ${sub.name} → ${new Date(targetDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}`);
+        // NOTE: do NOT auto-ack the submission here — keep the inbox visible
+        // until Milzzy/Miggy explicitly clicks "Onboarded". Mark as scheduled
+        // locally so the inbox card can show a "✓ Scheduled" badge and avoid
+        // double-scheduling.
+        setOnboardingSubs((prev) => prev.map((s) =>
+          s.id === sub.id ? { ...s, _scheduledFor: targetDate } : s
+        ));
+        showToast(`Onboard: ${sub.name} → ${new Date(targetDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })} (tap "Onboarded" to clear inbox)`);
       } catch (err) {
         showToast("Failed to create task", "error");
         console.error("Onboarding drop error:", err);
@@ -1508,6 +1538,16 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
                         background: "rgba(74,222,128,0.15)", color: GREEN, border: `1px solid rgba(74,222,128,0.40)`,
                       }}>✓ existing client</span>
                     )}
+                    {sub._scheduledFor && (
+                      <span
+                        title={`You've already scheduled this onboarding as a task on ${sub._scheduledFor}. Click "✓ Onboarded" to clear from inbox.`}
+                        style={{
+                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5,
+                          background: "rgba(10,186,181,0.18)", color: T, border: `1px solid rgba(10,186,181,0.50)`,
+                        }}>
+                        ✓ Scheduled · {new Date(sub._scheduledFor + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
                     {sub.email && <span>{sub.email}</span>}
@@ -1533,16 +1573,25 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
                     fontSize: 11, fontWeight: 600, color: MUTED, textDecoration: "none",
                     padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: 8,
                   }}>View form ↗</a>
-                  <button onClick={() => dismissOnboarding([sub.id])} style={{
-                    background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
-                    borderRadius: 8, padding: "6px 12px", color: MUTED,
-                    fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                  }}>Dismiss</button>
+                  <button
+                    onClick={() => dismissOnboarding([sub.id])}
+                    title="Not interested — remove from inbox"
+                    style={{
+                      background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+                      borderRadius: 8, padding: "6px 10px", color: MUTED,
+                      fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      lineHeight: 1,
+                    }}>✕</button>
                   <button onClick={() => openOnboardTask(sub)} style={{
                     background: T, color: "#000", border: "none", borderRadius: 8,
                     padding: "7px 14px", fontSize: 12, fontWeight: 700,
                     cursor: "pointer", fontFamily: "inherit",
                   }}>+ Add as task</button>
+                  <button onClick={() => dismissOnboarding([sub.id])} style={{
+                    background: GREEN, color: "#062b1a", border: "none", borderRadius: 8,
+                    padding: "7px 14px", fontSize: 12, fontWeight: 800,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>✓ Onboarded</button>
                 </div>
               </div>
             );
@@ -1602,6 +1651,70 @@ export function TasksTab({ clients, lockedOwner }: { clients: Client[]; lockedOw
       {layout === "normal" ? renderNormal() : renderTdl()}
 
       {renderOnboardingInbox()}
+
+      {/* Dismissed onboardings — recoverable trash bin (mirrors the dashboard pattern) */}
+      {dismissedOnboardingIds.length > 0 && (
+        <details style={{ marginTop: 24 }}>
+          <summary style={{
+            cursor: "pointer",
+            background: "rgba(255,255,255,0.03)",
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            padding: "10px 16px",
+            fontSize: 12,
+            color: MUTED,
+            fontWeight: 600,
+            listStyle: "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <span>↩ Dismissed onboardings ({dismissedOnboardingIds.length}) — recoverable</span>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.30)" }}>click to expand</span>
+          </summary>
+          <div style={{
+            background: "rgba(255,255,255,0.02)",
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            borderTopLeftRadius: 0, borderTopRightRadius: 0,
+            overflow: "hidden",
+            marginTop: "-1px",
+          }}>
+            <p style={{ padding: "12px 16px", margin: 0, fontSize: 11, color: MUTED }}>
+              Restoring an onboarding pulls it back into the active inbox above.
+              Use this if you accidentally dismissed one or need to re-trigger onboarding.
+            </p>
+            {dismissedOnboardingIds.map((id) => (
+              <div key={id} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 16px",
+                borderTop: `1px solid ${BORDER}`,
+                opacity: 0.85,
+              }}>
+                <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</span>
+                <button onClick={() => restoreOnboarding(id)} style={{
+                  background: T, color: "#000", border: "none", borderRadius: 6,
+                  padding: "5px 12px", fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+                }}>Restore ↩</button>
+              </div>
+            ))}
+            <div style={{ padding: "8px 16px", borderTop: `1px solid ${BORDER}`, background: "rgba(0,0,0,0.2)" }}>
+              <button onClick={() => {
+                // Wipe the entire dismissed tray (server-side + local)
+                const ids = [...dismissedOnboardingIds];
+                setDismissedOnboardingIds([]);
+                fetch("/api/onboarding/ack", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }).catch(() => {});
+                showToast(`Cleared ${ids.length} dismissed onboarding${ids.length !== 1 ? "s" : ""}`, "info");
+              }} style={{
+                background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6,
+                padding: "5px 12px", fontSize: 11, color: MUTED, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Clear all dismissed</button>
+            </div>
+          </div>
+        </details>
+      )}
 
       {renderDrawer()}
       {renderToasts()}
