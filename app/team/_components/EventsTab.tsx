@@ -4,13 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 
 type Attendee = "Milzzy" | "Miggy" | "Sonta";
 
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  meetLink: string | null;
-}
-
 interface TeamEvent {
   id: string;
   title: string;
@@ -38,14 +31,25 @@ const ATTENDEE_COLORS: Record<Attendee, string> = {
   Sonta: "#a855f7",
 };
 
-function formatDate(d: string): string {
-  if (!d) return "";
-  return new Date(d + "T00:00:00").toLocaleDateString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
+type EventDraft = {
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  location: string;
+  attendees: Attendee[];
+  clientIds: string[];
+};
+
+const emptyDraft = (): EventDraft => ({
+  title: "",
+  description: "",
+  date: new Date().toISOString().slice(0, 10),
+  time: "",
+  location: "",
+  attendees: ["Milzzy", "Miggy", "Sonta"],
+  clientIds: [],
+});
 
 function formatDayHeader(d: string): string {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AU", {
@@ -63,45 +67,22 @@ function isUpcoming(dateStr: string): boolean {
 
 export function EventsTab() {
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
-  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([]);
-  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
   const [clients, setClients] = useState<ClientLite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState<{ kind: "closed" } | { kind: "create" } | { kind: "edit"; id: string }>(
+    { kind: "closed" }
+  );
+  const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [clientSearch, setClientSearch] = useState("");
-  const [draft, setDraft] = useState<{
-    title: string;
-    description: string;
-    date: string;
-    time: string;
-    location: string;
-    attendees: Attendee[];
-    clientIds: string[];
-  }>({
-    title: "",
-    description: "",
-    date: new Date().toISOString().slice(0, 10),
-    time: "",
-    location: "",
-    attendees: ["Milzzy", "Miggy", "Sonta"],
-    clientIds: [],
-  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/team/events").then((r) => r.json()),
-      fetch("/api/calendar/events").then((r) => r.json()),
       fetch("/api/clients").then((r) => r.json()),
     ])
-      .then(([team, cal, cli]) => {
+      .then(([team, cli]) => {
         setTeamEvents(team.items || []);
-        if (cal.error === "not_authorized") {
-          setGoogleConnected(false);
-          setCalEvents([]);
-        } else {
-          setGoogleConnected(true);
-          setCalEvents(cal.events || []);
-        }
         // Only keep active clients for selection, with just id+name
         const list: ClientLite[] = Array.isArray(cli)
           ? cli
@@ -120,27 +101,55 @@ export function EventsTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function add() {
-    if (!draft.title.trim()) return;
-    const res = await fetch("/api/team/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
+  function startCreate() {
+    setDraft(emptyDraft());
+    setClientSearch("");
+    setMode({ kind: "create" });
+  }
+
+  function startEdit(ev: TeamEvent) {
+    setDraft({
+      title: ev.title,
+      description: ev.description,
+      date: ev.date,
+      time: ev.time,
+      location: ev.location,
+      attendees: ev.attendees,
+      clientIds: ev.clientIds,
     });
-    const data = await res.json();
-    if (data.item) {
-      setTeamEvents((prev) => [data.item, ...prev]);
-      setDraft({
-        title: "",
-        description: "",
-        date: new Date().toISOString().slice(0, 10),
-        time: "",
-        location: "",
-        attendees: ["Milzzy", "Miggy", "Sonta"],
-        clientIds: [],
+    setClientSearch("");
+    setMode({ kind: "edit", id: ev.id });
+  }
+
+  function cancelForm() {
+    setMode({ kind: "closed" });
+    setDraft(emptyDraft());
+    setClientSearch("");
+  }
+
+  async function save() {
+    if (!draft.title.trim()) return;
+    setSaving(true);
+    try {
+      const isEdit = mode.kind === "edit";
+      const url = isEdit ? `/api/team/events/${mode.id}` : "/api/team/events";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
       });
-      setClientSearch("");
-      setAdding(false);
+      const data = await res.json();
+      if (data.item) {
+        if (isEdit) {
+          setTeamEvents((prev) => prev.map((e) => (e.id === data.item.id ? data.item : e)));
+        } else {
+          setTeamEvents((prev) => [data.item, ...prev]);
+        }
+        cancelForm();
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -189,32 +198,34 @@ export function EventsTab() {
               Custom team events with attached clients
             </p>
           </div>
-          <button
-            onClick={() => setAdding((v) => !v)}
-            style={{
-              fontFamily: "system-ui",
-              fontSize: "12px",
-              fontWeight: 600,
-              letterSpacing: "0.05em",
-              color: "rgba(255,255,255,0.95)",
-              background: "rgba(10,186,181,0.18)",
-              border: "1px solid rgba(10,186,181,0.40)",
-              borderRadius: "10px",
-              padding: "8px 14px",
-              cursor: "pointer",
-            }}
-          >
-            {adding ? "Cancel" : "+ New Event"}
-          </button>
+          {mode.kind === "closed" && (
+            <button
+              onClick={startCreate}
+              style={{
+                fontFamily: "system-ui",
+                fontSize: "12px",
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                color: "rgba(255,255,255,0.95)",
+                background: "rgba(10,186,181,0.18)",
+                border: "1px solid rgba(10,186,181,0.40)",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                cursor: "pointer",
+              }}
+            >
+              + New Event
+            </button>
+          )}
         </div>
 
-        {/* Add form */}
-        {adding && (
+        {/* Add / Edit form */}
+        {mode.kind !== "closed" && (
           <div
             style={{
               background: "rgba(255,255,255,0.05)",
               backdropFilter: "blur(20px)",
-              border: "1px solid rgba(10,186,181,0.30)",
+              border: `1px solid ${mode.kind === "edit" ? "rgba(168,85,247,0.35)" : "rgba(10,186,181,0.30)"}`,
               borderRadius: "16px",
               padding: "16px",
               marginBottom: "16px",
@@ -223,6 +234,25 @@ export function EventsTab() {
               gap: "12px",
             }}
           >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <p style={{ ...subLabel, margin: 0 }}>
+                {mode.kind === "edit" ? "Edit Event" : "New Event"}
+              </p>
+              <button
+                onClick={cancelForm}
+                title="Cancel"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(255,255,255,0.35)",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <input
                 autoFocus
@@ -411,24 +441,41 @@ export function EventsTab() {
                 </div>
               )}
             </div>
-            <button
-              onClick={add}
-              disabled={!draft.title.trim()}
-              style={{
-                alignSelf: "flex-start",
-                fontFamily: "system-ui",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "rgba(10,14,26,0.95)",
-                background: draft.title.trim() ? "#0abab5" : "rgba(10,186,181,0.30)",
-                border: "none",
-                borderRadius: "10px",
-                padding: "8px 18px",
-                cursor: draft.title.trim() ? "pointer" : "not-allowed",
-              }}
-            >
-              Save Event
-            </button>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                onClick={save}
+                disabled={!draft.title.trim() || saving}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "rgba(10,14,26,0.95)",
+                  background: draft.title.trim() ? "#0abab5" : "rgba(10,186,181,0.30)",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "8px 18px",
+                  cursor: draft.title.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                {saving ? "Saving…" : mode.kind === "edit" ? "Save Changes" : "Save Event"}
+              </button>
+              <button
+                onClick={cancelForm}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "rgba(255,255,255,0.55)",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: "10px",
+                  padding: "8px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 
@@ -454,7 +501,14 @@ export function EventsTab() {
             {upcomingTeam.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: upcomingTeam.length > 0 && pastTeam.length > 0 ? "20px" : 0 }}>
                 {upcomingTeam.map((e) => (
-                  <TeamEventCard key={e.id} ev={e} clients={clients} onDelete={deleteEvent} />
+                  <TeamEventCard
+                    key={e.id}
+                    ev={e}
+                    clients={clients}
+                    isEditing={mode.kind === "edit" && mode.id === e.id}
+                    onEdit={() => startEdit(e)}
+                    onDelete={() => deleteEvent(e.id)}
+                  />
                 ))}
               </div>
             )}
@@ -465,58 +519,19 @@ export function EventsTab() {
                 </summary>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px", opacity: 0.7 }}>
                   {pastTeam.slice(0, 10).map((e) => (
-                    <TeamEventCard key={e.id} ev={e} clients={clients} onDelete={deleteEvent} />
+                    <TeamEventCard
+                      key={e.id}
+                      ev={e}
+                      clients={clients}
+                      isEditing={false}
+                      onEdit={() => startEdit(e)}
+                      onDelete={() => deleteEvent(e.id)}
+                    />
                   ))}
                 </div>
               </details>
             )}
           </>
-        )}
-      </section>
-
-      {/* ── Google Calendar ── */}
-      <section>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-          <div>
-            <p style={sectionHeaderStyle}>Google Calendar</p>
-            <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.40)", margin: 0 }}>
-              Consults, meetings, anything from your calendar
-            </p>
-          </div>
-          {googleConnected === false && (
-            <a
-              href="/api/auth/google"
-              style={{
-                fontFamily: "system-ui",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "#ffffff",
-                background: "rgba(66,133,244,0.80)",
-                borderRadius: "8px",
-                padding: "6px 14px",
-                textDecoration: "none",
-              }}
-            >
-              Connect Google Calendar
-            </a>
-          )}
-        </div>
-        {googleConnected === false ? (
-          <div
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "14px",
-              padding: "20px",
-              textAlign: "center",
-            }}
-          >
-            <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: 0 }}>
-              Connect your Google Calendar to see consultations here.
-            </p>
-          </div>
-        ) : (
-          <CalendarList events={calEvents} />
         )}
       </section>
     </div>
@@ -526,19 +541,23 @@ export function EventsTab() {
 function TeamEventCard({
   ev,
   clients,
+  isEditing,
+  onEdit,
   onDelete,
 }: {
   ev: TeamEvent;
   clients: ClientLite[];
-  onDelete: (id: string) => void;
+  isEditing: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const clientNames = clients.filter((c) => ev.clientIds.includes(c.id));
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.05)",
+        background: isEditing ? "rgba(168,85,247,0.06)" : "rgba(255,255,255,0.05)",
         backdropFilter: "blur(20px)",
-        border: "1px solid rgba(10,186,181,0.25)",
+        border: isEditing ? "1px solid rgba(168,85,247,0.40)" : "1px solid rgba(10,186,181,0.25)",
         borderRadius: "14px",
         padding: "14px 16px",
         display: "flex",
@@ -576,25 +595,75 @@ function TeamEventCard({
           <div>
             <p style={{ fontFamily: "system-ui", fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.95)", margin: 0, lineHeight: 1.3 }}>
               {ev.title}
+              {isEditing && (
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    fontFamily: "system-ui",
+                    fontSize: "9px",
+                    fontWeight: 600,
+                    letterSpacing: "0.10em",
+                    textTransform: "uppercase",
+                    color: "rgba(168,85,247,0.95)",
+                    background: "rgba(168,85,247,0.12)",
+                    border: "1px solid rgba(168,85,247,0.25)",
+                    borderRadius: "999px",
+                    padding: "2px 8px",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  Editing
+                </span>
+              )}
             </p>
             <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>
               {formatDayHeader(ev.date)}
               {ev.location ? ` · ${ev.location}` : ""}
             </p>
           </div>
-          <button
-            onClick={() => onDelete(ev.id)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.30)",
-              cursor: "pointer",
-              fontSize: "16px",
-              padding: 0,
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center", flexShrink: 0 }}>
+            <button
+              onClick={onEdit}
+              disabled={isEditing}
+              title="Edit event"
+              style={{
+                background: isEditing ? "rgba(168,85,247,0.10)" : "transparent",
+                border: isEditing ? "1px solid rgba(168,85,247,0.25)" : "1px solid transparent",
+                color: isEditing ? "rgba(168,85,247,0.95)" : "rgba(255,255,255,0.40)",
+                cursor: isEditing ? "default" : "pointer",
+                fontSize: "13px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              ✎
+            </button>
+            <button
+              onClick={onDelete}
+              title="Delete event"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.30)",
+                cursor: "pointer",
+                fontSize: "16px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
         </div>
         {ev.description && (
           <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.65)", margin: "8px 0 0", lineHeight: 1.5 }}>
@@ -638,80 +707,6 @@ function TeamEventCard({
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-function CalendarList({ events }: { events: CalendarEvent[] }) {
-  // Group by day
-  const grouped = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    for (const ev of events) {
-      const d = new Date(ev.start).toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
-      if (!map.has(d)) map.set(d, []);
-      map.get(d)!.push(ev);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [events]);
-
-  if (events.length === 0) {
-    return (
-      <div
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "14px",
-          padding: "20px",
-          textAlign: "center",
-        }}
-      >
-        <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", margin: 0 }}>
-          No calendar events in the next 2 weeks.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      {grouped.map(([day, evs]) => (
-        <div key={day}>
-          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.10em", margin: "0 0 8px" }}>
-            {formatDate(day)}
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {evs.map((ev) => {
-              const timeStr = new Date(ev.start).toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit" });
-              return (
-                <div
-                  key={ev.id}
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.09)",
-                    borderRadius: "12px",
-                    padding: "10px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                  }}
-                >
-                  <span style={{ fontFamily: "system-ui", fontSize: "12px", fontWeight: 600, color: "#4285f4", minWidth: "60px", fontVariantNumeric: "tabular-nums" }}>
-                    {timeStr}
-                  </span>
-                  <span style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.90)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {ev.title}
-                  </span>
-                  {ev.meetLink && (
-                    <a href={ev.meetLink} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "system-ui", fontSize: "11px", fontWeight: 600, color: "#4285f4", textDecoration: "none" }}>
-                      Join ↗
-                    </a>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
