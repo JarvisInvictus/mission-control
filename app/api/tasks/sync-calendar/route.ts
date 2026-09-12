@@ -226,6 +226,14 @@ export async function POST(req: NextRequest) {
       // Keep notes in sync so the time badge stays current
       const expectedNotes = `📅 Auto-added from Google Calendar · ${m.timeStr} AEST/AEDT\n🔗 ${m.meetLink || "(no link)"}`;
       if (existing.notes !== expectedNotes) next.notes = expectedNotes;
+      // UN-archive if the meeting is back in the synced window.
+      // We previously auto-archived this task because it was outside the
+      // sync window (e.g. a narrow `days=1` sync saw no meetings for tomorrow),
+      // but a wider re-sync now sees it again — restore visibility.
+      if (existing.archived) {
+        next.archived = false;
+        next.archivedReason = null;
+      }
 
       if (Object.keys(next).length > 0) {
         const idx = tasks.indexOf(existing);
@@ -243,8 +251,11 @@ export async function POST(req: NextRequest) {
     if (syncedIds.has(t.calendarEventId)) continue;
     // Only auto-archive tasks in the upcoming window (not historical ones from past days)
     if (t.dueDate && t.dueDate < auDateStr(new Date())) continue;
+    // Don't overwrite a manual archive — only tag our own auto-archives so we
+    // know which ones are safe to resurrect on the next sync.
+    if (t.archived && t.archivedReason !== "calendar-sync") continue;
     if (!t.archived) {
-      tasks[i] = { ...t, archived: true };
+      tasks[i] = { ...t, archived: true, archivedReason: "calendar-sync", archivedAt: new Date().toISOString() };
       archived++;
     }
   }
