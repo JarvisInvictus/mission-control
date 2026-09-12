@@ -13,14 +13,6 @@ interface DashTile {
 
 const TILES: DashTile[] = [
   {
-    href: "/",
-    label: "Milzzy's Dashboard",
-    subtitle: "Head coach",
-    icon: "🤖",
-    accent: "rgba(10,186,181,0.18)",
-    ready: true,
-  },
-  {
     href: "/coach",
     label: "Miggy's Dashboard",
     subtitle: "Coach view",
