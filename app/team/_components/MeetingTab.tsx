@@ -5,6 +5,12 @@ import { useEffect, useRef, useState } from "react";
 type Attendee = "Milzzy" | "Miggy" | "Sonta";
 type Owner = "Milzzy" | "Miggy" | "Sonta" | "Shared";
 
+interface AgendaItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 interface ActionItem {
   id: string;
   text: string;
@@ -16,7 +22,7 @@ interface Meeting {
   title: string;
   date: string;
   attendees: Attendee[];
-  agenda: string;
+  agenda: AgendaItem[] | string; // string accepted for legacy; client normalises to array
   notes: string;
   actionItems: ActionItem[];
   updatedAt: string;
@@ -31,6 +37,26 @@ const ATTENDEE_COLORS: Record<Attendee, string> = {
   Sonta: "#a855f7",
 };
 
+function normaliseAgenda(raw: AgendaItem[] | string | null | undefined): AgendaItem[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((it) => typeof it?.text === "string")
+      .map((it) => ({
+        id: typeof it.id === "string" ? it.id : `ag_${Math.random().toString(36).slice(2, 8)}`,
+        text: it.text,
+        done: !!it.done,
+      }));
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    return raw
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((text) => ({ id: `ag_${Math.random().toString(36).slice(2, 8)}`, text, done: false }));
+  }
+  return [];
+}
+
 export function MeetingTab() {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
@@ -43,8 +69,9 @@ export function MeetingTab() {
     fetch("/api/team/meeting")
       .then((r) => r.json())
       .then((d) => {
-        setMeeting(d.meeting);
-        lastSaved.current = JSON.stringify(d.meeting);
+        const m = { ...d.meeting, agenda: normaliseAgenda(d.meeting.agenda) };
+        setMeeting(m);
+        lastSaved.current = JSON.stringify(m);
       })
       .catch(() => {});
   }, []);
@@ -78,6 +105,42 @@ export function MeetingTab() {
       attendees: meeting.attendees.includes(a)
         ? meeting.attendees.filter((x) => x !== a)
         : [...meeting.attendees, a],
+    });
+  }
+
+  function addAgendaItem(text: string) {
+    if (!meeting || !text.trim()) return;
+    const agenda = normaliseAgenda(meeting.agenda);
+    setMeeting({
+      ...meeting,
+      agenda: [...agenda, { id: `ag_${Math.random().toString(36).slice(2, 8)}`, text: text.trim(), done: false }],
+    });
+  }
+
+  function toggleAgendaItem(id: string) {
+    if (!meeting) return;
+    const agenda = normaliseAgenda(meeting.agenda);
+    setMeeting({
+      ...meeting,
+      agenda: agenda.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
+    });
+  }
+
+  function updateAgendaItem(id: string, text: string) {
+    if (!meeting) return;
+    const agenda = normaliseAgenda(meeting.agenda);
+    setMeeting({
+      ...meeting,
+      agenda: agenda.map((a) => (a.id === id ? { ...a, text } : a)),
+    });
+  }
+
+  function removeAgendaItem(id: string) {
+    if (!meeting) return;
+    const agenda = normaliseAgenda(meeting.agenda);
+    setMeeting({
+      ...meeting,
+      agenda: agenda.filter((a) => a.id !== id),
     });
   }
 
@@ -226,12 +289,13 @@ export function MeetingTab() {
           gap: "16px",
         }}
       >
-        <TextBlock
-          label="Agenda"
-          placeholder="Topics to cover…"
-          value={meeting.agenda}
-          onChange={(v) => setMeeting({ ...meeting, agenda: v })}
+        <AgendaBlock
+          items={normaliseAgenda(meeting.agenda)}
           accent="#0abab5"
+          onAdd={addAgendaItem}
+          onToggle={toggleAgendaItem}
+          onUpdate={updateAgendaItem}
+          onRemove={removeAgendaItem}
         />
         <TextBlock
           label="Notes"
@@ -451,6 +515,163 @@ function TextBlock({
           lineHeight: 1.5,
         }}
       />
+    </div>
+  );
+}
+
+function AgendaBlock({
+  items,
+  accent,
+  onAdd,
+  onToggle,
+  onUpdate,
+  onRemove,
+}: {
+  items: AgendaItem[];
+  accent: string;
+  onAdd: (text: string) => void;
+  onToggle: (id: string) => void;
+  onUpdate: (id: string, text: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const done = items.filter((a) => a.done).length;
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${accent}22`,
+        borderRadius: "16px",
+        padding: "14px 16px",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "system-ui",
+          fontSize: "11px",
+          color: accent,
+          textTransform: "uppercase",
+          letterSpacing: "0.10em",
+          margin: "0 0 10px",
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>Agenda</span>
+        <span style={{ color: "rgba(255,255,255,0.40)", fontWeight: 400, textTransform: "none", letterSpacing: "0" }}>
+          {done}/{items.length} covered
+        </span>
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px", minHeight: "160px" }}>
+        {items.length === 0 && (
+          <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", margin: 0 }}>
+            Add the topics you want to cover below — tick them off as you go.
+          </p>
+        )}
+        {items.map((a) => (
+          <div
+            key={a.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              background: a.done ? "rgba(10,186,181,0.06)" : "rgba(255,255,255,0.04)",
+              border: a.done ? `1px solid ${accent}44` : "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "10px",
+              padding: "8px 12px",
+              opacity: a.done ? 0.7 : 1,
+              transition: "all 0.15s",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={a.done}
+              onChange={() => onToggle(a.id)}
+              style={{ accentColor: accent, cursor: "pointer", width: "18px", height: "18px", flexShrink: 0 }}
+            />
+            <input
+              value={a.text}
+              onChange={(e) => onUpdate(a.id, e.target.value)}
+              placeholder="Topic to cover"
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                color: a.done ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.92)",
+                fontSize: "13px",
+                fontFamily: "system-ui",
+                fontWeight: 500,
+                outline: "none",
+                textDecoration: a.done ? "line-through" : "none",
+                minWidth: 0,
+                lineHeight: 1.4,
+              }}
+            />
+            <button
+              onClick={() => onRemove(a.id)}
+              title="Remove"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.25)",
+                cursor: "pointer",
+                fontSize: "14px",
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <input
+          placeholder="+ Add topic"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && draft.trim()) {
+              onAdd(draft.trim());
+              setDraft("");
+            }
+          }}
+          style={{
+            flex: 1,
+            background: "rgba(255,255,255,0.04)",
+            border: `1px dashed ${accent}55`,
+            borderRadius: "10px",
+            color: "rgba(255,255,255,0.85)",
+            padding: "7px 12px",
+            fontSize: "13px",
+            fontFamily: "system-ui",
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={() => {
+            if (!draft.trim()) return;
+            onAdd(draft.trim());
+            setDraft("");
+          }}
+          disabled={!draft.trim()}
+          style={{
+            fontFamily: "system-ui",
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "rgba(10,14,26,0.95)",
+            background: draft.trim() ? accent : `${accent}40`,
+            border: "none",
+            borderRadius: "10px",
+            padding: "7px 14px",
+            cursor: draft.trim() ? "pointer" : "not-allowed",
+          }}
+        >
+          Add
+        </button>
+      </div>
     </div>
   );
 }

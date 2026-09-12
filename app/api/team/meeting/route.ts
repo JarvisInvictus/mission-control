@@ -25,11 +25,33 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const redis = getRedis();
 
+    // Accept agenda as either a string (legacy) or an array of items.
+    // Coerce to the new array shape so the client doesn't have to worry about it.
+    let agenda: AgendaItem[];
+    if (Array.isArray(body.agenda)) {
+      agenda = body.agenda
+        .filter((it: { text?: string }) => typeof it?.text === "string")
+        .map((it: { id?: string; text: string; done?: boolean }) => ({
+          id: typeof it.id === "string" ? it.id : `ag_${Math.random().toString(36).slice(2, 8)}`,
+          text: it.text,
+          done: !!it.done,
+        }));
+    } else if (typeof body.agenda === "string" && body.agenda.trim()) {
+      // Legacy: each non-empty line becomes an unchecked item
+      agenda = body.agenda
+        .split("\n")
+        .map((l: string) => l.trim())
+        .filter(Boolean)
+        .map((text: string) => ({ id: `ag_${Math.random().toString(36).slice(2, 8)}`, text, done: false }));
+    } else {
+      agenda = [];
+    }
+
     const meeting: TeamMeeting = {
       title: body.title ?? "Team Sync",
       date: body.date ?? new Date().toISOString().slice(0, 10),
       attendees: Array.isArray(body.attendees) ? body.attendees : [],
-      agenda: typeof body.agenda === "string" ? body.agenda : "",
+      agenda,
       notes: typeof body.notes === "string" ? body.notes : "",
       actionItems: Array.isArray(body.actionItems) ? body.actionItems : [],
       updatedAt: new Date().toISOString(),
@@ -44,6 +66,12 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+export interface AgendaItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface ActionItem {
   id: string;
   text: string;
@@ -55,7 +83,7 @@ export interface TeamMeeting {
   title: string;
   date: string;
   attendees: ("Milzzy" | "Miggy" | "Sonta")[];
-  agenda: string;
+  agenda: AgendaItem[];
   notes: string;
   actionItems: ActionItem[];
   updatedAt: string;
@@ -66,7 +94,7 @@ const DEFAULT_MEETING: TeamMeeting = {
   title: "Team Sync",
   date: new Date().toISOString().slice(0, 10),
   attendees: ["Milzzy", "Miggy", "Sonta"],
-  agenda: "",
+  agenda: [],
   notes: "",
   actionItems: [],
   updatedAt: "",
