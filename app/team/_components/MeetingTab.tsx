@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { TabMeta } from "../page";
 
 type Attendee = "Milzzy" | "Miggy" | "Sonta";
 type Owner = "Milzzy" | "Miggy" | "Sonta" | "Shared";
@@ -37,6 +38,19 @@ const ATTENDEE_COLORS: Record<Attendee, string> = {
   Sonta: "#a855f7",
 };
 
+// Default agenda template used by "Use template" / "Append template" buttons.
+// Edit the array below to change the standing agenda for every weekly team sync.
+const DEFAULT_AGENDA_TEMPLATE: string[] = [
+  "Wins from last week",
+  "Review open action items",
+  "Lead pipeline + new enquiries",
+  "Client check-ins (issues/blockers)",
+  "Content pipeline review",
+  "Podcast update",
+  "Goals progress check",
+  "This week's priorities",
+];
+
 function normaliseAgenda(raw: AgendaItem[] | string | null | undefined): AgendaItem[] {
   if (Array.isArray(raw)) {
     return raw
@@ -57,7 +71,7 @@ function normaliseAgenda(raw: AgendaItem[] | string | null | undefined): AgendaI
   return [];
 }
 
-export function MeetingTab() {
+export function MeetingTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const [newAction, setNewAction] = useState("");
@@ -72,9 +86,18 @@ export function MeetingTab() {
         const m = { ...d.meeting, agenda: normaliseAgenda(d.meeting.agenda) };
         setMeeting(m);
         lastSaved.current = JSON.stringify(m);
+        if (onMeta && m.updatedAt) {
+          onMeta({ updatedAt: m.updatedAt, updatedBy: m.updatedBy || "Team" });
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [onMeta]);
+
+  // Re-report whenever meeting metadata changes (after a save)
+  useEffect(() => {
+    if (!onMeta || !meeting || !meeting.updatedAt) return;
+    onMeta({ updatedAt: meeting.updatedAt, updatedBy: meeting.updatedBy || "Team" });
+  }, [meeting?.updatedAt, meeting?.updatedBy, onMeta]);
 
   // Auto-save: debounce 800ms after any change
   useEffect(() => {
@@ -208,7 +231,7 @@ export function MeetingTab() {
             fontWeight: 600,
             outline: "none",
             flex: 1,
-            minWidth: "200px",
+            minWidth: "140px",
           }}
         />
         <input
@@ -224,6 +247,34 @@ export function MeetingTab() {
             fontFamily: "system-ui",
             fontSize: "12px",
             outline: "none",
+          }}
+        />
+        <TemplateMenu
+          onUse={() => {
+            const current = normaliseAgenda(meeting.agenda);
+            if (current.length > 0) {
+              const ok = window.confirm(
+                `Replace the current ${current.length} agenda item${current.length === 1 ? "" : "s"} with the template? This can't be undone.`
+              );
+              if (!ok) return;
+            }
+            setMeeting({
+              ...meeting,
+              agenda: DEFAULT_AGENDA_TEMPLATE.map((text) => ({
+                id: `ag_${Math.random().toString(36).slice(2, 8)}`,
+                text,
+                done: false,
+              })),
+            });
+          }}
+          onAppend={() => {
+            const current = normaliseAgenda(meeting.agenda);
+            const appended = DEFAULT_AGENDA_TEMPLATE.map((text) => ({
+              id: `ag_${Math.random().toString(36).slice(2, 8)}`,
+              text,
+              done: false,
+            }));
+            setMeeting({ ...meeting, agenda: [...current, ...appended] });
           }}
         />
         <SaveIndicator state={saving} />
@@ -703,5 +754,136 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
       />
       {text}
     </span>
+  );
+}
+
+function TemplateMenu({
+  onUse,
+  onAppend,
+}: {
+  onUse: () => void;
+  onAppend: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Apply meeting agenda template"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          fontFamily: "system-ui",
+          fontSize: "11px",
+          fontWeight: 600,
+          color: "rgba(255,255,255,0.85)",
+          background: open ? "rgba(10,186,181,0.18)" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(10,186,181,0.35)",
+          borderRadius: "10px",
+          padding: "6px 10px",
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        ✨ Template <span style={{ fontSize: "9px", opacity: 0.6 }}>▾</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            minWidth: "260px",
+            background: "rgba(15,20,32,0.98)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(10,186,181,0.40)",
+            borderRadius: "12px",
+            boxShadow: "0 12px 36px rgba(0,0,0,0.50)",
+            padding: "6px",
+            zIndex: 30,
+          }}
+        >
+          <button
+            onClick={() => { setOpen(false); onUse(); }}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              fontFamily: "system-ui",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.92)",
+              background: "transparent",
+              border: "none",
+              borderRadius: "8px",
+              padding: "8px 10px",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(10,186,181,0.10)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            Use template (replace agenda)
+          </button>
+          <p
+            style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.40)",
+              margin: "0 10px 6px",
+              lineHeight: 1.4,
+            }}
+          >
+            Replaces all current agenda items with the {DEFAULT_AGENDA_TEMPLATE.length} standing topics.
+          </p>
+          <div style={{ height: "1px", background: "rgba(255,255,255,0.08)", margin: "4px 6px" }} />
+          <button
+            onClick={() => { setOpen(false); onAppend(); }}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              fontFamily: "system-ui",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.92)",
+              background: "transparent",
+              border: "none",
+              borderRadius: "8px",
+              padding: "8px 10px",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(10,186,181,0.10)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            Append template to agenda
+          </button>
+          <p
+            style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.40)",
+              margin: "0 10px 4px",
+              lineHeight: 1.4,
+            }}
+          >
+            Keeps existing items and adds the template below them.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

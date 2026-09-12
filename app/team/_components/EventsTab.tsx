@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { TabMeta } from "../page";
 
 type Attendee = "Milzzy" | "Miggy" | "Sonta";
 
@@ -65,7 +66,7 @@ function isUpcoming(dateStr: string): boolean {
   return new Date(dateStr + "T00:00:00") >= today;
 }
 
-export function EventsTab() {
+export function EventsTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
   const [clients, setClients] = useState<ClientLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +83,12 @@ export function EventsTab() {
       fetch("/api/clients").then((r) => r.json()),
     ])
       .then(([team, cli]) => {
-        setTeamEvents(team.items || []);
+        const evList: TeamEvent[] = team.items || [];
+        setTeamEvents(evList);
+        if (onMeta && evList.length > 0) {
+          const latest = [...evList].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+          onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.createdBy || "Team" });
+        }
         // Only keep active clients for selection, with just id+name
         const list: ClientLite[] = Array.isArray(cli)
           ? cli
@@ -99,7 +105,14 @@ export function EventsTab() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [onMeta]);
+
+  // Re-report on local changes (after add/edit/delete)
+  useEffect(() => {
+    if (!onMeta || teamEvents.length === 0) return;
+    const latest = [...teamEvents].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.createdBy || "Team" });
+  }, [teamEvents, onMeta]);
 
   function startCreate() {
     setDraft(emptyDraft());
@@ -259,7 +272,7 @@ export function EventsTab() {
                 placeholder="Event title (e.g. Coffee w/ clients)"
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                style={{ ...inputStyle, flex: 2, minWidth: "220px" }}
+                style={{ ...inputStyle, flex: 2, minWidth: "160px" }}
               />
               <input
                 type="date"
@@ -741,6 +754,6 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "system-ui",
   outline: "none",
   flex: 1,
-  minWidth: "120px",
+  minWidth: "100px",
   boxSizing: "border-box",
 };

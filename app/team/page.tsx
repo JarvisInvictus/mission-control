@@ -18,14 +18,76 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: "events", label: "Events", icon: "📅" },
 ];
 
+const TAB_STORAGE_KEY = "team-hub:active-tab";
+
+function readStoredTab(): Tab {
+  if (typeof window === "undefined") return "meeting";
+  const v = window.localStorage.getItem(TAB_STORAGE_KEY);
+  if (v && TABS.some((t) => t.key === v)) return v as Tab;
+  return "meeting";
+}
+
+export interface TabMeta {
+  updatedAt: string;
+  updatedBy: string;
+}
+
+function relativeTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
 export default function TeamHubPage() {
   const [tab, setTab] = useState<Tab>("meeting");
   const [now, setNow] = useState<Date>(() => new Date());
+  const [tabMeta, setTabMeta] = useState<Record<Tab, TabMeta | null>>({
+    content: null,
+    podcast: null,
+    meeting: null,
+    goals: null,
+    events: null,
+  });
 
+  // Restore last selected tab (client-side only, after hydration)
+  useEffect(() => {
+    setTab(readStoredTab());
+  }, []);
+
+  // Persist tab selection on change
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(TAB_STORAGE_KEY, tab);
+    }
+  }, [tab]);
+
+  // Live clock — refresh every second; also re-tick meta badges every 30s so relative
+  // times don't go stale while you're staring at the page
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  function reportTabMeta(key: Tab, meta: TabMeta | null) {
+    setTabMeta((prev) => {
+      // Avoid redundant re-renders if the value hasn't changed
+      if (!meta && prev[key] === null) return prev;
+      if (meta && prev[key] && prev[key]!.updatedAt === meta.updatedAt && prev[key]!.updatedBy === meta.updatedBy) return prev;
+      return { ...prev, [key]: meta };
+    });
+  }
 
   const timeStr = now.toLocaleTimeString("en-AU", {
     timeZone: "Australia/Melbourne",
@@ -206,6 +268,7 @@ export default function TeamHubPage() {
         >
           {TABS.map((t) => {
             const active = tab === t.key;
+            const meta = tabMeta[t.key];
             return (
               <button
                 key={t.key}
@@ -226,10 +289,31 @@ export default function TeamHubPage() {
                   whiteSpace: "nowrap",
                   transition: "all 0.15s",
                   marginBottom: "-1px",
+                  position: "relative",
                 }}
               >
                 <span style={{ fontSize: "14px" }}>{t.icon}</span>
                 {t.label}
+                {meta && (
+                  <span
+                    title={`Last updated ${relativeTime(meta.updatedAt)} by ${meta.updatedBy}`}
+                    style={{
+                      fontFamily: "system-ui",
+                      fontSize: "9px",
+                      fontWeight: 500,
+                      color: active ? "rgba(10,186,181,0.95)" : "rgba(255,255,255,0.35)",
+                      background: active ? "rgba(10,186,181,0.15)" : "rgba(255,255,255,0.06)",
+                      border: active ? "1px solid rgba(10,186,181,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: "999px",
+                      padding: "2px 7px",
+                      marginLeft: "2px",
+                      letterSpacing: "0.02em",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {relativeTime(meta.updatedAt)}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -237,11 +321,11 @@ export default function TeamHubPage() {
 
         {/* Tab content */}
         <div>
-          {tab === "content" && <ContentTab />}
-          {tab === "podcast" && <PodcastTab />}
-          {tab === "meeting" && <MeetingTab />}
-          {tab === "goals" && <GoalsTab />}
-          {tab === "events" && <EventsTab />}
+          {tab === "content" && <ContentTab onMeta={(m) => reportTabMeta("content", m)} />}
+          {tab === "podcast" && <PodcastTab onMeta={(m) => reportTabMeta("podcast", m)} />}
+          {tab === "meeting" && <MeetingTab onMeta={(m) => reportTabMeta("meeting", m)} />}
+          {tab === "goals" && <GoalsTab onMeta={(m) => reportTabMeta("goals", m)} />}
+          {tab === "events" && <EventsTab onMeta={(m) => reportTabMeta("events", m)} />}
         </div>
       </main>
 

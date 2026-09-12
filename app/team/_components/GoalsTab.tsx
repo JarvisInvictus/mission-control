@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { TabMeta } from "../page";
 
 type Owner = "Milzzy" | "Miggy" | "Sonta" | "Shared";
 
@@ -47,7 +48,7 @@ function listQuarters(): string[] {
   return out;
 }
 
-export function GoalsTab() {
+export function GoalsTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
   const [items, setItems] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>(getCurrentQuarter());
@@ -62,10 +63,23 @@ export function GoalsTab() {
   useEffect(() => {
     fetch("/api/team/goals")
       .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
+      .then((d) => {
+        const list: Goal[] = d.items || [];
+        setItems(list);
+        if (list.length === 0) return;
+        const latest = [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        if (onMeta && latest) onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.owner || "Team" });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [onMeta]);
+
+  // Re-report on local changes (after a save / progress update)
+  useEffect(() => {
+    if (!onMeta || items.length === 0) return;
+    const latest = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.owner || "Team" });
+  }, [items, onMeta]);
 
   const quarters = useMemo(() => listQuarters(), []);
 
@@ -449,6 +463,7 @@ function KRRow({
         display: "flex",
         gap: "10px",
         alignItems: "center",
+        flexWrap: "wrap",
         background: "rgba(255,255,255,0.04)",
         border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: "10px",
@@ -481,7 +496,7 @@ function KRRow({
         value={kr.progress}
         onChange={(e) => onUpdate({ progress: parseInt(e.target.value, 10) })}
         disabled={kr.done}
-        style={{ width: "100px", accentColor: color }}
+        style={{ flex: "1 1 100px", minWidth: "80px", accentColor: color }}
       />
       <span
         style={{

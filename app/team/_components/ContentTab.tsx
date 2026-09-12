@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { TabMeta } from "../page";
 
 type ContentStatus = "idea" | "progress" | "scheduled" | "posted";
 type ContentOwner = "Milzzy" | "Miggy" | "Sonta" | "Shared";
@@ -17,16 +18,16 @@ interface ContentItem {
   updatedAt: string;
 }
 
-const COLUMNS: { key: ContentStatus; label: string; tint: string }[] = [
-  { key: "idea", label: "Ideas", tint: "rgba(168,85,247,0.10)" },
-  { key: "progress", label: "In Progress", tint: "rgba(245,158,11,0.10)" },
-  { key: "scheduled", label: "Scheduled", tint: "rgba(59,130,246,0.10)" },
-  { key: "posted", label: "Posted", tint: "rgba(52,211,153,0.10)" },
+const COLUMNS: { key: ContentStatus; label: string; tint: string; tintBorder: string }[] = [
+  { key: "idea", label: "Ideas", tint: "rgba(168,85,247,0.10)", tintBorder: "rgba(168,85,247,0.30)" },
+  { key: "progress", label: "In Progress", tint: "rgba(245,158,11,0.10)", tintBorder: "rgba(245,158,11,0.30)" },
+  { key: "scheduled", label: "Scheduled", tint: "rgba(59,130,246,0.10)", tintBorder: "rgba(59,130,246,0.30)" },
+  { key: "posted", label: "Posted", tint: "rgba(52,211,153,0.10)", tintBorder: "rgba(52,211,153,0.30)" },
 ];
 
 const OWNERS: ContentOwner[] = ["Milzzy", "Miggy", "Sonta", "Shared"];
 
-export function ContentTab() {
+export function ContentTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -39,13 +40,31 @@ export function ContentTab() {
   });
   const [ownerFilter, setOwnerFilter] = useState<ContentOwner | "All">("All");
 
+  // Drag-and-drop state
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ContentStatus | null>(null);
+
   useEffect(() => {
     fetch("/api/team/content")
       .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
+      .then((d) => {
+        const list: ContentItem[] = d.items || [];
+        setItems(list);
+        if (list.length > 0) {
+          const latest = [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+          if (onMeta) onMeta({ updatedAt: latest.updatedAt, updatedBy: "Team" });
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [onMeta]);
+
+  // Re-report on local changes (after a save / drag-move)
+  useEffect(() => {
+    if (!onMeta || items.length === 0) return;
+    const latest = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    onMeta({ updatedAt: latest.updatedAt, updatedBy: "Team" });
+  }, [items, onMeta]);
 
   async function add() {
     const title = draft.title.trim();
@@ -70,6 +89,8 @@ export function ContentTab() {
   }
 
   async function moveStatus(item: ContentItem, status: ContentStatus) {
+    if (item.status === status) return;
+    // Optimistic update
     setItems((prev) => prev.map((c) => (c.id === item.id ? { ...c, status } : c)));
     await fetch(`/api/team/content/${item.id}`, {
       method: "PATCH",
@@ -131,7 +152,7 @@ export function ContentTab() {
           })}
         </div>
         <div style={{ marginLeft: "auto", fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>
-          {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+          {filtered.length} item{filtered.length !== 1 ? "s" : ""} · drag cards to move
         </div>
       </div>
 
@@ -231,18 +252,40 @@ export function ContentTab() {
         >
           {COLUMNS.map((col) => {
             const colItems = filtered.filter((c) => c.status === col.key);
+            const isOver = dragOverCol === col.key;
             return (
               <div
                 key={col.key}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverCol !== col.key) setDragOverCol(col.key);
+                }}
+                onDragLeave={(e) => {
+                  // Only clear if leaving the column container entirely (not entering a child)
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    if (dragOverCol === col.key) setDragOverCol(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = e.dataTransfer.getData("text/plain") || draggingId;
+                  setDragOverCol(null);
+                  setDraggingId(null);
+                  if (!id) return;
+                  const item = items.find((c) => c.id === id);
+                  if (item && item.status !== col.key) moveStatus(item, col.key);
+                }}
                 style={{
-                  background: col.tint,
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: isOver ? `${col.tint.replace("0.10", "0.22")}` : col.tint,
+                  border: isOver ? `1px dashed ${col.tintBorder}` : "1px solid rgba(255,255,255,0.08)",
                   borderRadius: "16px",
                   padding: "12px",
                   minHeight: "200px",
                   display: "flex",
                   flexDirection: "column",
                   gap: "8px",
+                  transition: "background 0.12s, border 0.12s",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "0 2px" }}>
@@ -265,11 +308,19 @@ export function ContentTab() {
                 </div>
                 {colItems.length === 0 && (
                   <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>
-                    Nothing here yet
+                    {isOver ? "Drop here" : "Nothing here yet"}
                   </p>
                 )}
                 {colItems.map((c) => (
-                  <ContentCard key={c.id} item={c} onMove={moveStatus} onDelete={deleteItem} />
+                  <ContentCard
+                    key={c.id}
+                    item={c}
+                    isDragging={draggingId === c.id}
+                    onDragStart={() => setDraggingId(c.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                    onMove={moveStatus}
+                    onDelete={deleteItem}
+                  />
                 ))}
               </div>
             );
@@ -282,16 +333,29 @@ export function ContentTab() {
 
 function ContentCard({
   item,
+  isDragging,
+  onDragStart,
+  onDragEnd,
   onMove,
   onDelete,
 }: {
   item: ContentItem;
+  isDragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
   onMove: (item: ContentItem, status: ContentStatus) => void;
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", item.id);
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
       style={{
         background: "rgba(255,255,255,0.06)",
         border: "1px solid rgba(255,255,255,0.12)",
@@ -300,6 +364,10 @@ function ContentCard({
         display: "flex",
         flexDirection: "column",
         gap: "6px",
+        cursor: "grab",
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? "rotate(-1deg) scale(0.98)" : "none",
+        transition: "opacity 0.12s, transform 0.12s",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
@@ -317,7 +385,10 @@ function ContentCard({
           {item.title}
         </p>
         <button
-          onClick={() => onDelete(item.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(item.id);
+          }}
           title="Delete"
           style={{
             background: "transparent",
@@ -334,7 +405,10 @@ function ContentCard({
       </div>
       {item.notes && (
         <p
-          onClick={() => setExpanded((v) => !v)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
           style={{
             fontFamily: "system-ui",
             fontSize: "11px",
@@ -365,6 +439,7 @@ function ContentCard({
         <select
           value={item.status}
           onChange={(e) => onMove(item, e.target.value as ContentStatus)}
+          onClick={(e) => e.stopPropagation()}
           style={{
             fontFamily: "system-ui",
             fontSize: "10px",
@@ -375,6 +450,7 @@ function ContentCard({
             padding: "2px 4px",
             cursor: "pointer",
           }}
+          title="Change status (or drag the card)"
         >
           {COLUMNS.map((c) => (
             <option key={c.key} value={c.key} style={{ background: "#0a0e1a" }}>
@@ -424,7 +500,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "system-ui",
   outline: "none",
   flex: 1,
-  minWidth: "120px",
+  minWidth: "100px",
   boxSizing: "border-box",
 };
 

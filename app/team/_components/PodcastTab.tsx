@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { TabMeta } from "../page";
 
 type EpisodeStatus = "idea" | "planned" | "recorded" | "published";
 
@@ -54,7 +55,7 @@ const EMPTY: Omit<Episode, "id" | "createdAt" | "updatedAt"> = {
   links: [],
 };
 
-export function PodcastTab() {
+export function PodcastTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
   const [items, setItems] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +77,13 @@ export function PodcastTab() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Report latest updatedAt + owner to page for the tab badge
+  useEffect(() => {
+    if (!onMeta || items.length === 0) return;
+    const latest = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.owner || "Team" });
+  }, [items, onMeta]);
 
   async function updateStatus(item: Episode, status: EpisodeStatus) {
     setItems((prev) => prev.map((e) => (e.id === item.id ? { ...e, status } : e)));
@@ -360,6 +368,30 @@ function EpisodeCard({
               📅 {new Date(ep.publishDate).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
             </span>
           )}
+          {/* Pre-flight pill on the card so you can see checklist progress at a glance */}
+          {Array.isArray(ep.checklist) && ep.checklist.length > 0 && (() => {
+            const total = ep.checklist.length;
+            const done = ep.checklist.filter((c) => c.done).length;
+            const ready = done === total;
+            return (
+              <span
+                title={ready ? "Pre-flight complete" : `${total - done} checklist item${total - done === 1 ? "" : "s"} pending`}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  color: ready ? "rgba(52,211,153,0.95)" : "rgba(251,191,36,0.95)",
+                  background: ready ? "rgba(52,211,153,0.10)" : "rgba(251,191,36,0.10)",
+                  border: ready ? "1px solid rgba(52,211,153,0.30)" : "1px solid rgba(251,191,36,0.30)",
+                  borderRadius: "999px",
+                  padding: "1px 8px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ready ? "✓ " : "⚠ "}{done}/{total} pre-flight
+              </span>
+            );
+          })()}
         </div>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
           <button
@@ -384,7 +416,25 @@ function EpisodeCard({
           </button>
           <select
             value={ep.status}
-            onChange={(e) => onStatusChange(ep, e.target.value as EpisodeStatus)}
+            onChange={(e) => {
+              e.stopPropagation();
+              const next = e.target.value as EpisodeStatus;
+              // Pre-flight gate at the card level too
+              if (next === "published" && Array.isArray(ep.checklist) && ep.checklist.length > 0) {
+                const unchecked = ep.checklist.filter((c) => !c.done);
+                if (unchecked.length > 0) {
+                  const list = unchecked.map((c) => `• ${c.text || "(empty)"}`).join("\n");
+                  const ok = window.confirm(
+                    `Pre-flight incomplete — ${unchecked.length} checklist item${unchecked.length === 1 ? "" : "s"} unchecked:\n\n${list}\n\nPublish anyway?`
+                  );
+                  if (!ok) {
+                    e.target.value = ep.status;
+                    return;
+                  }
+                }
+              }
+              onStatusChange(ep, next);
+            }}
             onClick={(e) => e.stopPropagation()}
             style={{
               fontFamily: "system-ui",
@@ -435,6 +485,13 @@ function EpisodeModal({
   const [links, setLinks] = useState<LinkItem[]>(initial.links ?? []);
   const [newChecklistText, setNewChecklistText] = useState("");
   const [newLink, setNewLink] = useState<{ label: string; url: string } | null>(null);
+
+  // Bump to force-revert the status <select> when pre-flight blocks a publish attempt
+  const [statusKey, setStatusKey] = useState(0);
+
+  // Pre-flight: episode is "publish-ready" when there's no checklist, or all items are done
+  const uncheckedCount = checklist.filter((c) => !c.done).length;
+  const preflightReady = checklist.length === 0 || uncheckedCount === 0;
 
   // Timer state — only meaningful in edit mode
   const [elapsed, setElapsed] = useState(0);
@@ -520,7 +577,7 @@ function EpisodeModal({
           WebkitBackdropFilter: "blur(30px) saturate(180%)",
           border: "1px solid rgba(255,255,255,0.14)",
           borderRadius: "24px",
-          padding: "24px",
+          padding: "20px",
           width: "100%",
           maxWidth: "640px",
           maxHeight: "calc(100vh - 40px)",
@@ -528,7 +585,7 @@ function EpisodeModal({
           boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
           display: "flex",
           flexDirection: "column",
-          gap: "16px",
+          gap: "14px",
         }}
       >
         {/* Header */}
@@ -751,10 +808,72 @@ function EpisodeModal({
             rows={5}
             style={{ ...inputStyle, resize: "vertical", fontFamily: "system-ui" }}
           />
+          {/* Pre-flight indicator: gates the 'Published' status until checklist is done */}
+          <div
+            title={
+              checklist.length === 0
+                ? "No checklist items — add some to enable pre-flight checks"
+                : preflightReady
+                ? "Pre-flight complete — ready to publish"
+                : `${uncheckedCount} checklist item${uncheckedCount === 1 ? "" : "s"} still need${uncheckedCount === 1 ? "s" : ""} to be checked off before publishing`
+            }
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontFamily: "system-ui",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: checklist.length === 0
+                ? "rgba(255,255,255,0.35)"
+                : preflightReady
+                ? "rgba(52,211,153,0.95)"
+                : "rgba(251,191,36,0.95)",
+              background: checklist.length === 0
+                ? "rgba(255,255,255,0.04)"
+                : preflightReady
+                ? "rgba(52,211,153,0.10)"
+                : "rgba(251,191,36,0.10)",
+              border: checklist.length === 0
+                ? "1px solid rgba(255,255,255,0.08)"
+                : preflightReady
+                ? "1px solid rgba(52,211,153,0.30)"
+                : "1px solid rgba(251,191,36,0.35)",
+              borderRadius: "999px",
+              padding: "4px 12px",
+              alignSelf: "flex-start",
+            }}
+          >
+            {checklist.length === 0 ? (
+              <>◇ No pre-flight checklist</>
+            ) : preflightReady ? (
+              <>✓ Pre-flight ready ({checklist.length}/{checklist.length})</>
+            ) : (
+              <>⚠ Pre-flight: {uncheckedCount} of {checklist.length} unchecked</>
+            )}
+          </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             <select
+              key={statusKey}
               value={draft.status}
-              onChange={(e) => setDraft({ ...draft, status: e.target.value as EpisodeStatus })}
+              onChange={(e) => {
+                const next = e.target.value as EpisodeStatus;
+                // Pre-flight gate: blocking publish until checklist is fully done
+                if (next === "published" && !preflightReady) {
+                  const list = checklist
+                    .filter((c) => !c.done)
+                    .map((c) => `• ${c.text || "(empty)"}`)
+                    .join("\n");
+                  const ok = window.confirm(
+                    `Pre-flight incomplete — ${uncheckedCount} checklist item${uncheckedCount === 1 ? "" : "s"} unchecked:\n\n${list}\n\nPublish anyway?`
+                  );
+                  if (!ok) {
+                    setStatusKey((k) => k + 1); // force the select to visually revert
+                    return;
+                  }
+                }
+                setDraft({ ...draft, status: next });
+              }}
               style={inputStyle}
             >
               {STATUSES.map((s) => (

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, DM_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,14 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Invictus Dashboard | Milzzy",
   description: "Invictus Physiques — Coaching Operations",
+};
+
+// Mobile viewport (prevents desktop-scaled tiny rendering on phones)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#0a0e1a",
 };
 
 export default function RootLayout({
