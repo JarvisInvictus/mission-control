@@ -157,3 +157,20 @@ body {
 .pulse-blue {
   animation: blue-pulse 2s infinite;
 }
+
+/* ── Red pulse animation (recording indicator) ─────────────────────────── */
+
+@keyframes red-pulse {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+.pulse-red {
+  animation: red-pulse 1.4s infinite;
+}
