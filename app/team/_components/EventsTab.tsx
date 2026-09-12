@@ -164,10 +164,15 @@ export function EventsTab() {
   }
 
   const filteredClients = useMemo(() => {
-    if (!clientSearch.trim()) return clients.slice(0, 30);
+    if (!clientSearch.trim()) return [];
     const q = clientSearch.toLowerCase();
-    return clients.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 30);
+    return clients.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 20);
   }, [clients, clientSearch]);
+
+  const selectedClients = useMemo(
+    () => clients.filter((c) => draft.clientIds.includes(c.id)),
+    [clients, draft.clientIds]
+  );
 
   const sortedTeam = [...teamEvents].sort((a, b) => a.date.localeCompare(b.date));
   const upcomingTeam = sortedTeam.filter((e) => isUpcoming(e.date));
@@ -283,7 +288,7 @@ export function EventsTab() {
                 })}
               </div>
             </div>
-            {/* Client attach */}
+            {/* Client attach — autocomplete style: selected chips on top, search-only results below */}
             <div>
               <p style={subLabel}>
                 Attach clients{" "}
@@ -291,58 +296,120 @@ export function EventsTab() {
                   ({draft.clientIds.length} selected)
                 </span>
               </p>
+
+              {/* Selected chips — always visible so the team can see who's already attached */}
+              {selectedClients.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    padding: "8px 10px",
+                    marginBottom: "8px",
+                    background: "rgba(10,186,181,0.06)",
+                    border: "1px solid rgba(10,186,181,0.20)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  {selectedClients.map((c) => (
+                    <span
+                      key={c.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontFamily: "system-ui",
+                        fontSize: "11px",
+                        color: "rgba(255,255,255,0.92)",
+                        background: "rgba(10,186,181,0.18)",
+                        border: "1px solid rgba(10,186,181,0.35)",
+                        borderRadius: "999px",
+                        padding: "3px 4px 3px 10px",
+                      }}
+                    >
+                      👤 {c.name}
+                      <button
+                        type="button"
+                        onClick={() => toggleDraftClient(c.id)}
+                        title="Remove"
+                        style={{
+                          background: "rgba(255,255,255,0.10)",
+                          border: "none",
+                          color: "rgba(255,255,255,0.85)",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          width: "18px",
+                          height: "18px",
+                          borderRadius: "50%",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <input
-                placeholder="Search clients by name…"
+                placeholder="Type a client name to find them…"
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "8px" }}
               />
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                  gap: "6px",
-                  maxHeight: "180px",
-                  overflowY: "auto",
-                  padding: "8px",
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "10px",
-                }}
-              >
-                {filteredClients.map((c) => {
-                  const selected = draft.clientIds.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleDraftClient(c.id)}
-                      style={{
-                        fontFamily: "system-ui",
-                        fontSize: "12px",
-                        textAlign: "left",
-                        color: selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.60)",
-                        background: selected ? "rgba(10,186,181,0.15)" : "rgba(255,255,255,0.03)",
-                        border: selected ? "1px solid rgba(10,186,181,0.40)" : "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: "8px",
-                        padding: "5px 10px",
-                        cursor: "pointer",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {selected ? "✓ " : ""}
-                      {c.name}
-                    </button>
-                  );
-                })}
-                {filteredClients.length === 0 && (
-                  <p style={{ gridColumn: "1 / -1", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)", textAlign: "center", margin: "8px 0" }}>
-                    No matches
-                  </p>
-                )}
-              </div>
+              {/* Search results — empty by default until you type */}
+              {(clientSearch.trim() || filteredClients.length > 0) && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "6px",
+                    maxHeight: "180px",
+                    overflowY: "auto",
+                    padding: "8px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  {filteredClients.map((c) => {
+                    const selected = draft.clientIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleDraftClient(c.id)}
+                        style={{
+                          fontFamily: "system-ui",
+                          fontSize: "12px",
+                          textAlign: "left",
+                          color: selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.60)",
+                          background: selected ? "rgba(10,186,181,0.15)" : "rgba(255,255,255,0.03)",
+                          border: selected ? "1px solid rgba(10,186,181,0.40)" : "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: "8px",
+                          padding: "5px 10px",
+                          cursor: "pointer",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {selected ? "✓ " : ""}
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                  {filteredClients.length === 0 && (
+                    <p style={{ gridColumn: "1 / -1", fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.30)", textAlign: "center", margin: "8px 0" }}>
+                      No matches
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <button
               onClick={add}

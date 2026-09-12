@@ -190,49 +190,6 @@ export default function TeamHubPage() {
           padding: "24px 20px 60px",
         }}
       >
-        {/* Welcome strip */}
-        <div
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(10,186,181,0.10) 0%, rgba(168,85,247,0.06) 100%)",
-            border: "1px solid rgba(10,186,181,0.20)",
-            borderRadius: "20px",
-            padding: "18px 22px",
-            marginBottom: "24px",
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ flex: 1, minWidth: "240px" }}>
-            <p
-              style={{
-                fontFamily: "system-ui",
-                fontSize: "10px",
-                color: "rgba(255,255,255,0.40)",
-                textTransform: "uppercase",
-                letterSpacing: "0.10em",
-                margin: "0 0 4px",
-              }}
-            >
-              Welcome to the team board
-            </p>
-            <p
-              style={{
-                fontFamily: "system-ui",
-                fontSize: "16px",
-                fontWeight: 600,
-                color: "rgba(255,255,255,0.92)",
-                margin: 0,
-                lineHeight: 1.35,
-              }}
-            >
-              Open this in your team meeting. Everything here is safe to share — no financials, no client numbers.
-            </p>
-          </div>
-        </div>
-
         {/* Quick-launch buttons */}
         <QuickLaunch />
 
