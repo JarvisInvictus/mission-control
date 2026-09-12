@@ -4,6 +4,18 @@ import { useEffect, useRef, useState } from "react";
 
 type EpisodeStatus = "idea" | "planned" | "recorded" | "published";
 
+interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+interface LinkItem {
+  id: string;
+  label: string;
+  url: string;
+}
+
 interface Episode {
   id: string;
   number: number | null;
@@ -15,6 +27,8 @@ interface Episode {
   owner: string;
   targetDate: string | null;
   publishDate: string | null;
+  checklist: ChecklistItem[];
+  links: LinkItem[];
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +50,8 @@ const EMPTY: Omit<Episode, "id" | "createdAt" | "updatedAt"> = {
   owner: "Milzzy",
   targetDate: null,
   publishDate: null,
+  checklist: [],
+  links: [],
 };
 
 export function PodcastTab() {
@@ -48,7 +64,15 @@ export function PodcastTab() {
   useEffect(() => {
     fetch("/api/team/podcast")
       .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
+      .then((d) => {
+        // Defensive: backfill missing checklist/links for episodes created before this feature
+        const safe = (d.items || []).map((e: Episode) => ({
+          ...e,
+          checklist: Array.isArray(e.checklist) ? e.checklist : [],
+          links: Array.isArray(e.links) ? e.links : [],
+        }));
+        setItems(safe);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -406,6 +430,12 @@ function EpisodeModal({
   const [draft, setDraft] = useState<Omit<Episode, "id" | "createdAt" | "updatedAt">>(initial);
   const [saving, setSaving] = useState(false);
 
+  // Checklist + links state — initial backfilled from the episode
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(initial.checklist ?? []);
+  const [links, setLinks] = useState<LinkItem[]>(initial.links ?? []);
+  const [newChecklistText, setNewChecklistText] = useState("");
+  const [newLink, setNewLink] = useState<{ label: string; url: string } | null>(null);
+
   // Timer state — only meaningful in edit mode
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
@@ -453,10 +483,11 @@ function EpisodeModal({
     try {
       const url = isCreate ? "/api/team/podcast" : `/api/team/podcast/${epId}`;
       const method = isCreate ? "POST" : "PATCH";
+      const payload = { ...draft, checklist, links };
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.item) onSaved(data.item);
@@ -749,6 +780,391 @@ function EpisodeModal({
           </div>
         </div>
 
+        {/* Checklist */}
+        <div
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "14px",
+            padding: "14px 16px",
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.45)",
+              textTransform: "uppercase",
+              letterSpacing: "0.10em",
+              margin: "0 0 10px",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>Checklist</span>
+            <span style={{ color: "rgba(255,255,255,0.30)", fontWeight: 400, textTransform: "none", letterSpacing: "0" }}>
+              {checklist.filter((c) => c.done).length}/{checklist.length}
+            </span>
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+            {checklist.length === 0 && (
+              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", margin: 0 }}>
+                No items yet — add a talking point below.
+              </p>
+            )}
+            {checklist.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "8px",
+                  padding: "6px 10px",
+                  opacity: c.done ? 0.55 : 1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={c.done}
+                  onChange={(e) =>
+                    setChecklist((prev) => prev.map((x) => (x.id === c.id ? { ...x, done: e.target.checked } : x)))
+                  }
+                  style={{ accentColor: "#a855f7", cursor: "pointer", width: "16px", height: "16px", flexShrink: 0 }}
+                />
+                <input
+                  value={c.text}
+                  onChange={(e) =>
+                    setChecklist((prev) => prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)))
+                  }
+                  placeholder="Talking point or task"
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.85)",
+                    fontSize: "13px",
+                    fontFamily: "system-ui",
+                    outline: "none",
+                    textDecoration: c.done ? "line-through" : "none",
+                    minWidth: 0,
+                  }}
+                />
+                <button
+                  onClick={() => setChecklist((prev) => prev.filter((x) => x.id !== c.id))}
+                  title="Remove"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.25)",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              placeholder="+ Add talking point or task"
+              value={newChecklistText}
+              onChange={(e) => setNewChecklistText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newChecklistText.trim()) {
+                  setChecklist((prev) => [
+                    ...prev,
+                    { id: `cl_${Math.random().toString(36).slice(2, 8)}`, text: newChecklistText.trim(), done: false },
+                  ]);
+                  setNewChecklistText("");
+                }
+              }}
+              style={{
+                flex: 1,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px dashed rgba(168,85,247,0.40)",
+                borderRadius: "8px",
+                color: "rgba(255,255,255,0.85)",
+                padding: "6px 12px",
+                fontSize: "12px",
+                fontFamily: "system-ui",
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!newChecklistText.trim()) return;
+                setChecklist((prev) => [
+                  ...prev,
+                  { id: `cl_${Math.random().toString(36).slice(2, 8)}`, text: newChecklistText.trim(), done: false },
+                ]);
+                setNewChecklistText("");
+              }}
+              disabled={!newChecklistText.trim()}
+              style={{
+                fontFamily: "system-ui",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "rgba(10,14,26,0.95)",
+                background: newChecklistText.trim() ? "#a855f7" : "rgba(168,85,247,0.30)",
+                border: "none",
+                borderRadius: "8px",
+                padding: "6px 14px",
+                cursor: newChecklistText.trim() ? "pointer" : "not-allowed",
+              }}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Links */}
+        <div
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "14px",
+            padding: "14px 16px",
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "system-ui",
+              fontSize: "10px",
+              color: "rgba(255,255,255,0.45)",
+              textTransform: "uppercase",
+              letterSpacing: "0.10em",
+              margin: "0 0 10px",
+              fontWeight: 600,
+            }}
+          >
+            Links
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+            {links.length === 0 && !newLink && (
+              <p style={{ fontFamily: "system-ui", fontSize: "11px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", margin: 0 }}>
+                No links yet — add one below (e.g. an Instagram profile or research article).
+              </p>
+            )}
+            {links.map((l) => (
+              <div
+                key={l.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "8px",
+                  padding: "8px 10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <input
+                  value={l.label}
+                  onChange={(e) =>
+                    setLinks((prev) => prev.map((x) => (x.id === l.id ? { ...x, label: e.target.value } : x)))
+                  }
+                  placeholder="Label (e.g. Men's Physique Winner)"
+                  style={{
+                    flex: "1 1 200px",
+                    minWidth: "160px",
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.90)",
+                    fontSize: "13px",
+                    fontFamily: "system-ui",
+                    fontWeight: 600,
+                    outline: "none",
+                  }}
+                />
+                <input
+                  value={l.url}
+                  onChange={(e) =>
+                    setLinks((prev) => prev.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))
+                  }
+                  placeholder="URL"
+                  style={{
+                    flex: "2 1 240px",
+                    minWidth: "180px",
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(168,85,247,0.85)",
+                    fontSize: "12px",
+                    fontFamily: "system-ui, monospace",
+                    outline: "none",
+                  }}
+                />
+                {l.label && l.url && (
+                  <a
+                    href={normalizeUrl(l.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontFamily: "system-ui",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "#a855f7",
+                      background: "rgba(168,85,247,0.10)",
+                      border: "1px solid rgba(168,85,247,0.30)",
+                      borderRadius: "6px",
+                      padding: "3px 10px",
+                      textDecoration: "none",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Open ↗
+                  </a>
+                )}
+                <button
+                  onClick={() => setLinks((prev) => prev.filter((x) => x.id !== l.id))}
+                  title="Remove"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.25)",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {newLink && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  background: "rgba(168,85,247,0.06)",
+                  border: "1px solid rgba(168,85,247,0.30)",
+                  borderRadius: "8px",
+                  padding: "8px 10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <input
+                  autoFocus
+                  value={newLink.label}
+                  onChange={(e) => setNewLink({ ...newLink, label: e.target.value })}
+                  placeholder="Label (e.g. Men's Physique Winner)"
+                  style={{
+                    flex: "1 1 200px",
+                    minWidth: "160px",
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.90)",
+                    fontSize: "13px",
+                    fontFamily: "system-ui",
+                    fontWeight: 600,
+                    outline: "none",
+                  }}
+                />
+                <input
+                  value={newLink.url}
+                  onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newLink.label.trim() && newLink.url.trim()) {
+                      setLinks((prev) => [
+                        ...prev,
+                        {
+                          id: `lk_${Math.random().toString(36).slice(2, 8)}`,
+                          label: newLink.label.trim(),
+                          url: newLink.url.trim(),
+                        },
+                      ]);
+                      setNewLink(null);
+                    }
+                  }}
+                  placeholder="URL (e.g. instagram.com/xyz)"
+                  style={{
+                    flex: "2 1 240px",
+                    minWidth: "180px",
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(168,85,247,0.85)",
+                    fontSize: "12px",
+                    fontFamily: "system-ui, monospace",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (!newLink.label.trim() || !newLink.url.trim()) return;
+                    setLinks((prev) => [
+                      ...prev,
+                      {
+                        id: `lk_${Math.random().toString(36).slice(2, 8)}`,
+                        label: newLink.label.trim(),
+                        url: newLink.url.trim(),
+                      },
+                    ]);
+                    setNewLink(null);
+                  }}
+                  disabled={!newLink.label.trim() || !newLink.url.trim()}
+                  style={{
+                    fontFamily: "system-ui",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "rgba(10,14,26,0.95)",
+                    background: newLink.label.trim() && newLink.url.trim() ? "#a855f7" : "rgba(168,85,247,0.30)",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "6px 14px",
+                    cursor: newLink.label.trim() && newLink.url.trim() ? "pointer" : "not-allowed",
+                    flexShrink: 0,
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setNewLink(null)}
+                  title="Cancel"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.40)",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+          {!newLink && (
+            <button
+              onClick={() => setNewLink({ label: "", url: "" })}
+              style={{
+                fontFamily: "system-ui",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "rgba(168,85,247,0.95)",
+                background: "rgba(168,85,247,0.10)",
+                border: "1px dashed rgba(168,85,247,0.35)",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                cursor: "pointer",
+              }}
+            >
+              + Add link
+            </button>
+          )}
+        </div>
+
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           {onDeleted ? (
@@ -817,6 +1233,13 @@ function formatHMS(totalSeconds: number): string {
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function normalizeUrl(url: string): string {
+  const trimmed = (url || "").trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
 
 const inputStyle: React.CSSProperties = {

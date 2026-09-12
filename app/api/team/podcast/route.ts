@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       owner: body.owner || "Milzzy",
       targetDate: body.targetDate || null,
       publishDate: body.publishDate || null,
+      checklist: Array.isArray(body.checklist) ? body.checklist : [],
+      links: Array.isArray(body.links) ? body.links : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -47,6 +49,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface LinkItem {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export interface PodcastEpisode {
   id: string;
   number: number | null;
@@ -58,6 +72,8 @@ export interface PodcastEpisode {
   owner: string;
   targetDate: string | null;
   publishDate: string | null;
+  checklist: ChecklistItem[];
+  links: LinkItem[];
   createdAt: string;
   updatedAt: string;
 }

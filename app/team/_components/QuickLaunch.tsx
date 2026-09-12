@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 interface DashTile {
@@ -66,10 +65,11 @@ export function QuickLaunch() {
         {TILES.map((t) => {
           const isHovered = hovered === t.href;
           return (
-            <Link
+            <a
               key={t.href}
               href={t.href}
-              target={t.ready ? "_self" : "_self"}
+              target="_blank"
+              rel="noopener noreferrer"
               onMouseEnter={() => setHovered(t.href)}
               onMouseLeave={() => setHovered(null)}
               style={{
@@ -166,7 +166,7 @@ export function QuickLaunch() {
                   Soon
                 </span>
               )}
-            </Link>
+            </a>
           );
         })}
       </div>
