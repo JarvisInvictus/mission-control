@@ -105,7 +105,9 @@ export function EventsTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } =
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [onMeta]);
+    // Empty deps: load once on mount. See MeetingTab for the same fix.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-report on local changes (after add/edit/delete)
   useEffect(() => {

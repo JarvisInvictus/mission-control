@@ -91,7 +91,11 @@ export function MeetingTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } 
         }
       })
       .catch(() => {});
-  }, [onMeta]);
+    // Empty deps: load once on mount. Including `onMeta` here caused the parent's
+    // (clock-tick driven) re-renders to re-fire this effect, overwriting in-progress
+    // local edits with stale server state — agenda items and notes would vanish.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-report whenever meeting metadata changes (after a save)
   useEffect(() => {

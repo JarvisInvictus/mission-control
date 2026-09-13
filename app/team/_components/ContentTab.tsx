@@ -57,7 +57,11 @@ export function ContentTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [onMeta]);
+    // Empty deps: load once on mount. Including `onMeta` ref would cause parent
+    // re-renders (clock tick, tab switches) to re-fire this effect and overwrite
+    // local state with stale server data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-report on local changes (after a save / drag-move)
   useEffect(() => {
