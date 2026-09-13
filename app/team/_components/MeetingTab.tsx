@@ -132,38 +132,48 @@ export function MeetingTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } 
   }
 
   function addAgendaItem(text: string) {
-    if (!meeting || !text.trim()) return;
-    const agenda = normaliseAgenda(meeting.agenda);
-    setMeeting({
-      ...meeting,
-      agenda: [...agenda, { id: `ag_${Math.random().toString(36).slice(2, 8)}`, text: text.trim(), done: false }],
+    if (!text.trim()) return;
+    // Functional setState: guarantees we read the latest meeting, not a stale closure.
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      const agenda = normaliseAgenda(prev.agenda);
+      return {
+        ...prev,
+        agenda: [...agenda, { id: `ag_${Math.random().toString(36).slice(2, 8)}`, text: text.trim(), done: false }],
+      };
     });
   }
 
   function toggleAgendaItem(id: string) {
-    if (!meeting) return;
-    const agenda = normaliseAgenda(meeting.agenda);
-    setMeeting({
-      ...meeting,
-      agenda: agenda.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      const agenda = normaliseAgenda(prev.agenda);
+      return {
+        ...prev,
+        agenda: agenda.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
+      };
     });
   }
 
   function updateAgendaItem(id: string, text: string) {
-    if (!meeting) return;
-    const agenda = normaliseAgenda(meeting.agenda);
-    setMeeting({
-      ...meeting,
-      agenda: agenda.map((a) => (a.id === id ? { ...a, text } : a)),
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      const agenda = normaliseAgenda(prev.agenda);
+      return {
+        ...prev,
+        agenda: agenda.map((a) => (a.id === id ? { ...a, text } : a)),
+      };
     });
   }
 
   function removeAgendaItem(id: string) {
-    if (!meeting) return;
-    const agenda = normaliseAgenda(meeting.agenda);
-    setMeeting({
-      ...meeting,
-      agenda: agenda.filter((a) => a.id !== id),
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      const agenda = normaliseAgenda(prev.agenda);
+      return {
+        ...prev,
+        agenda: agenda.filter((a) => a.id !== id),
+      };
     });
   }
 
@@ -586,6 +596,7 @@ function AgendaBlock({
   onRemove: (id: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const done = items.filter((a) => a.done).length;
   return (
     <div
@@ -680,6 +691,7 @@ function AgendaBlock({
       </div>
       <div style={{ display: "flex", gap: "8px" }}>
         <input
+          ref={inputRef}
           placeholder="+ Add topic"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -687,6 +699,8 @@ function AgendaBlock({
             if (e.key === "Enter" && draft.trim()) {
               onAdd(draft.trim());
               setDraft("");
+              // Keep focus on the input so you can keep adding topics in quick succession
+              requestAnimationFrame(() => inputRef.current?.focus());
             }
           }}
           style={{
@@ -706,6 +720,7 @@ function AgendaBlock({
             if (!draft.trim()) return;
             onAdd(draft.trim());
             setDraft("");
+            requestAnimationFrame(() => inputRef.current?.focus());
           }}
           disabled={!draft.trim()}
           style={{
