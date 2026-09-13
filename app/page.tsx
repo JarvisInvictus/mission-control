@@ -7794,8 +7794,38 @@ function CoachDashboardInline() {
 }
 
 export function MissionControl({ mode, coachId }: { mode: MissionMode; coachId?: "Milzzy" | "Miggy" }) {
-  const [activeTab, setActiveTab] = useState<Tab>(mode === "coach" ? "dashboard" : "dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Tab persistence: remember the last active tab per mode so a refresh lands
+  // you back where you were. Admin and coach tabs are stored separately so
+  // they don't bleed into each other, and the stored value is validated
+  // against the visible sidebar so an old tab from a future build can't break.
+  const tabStorageKey = mode === "coach" ? "mission-control-coach-tab" : "mission-control-admin-tab";
+  const visibleTabIds = (mode === "coach" ? COACH_SIDEBAR : ADMIN_SIDEBAR).flatMap((s) => s.items.map((i) => i.id));
+  const validTabIds = new Set(visibleTabIds);
+
+  // Restore from localStorage after hydration
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(tabStorageKey);
+      if (stored && validTabIds.has(stored as Tab)) {
+        setActiveTab(stored as Tab);
+      }
+    } catch {
+      /* localStorage unavailable — silently fall back to default */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // Persist on change
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(tabStorageKey, activeTab);
+    } catch {
+      /* noop */
+    }
+  }, [activeTab, tabStorageKey]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [pomCheckIn, setPomCheckIn] = useState(0);
