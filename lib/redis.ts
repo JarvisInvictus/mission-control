@@ -13,7 +13,8 @@ export function getRedis(): Redis {
 export const TEAM_KEYS = {
   content: "team:content",
   podcast: "team:podcast",
-  meeting: "team:meeting:current",
+  meeting: "team:meetings",       // list of all meetings (draft + closed history)
+  meetingLegacy: "team:meeting:current",  // pre-history migration shim — kept for one-time migration
   goals: "team:goals",
   events: "team:events",
 } as const;

@@ -20,12 +20,16 @@ interface ActionItem {
 }
 
 interface Meeting {
+  id: string;
   title: string;
   date: string;
   attendees: Attendee[];
-  agenda: AgendaItem[] | string; // string accepted for legacy; client normalises to array
+  agenda: AgendaItem[];
   notes: string;
   actionItems: ActionItem[];
+  status: "draft" | "closed";
+  createdAt: string;
+  closedAt?: string;
   updatedAt: string;
   updatedBy: string;
 }
@@ -39,7 +43,6 @@ const ATTENDEE_COLORS: Record<Attendee, string> = {
 };
 
 // Default agenda template used by "Use template" / "Append template" buttons.
-// Edit the array below to change the standing agenda for every weekly team sync.
 const DEFAULT_AGENDA_TEMPLATE: string[] = [
   "Wins from last week",
   "Review open action items",
@@ -51,165 +54,247 @@ const DEFAULT_AGENDA_TEMPLATE: string[] = [
   "This week's priorities",
 ];
 
-function normaliseAgenda(raw: AgendaItem[] | string | null | undefined): AgendaItem[] {
-  if (Array.isArray(raw)) {
-    return raw
-      .filter((it) => typeof it?.text === "string")
-      .map((it) => ({
-        id: typeof it.id === "string" ? it.id : `ag_${Math.random().toString(36).slice(2, 8)}`,
-        text: it.text,
-        done: !!it.done,
-      }));
-  }
-  if (typeof raw === "string" && raw.trim()) {
-    return raw
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((text) => ({ id: `ag_${Math.random().toString(36).slice(2, 8)}`, text, done: false }));
-  }
-  return [];
+// Create a fresh empty draft (used when no meeting exists yet, or after closing one).
+function blankDraft(): Meeting {
+  const now = new Date().toISOString();
+  return {
+    id: `meet_${Math.random().toString(36).slice(2, 8)}`,
+    title: "",
+    date: now.slice(0, 10),
+    attendees: ["Milzzy", "Miggy", "Sonta"],
+    agenda: [],
+    notes: "",
+    actionItems: [],
+    status: "draft",
+    createdAt: now,
+    updatedAt: now,
+    updatedBy: "Milzzy",
+  };
 }
 
 export function MeetingTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } = {}) {
-  const [meeting, setMeeting] = useState<Meeting | null>(null);
+  const [active, setActive] = useState<Meeting | null>(null);
+  const [history, setHistory] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  const [closing, setClosing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+
   const [newAction, setNewAction] = useState("");
   const [newActionOwner, setNewActionOwner] = useState<Owner>("Shared");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef<string>("");
 
+  // Load on mount: fetch all meetings, derive active draft + history (closed only).
   useEffect(() => {
     fetch("/api/team/meeting")
       .then((r) => r.json())
       .then((d) => {
-        const m = { ...d.meeting, agenda: normaliseAgenda(d.meeting.agenda) };
-        setMeeting(m);
-        lastSaved.current = JSON.stringify(m);
-        if (onMeta && m.updatedAt) {
-          onMeta({ updatedAt: m.updatedAt, updatedBy: m.updatedBy || "Team" });
+        const all: Meeting[] = Array.isArray(d.meetings) ? d.meetings : [];
+        const activeDraft = d.active ?? all.find((m) => m.status === "draft") ?? null;
+        const closed = all.filter((m) => m.status === "closed");
+        if (activeDraft) {
+          setActive(activeDraft);
+          lastSaved.current = JSON.stringify(activeDraft);
+        } else {
+          // No draft yet — leave null; UI shows "Start new meeting" CTA.
+          setActive(null);
+        }
+        setHistory(closed);
+        if (onMeta) {
+          const latest = all[0];
+          if (latest?.updatedAt) {
+            onMeta({ updatedAt: latest.updatedAt, updatedBy: latest.updatedBy || "Team" });
+          }
         }
       })
-      .catch(() => {});
-    // Empty deps: load once on mount. Including `onMeta` here caused the parent's
-    // (clock-tick driven) re-renders to re-fire this effect, overwriting in-progress
-    // local edits with stale server state — agenda items and notes would vanish.
+      .catch(() => {})
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-report whenever meeting metadata changes (after a save)
+  // Re-report meta when active meeting changes.
   useEffect(() => {
-    if (!onMeta || !meeting || !meeting.updatedAt) return;
-    onMeta({ updatedAt: meeting.updatedAt, updatedBy: meeting.updatedBy || "Team" });
-  }, [meeting?.updatedAt, meeting?.updatedBy, onMeta]);
+    if (!onMeta || !active?.updatedAt) return;
+    onMeta({ updatedAt: active.updatedAt, updatedBy: active.updatedBy || "Team" });
+  }, [active?.updatedAt, active?.updatedBy, onMeta]);
 
-  // Auto-save: debounce 800ms after any change
+  // Auto-save active draft (PATCH /api/team/meeting with { id, patch }).
   useEffect(() => {
-    if (!meeting) return;
-    const snapshot = JSON.stringify(meeting);
+    if (!active || active.status !== "draft") return;
+    const snapshot = JSON.stringify(active);
     if (snapshot === lastSaved.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaving("saving");
     saveTimer.current = setTimeout(async () => {
-      await fetch("/api/team/meeting", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(meeting),
-      });
-      lastSaved.current = snapshot;
-      setSaving("saved");
-      setTimeout(() => setSaving("idle"), 1400);
+      try {
+        const { id, status, createdAt, closedAt, ...patch } = active;
+        const res = await fetch("/api/team/meeting", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, patch }),
+        });
+        const data = await res.json();
+        if (data.meeting) {
+          // Update active with server-confirmed timestamps; keep id stable.
+          setActive((prev) => prev ? { ...prev, updatedAt: data.meeting.updatedAt, updatedBy: data.meeting.updatedBy } : prev);
+        }
+        lastSaved.current = snapshot;
+        setSaving("saved");
+        setTimeout(() => setSaving("idle"), 1400);
+      } catch {
+        setSaving("idle");
+      }
     }, 800);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [meeting]);
+  }, [active]);
+
+  function updateActive(updater: (prev: Meeting) => Meeting) {
+    setActive((prev) => (prev ? updater(prev) : prev));
+  }
 
   function toggleAttendee(a: Attendee) {
-    if (!meeting) return;
-    setMeeting({
-      ...meeting,
-      attendees: meeting.attendees.includes(a)
-        ? meeting.attendees.filter((x) => x !== a)
-        : [...meeting.attendees, a],
-    });
+    updateActive((prev) => ({
+      ...prev,
+      attendees: prev.attendees.includes(a)
+        ? prev.attendees.filter((x) => x !== a)
+        : [...prev.attendees, a],
+    }));
   }
 
   function addAgendaItem(text: string) {
     if (!text.trim()) return;
-    // Functional setState: guarantees we read the latest meeting, not a stale closure.
-    setMeeting((prev) => {
-      if (!prev) return prev;
-      const agenda = normaliseAgenda(prev.agenda);
-      return {
-        ...prev,
-        agenda: [...agenda, { id: `ag_${Math.random().toString(36).slice(2, 8)}`, text: text.trim(), done: false }],
-      };
-    });
+    updateActive((prev) => ({
+      ...prev,
+      agenda: [...prev.agenda, { id: `ag_${Math.random().toString(36).slice(2, 8)}`, text: text.trim(), done: false }],
+    }));
   }
 
   function toggleAgendaItem(id: string) {
-    setMeeting((prev) => {
-      if (!prev) return prev;
-      const agenda = normaliseAgenda(prev.agenda);
-      return {
-        ...prev,
-        agenda: agenda.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
-      };
-    });
+    updateActive((prev) => ({
+      ...prev,
+      agenda: prev.agenda.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
+    }));
   }
 
   function updateAgendaItem(id: string, text: string) {
-    setMeeting((prev) => {
-      if (!prev) return prev;
-      const agenda = normaliseAgenda(prev.agenda);
-      return {
-        ...prev,
-        agenda: agenda.map((a) => (a.id === id ? { ...a, text } : a)),
-      };
-    });
+    updateActive((prev) => ({
+      ...prev,
+      agenda: prev.agenda.map((a) => (a.id === id ? { ...a, text } : a)),
+    }));
   }
 
   function removeAgendaItem(id: string) {
-    setMeeting((prev) => {
-      if (!prev) return prev;
-      const agenda = normaliseAgenda(prev.agenda);
-      return {
-        ...prev,
-        agenda: agenda.filter((a) => a.id !== id),
-      };
-    });
+    updateActive((prev) => ({
+      ...prev,
+      agenda: prev.agenda.filter((a) => a.id !== id),
+    }));
   }
 
   function addAction() {
-    if (!newAction.trim() || !meeting) return;
-    setMeeting({
-      ...meeting,
+    if (!newAction.trim() || !active) return;
+    updateActive((prev) => ({
+      ...prev,
       actionItems: [
-        ...meeting.actionItems,
+        ...prev.actionItems,
         { id: `a_${Date.now().toString(36)}`, text: newAction.trim(), owner: newActionOwner, done: false },
       ],
-    });
+    }));
     setNewAction("");
   }
 
   function toggleAction(id: string) {
-    if (!meeting) return;
-    setMeeting({
-      ...meeting,
-      actionItems: meeting.actionItems.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
-    });
+    updateActive((prev) => ({
+      ...prev,
+      actionItems: prev.actionItems.map((a) => (a.id === id ? { ...a, done: !a.done } : a)),
+    }));
   }
 
   function deleteAction(id: string) {
-    if (!meeting) return;
-    setMeeting({
-      ...meeting,
-      actionItems: meeting.actionItems.filter((a) => a.id !== id),
-    });
+    updateActive((prev) => ({
+      ...prev,
+      actionItems: prev.actionItems.filter((a) => a.id !== id),
+    }));
   }
 
-  if (!meeting) {
+  async function handleClose() {
+    if (!active) return;
+    const filledCount =
+      active.agenda.filter((a) => a.text.trim()).length +
+      active.actionItems.length +
+      (active.notes.trim() ? 1 : 0) +
+      (active.title.trim() ? 1 : 0);
+    const confirmMsg =
+      filledCount === 0
+        ? "This meeting is empty. Mark it as done anyway?"
+        : `Mark this meeting as done and start a new one?\n\nIt will be saved as a summary in Past Meetings below.`;
+    if (!window.confirm(confirmMsg)) return;
+    setClosing(true);
+    try {
+      const res = await fetch("/api/team/meeting/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: active.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to close");
+      // Update history with the closed meeting + any new drafts
+      const all: Meeting[] = data.meetings || [];
+      const newDraft = all.find((m) => m.status === "draft") || null;
+      const closedNow = all.find((m) => m.id === active.id && m.status === "closed");
+      setHistory((prev) => (closedNow ? [closedNow, ...prev.filter((m) => m.id !== closedNow.id)] : prev));
+      if (newDraft) {
+        setActive(newDraft);
+        lastSaved.current = JSON.stringify(newDraft);
+      } else {
+        setActive(null);
+      }
+      // Flash the saved state for confirmation feedback.
+      setSaving("saved");
+      setTimeout(() => setSaving("idle"), 1600);
+      // Auto-expand history so user sees the just-closed meeting.
+      setHistoryOpen(true);
+    } catch (err) {
+      alert((err as Error).message || "Failed to close meeting");
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  async function startNewMeeting() {
+    try {
+      const res = await fetch("/api/team/meeting", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start");
+      const draft: Meeting = data.meeting;
+      setActive(draft);
+      lastSaved.current = JSON.stringify(draft);
+    } catch (err) {
+      alert((err as Error).message || "Failed to start meeting");
+    }
+  }
+
+  async function deleteHistoryItem(id: string) {
+    if (!window.confirm("Delete this past meeting? This can't be undone.")) return;
+    try {
+      const res = await fetch("/api/team/meeting", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      const updated: Meeting[] = data.meetings || [];
+      setHistory(updated.filter((m) => m.status === "closed"));
+      if (expandedHistoryId === id) setExpandedHistoryId(null);
+    } catch (err) {
+      alert((err as Error).message || "Failed to delete");
+    }
+  }
+
+  if (loading) {
     return (
       <p style={{ fontFamily: "system-ui", fontSize: "13px", color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "32px" }}>
         Loading…
@@ -219,310 +304,610 @@ export function MeetingTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Top bar: title, date, save state */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          alignItems: "center",
-          flexWrap: "wrap",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "16px",
-          padding: "14px 16px",
-        }}
-      >
-        <input
-          value={meeting.title}
-          onChange={(e) => setMeeting({ ...meeting, title: e.target.value })}
-          placeholder="Meeting title"
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "rgba(255,255,255,0.95)",
-            fontFamily: "system-ui",
-            fontSize: "18px",
-            fontWeight: 600,
-            outline: "none",
-            flex: 1,
-            minWidth: "140px",
-          }}
-        />
-        <input
-          type="date"
-          value={meeting.date}
-          onChange={(e) => setMeeting({ ...meeting, date: e.target.value })}
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: "10px",
-            color: "rgba(255,255,255,0.85)",
-            padding: "6px 10px",
-            fontFamily: "system-ui",
-            fontSize: "12px",
-            outline: "none",
-          }}
-        />
-        <TemplateMenu
-          onUse={() => {
-            const current = normaliseAgenda(meeting.agenda);
-            if (current.length > 0) {
-              const ok = window.confirm(
-                `Replace the current ${current.length} agenda item${current.length === 1 ? "" : "s"} with the template? This can't be undone.`
-              );
-              if (!ok) return;
-            }
-            setMeeting({
-              ...meeting,
-              agenda: DEFAULT_AGENDA_TEMPLATE.map((text) => ({
-                id: `ag_${Math.random().toString(36).slice(2, 8)}`,
-                text,
-                done: false,
-              })),
-            });
-          }}
-          onAppend={() => {
-            const current = normaliseAgenda(meeting.agenda);
-            const appended = DEFAULT_AGENDA_TEMPLATE.map((text) => ({
-              id: `ag_${Math.random().toString(36).slice(2, 8)}`,
-              text,
-              done: false,
-            }));
-            setMeeting({ ...meeting, agenda: [...current, ...appended] });
-          }}
-        />
-        <SaveIndicator state={saving} />
-      </div>
-
-      {/* Attendees */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "16px",
-          padding: "14px 16px",
-          display: "flex",
-          gap: "10px",
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <p
-          style={{
-            fontFamily: "system-ui",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.40)",
-            textTransform: "uppercase",
-            letterSpacing: "0.10em",
-            margin: 0,
-            marginRight: "4px",
-          }}
-        >
-          Attendees
-        </p>
-        {ALL_ATTENDEES.map((a) => {
-          const on = meeting.attendees.includes(a);
-          const c = ATTENDEE_COLORS[a];
-          return (
+      {active ? (
+        <>
+          {/* Top bar: title, date, save state, Finished button */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "16px",
+              padding: "14px 16px",
+            }}
+          >
+            <input
+              value={active.title}
+              onChange={(e) => updateActive((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Meeting title"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.95)",
+                fontFamily: "system-ui",
+                fontSize: "18px",
+                fontWeight: 600,
+                outline: "none",
+                flex: 1,
+                minWidth: "140px",
+              }}
+            />
+            <input
+              type="date"
+              value={active.date}
+              onChange={(e) => updateActive((prev) => ({ ...prev, date: e.target.value }))}
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: "10px",
+                color: "rgba(255,255,255,0.85)",
+                padding: "6px 10px",
+                fontFamily: "system-ui",
+                fontSize: "12px",
+                outline: "none",
+              }}
+            />
+            <TemplateMenu
+              onUse={() => {
+                if (active.agenda.length > 0) {
+                  const ok = window.confirm(
+                    `Replace the current ${active.agenda.length} agenda item${active.agenda.length === 1 ? "" : "s"} with the template? This can't be undone.`
+                  );
+                  if (!ok) return;
+                }
+                updateActive((prev) => ({
+                  ...prev,
+                  agenda: DEFAULT_AGENDA_TEMPLATE.map((text) => ({
+                    id: `ag_${Math.random().toString(36).slice(2, 8)}`,
+                    text,
+                    done: false,
+                  })),
+                }));
+              }}
+              onAppend={() => {
+                const appended = DEFAULT_AGENDA_TEMPLATE.map((text) => ({
+                  id: `ag_${Math.random().toString(36).slice(2, 8)}`,
+                  text,
+                  done: false,
+                }));
+                updateActive((prev) => ({ ...prev, agenda: [...prev.agenda, ...appended] }));
+              }}
+            />
+            <SaveIndicator state={saving} />
             <button
-              key={a}
-              onClick={() => toggleAttendee(a)}
+              onClick={handleClose}
+              disabled={closing}
+              title="Mark this meeting as done, save as a summary, and open a fresh one for next time"
               style={{
                 fontFamily: "system-ui",
                 fontSize: "12px",
-                fontWeight: 600,
-                color: on ? c : "rgba(255,255,255,0.50)",
-                background: on ? `${c}22` : "rgba(255,255,255,0.04)",
-                border: on ? `1px solid ${c}55` : "1px solid rgba(255,255,255,0.10)",
-                borderRadius: "999px",
-                padding: "4px 12px",
-                cursor: "pointer",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                color: closing ? "rgba(255,255,255,0.40)" : "rgba(10,14,26,0.95)",
+                background: closing ? "rgba(52,211,153,0.20)" : "#34d399",
+                border: "none",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                cursor: closing ? "wait" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
               }}
             >
-              {on ? "✓ " : ""}
-              {a}
+              {closing ? "Saving…" : "✓ Finished"}
             </button>
-          );
-        })}
-      </div>
+          </div>
 
-      {/* Agenda + Notes side-by-side on desktop */}
+          {/* Attendees */}
+          <div
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "16px",
+              padding: "14px 16px",
+              display: "flex",
+              gap: "10px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "system-ui",
+                fontSize: "11px",
+                color: "rgba(255,255,255,0.40)",
+                textTransform: "uppercase",
+                letterSpacing: "0.10em",
+                margin: 0,
+                marginRight: "4px",
+              }}
+            >
+              Attendees
+            </p>
+            {ALL_ATTENDEES.map((a) => {
+              const on = active.attendees.includes(a);
+              const c = ATTENDEE_COLORS[a];
+              return (
+                <button
+                  key={a}
+                  onClick={() => toggleAttendee(a)}
+                  style={{
+                    fontFamily: "system-ui",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: on ? c : "rgba(255,255,255,0.50)",
+                    background: on ? `${c}22` : "rgba(255,255,255,0.04)",
+                    border: on ? `1px solid ${c}55` : "1px solid rgba(255,255,255,0.10)",
+                    borderRadius: "999px",
+                    padding: "4px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {on ? "✓ " : ""}
+                  {a}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Agenda + Notes */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            <AgendaBlock
+              items={active.agenda}
+              accent="#0abab5"
+              onAdd={addAgendaItem}
+              onToggle={toggleAgendaItem}
+              onUpdate={updateAgendaItem}
+              onRemove={removeAgendaItem}
+            />
+            <TextBlock
+              label="Notes"
+              placeholder="Decisions, context, links…"
+              value={active.notes}
+              onChange={(v) => updateActive((prev) => ({ ...prev, notes: v }))}
+              accent="#3b82f6"
+            />
+          </div>
+
+          {/* Action items */}
+          <div
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "16px",
+              padding: "16px",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "system-ui",
+                fontSize: "11px",
+                color: "rgba(255,255,255,0.40)",
+                textTransform: "uppercase",
+                letterSpacing: "0.10em",
+                margin: "0 0 12px",
+              }}
+            >
+              Action Items
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+              {active.actionItems.length === 0 && (
+                <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", margin: 0 }}>
+                  No actions yet — add one below.
+                </p>
+              )}
+              {active.actionItems.map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    alignItems: "center",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "10px",
+                    padding: "8px 12px",
+                    opacity: a.done ? 0.55 : 1,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={a.done}
+                    onChange={() => toggleAction(a.id)}
+                    style={{ accentColor: "#0abab5", cursor: "pointer", width: "16px", height: "16px" }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: "system-ui",
+                      fontSize: "13px",
+                      color: "rgba(255,255,255,0.85)",
+                      flex: 1,
+                      textDecoration: a.done ? "line-through" : "none",
+                    }}
+                  >
+                    {a.text}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "system-ui",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: ATTENDEE_COLORS[a.owner as Attendee] ?? "#94a3b8",
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "999px",
+                      padding: "2px 8px",
+                    }}
+                  >
+                    {a.owner}
+                  </span>
+                  <button
+                    onClick={() => deleteAction(a.id)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "rgba(255,255,255,0.30)",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <input
+                placeholder="New action item…"
+                value={newAction}
+                onChange={(e) => setNewAction(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addAction();
+                }}
+                style={{
+                  flex: 1,
+                  minWidth: "180px",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "10px",
+                  color: "white",
+                  padding: "8px 12px",
+                  fontSize: "13px",
+                  fontFamily: "system-ui",
+                  outline: "none",
+                }}
+              />
+              <select
+                value={newActionOwner}
+                onChange={(e) => setNewActionOwner(e.target.value as Owner)}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "10px",
+                  color: "white",
+                  padding: "8px 12px",
+                  fontSize: "12px",
+                  fontFamily: "system-ui",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {ALL_OWNERS.map((o) => (
+                  <option key={o} value={o} style={{ background: "#0a0e1a" }}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={addAction}
+                disabled={!newAction.trim()}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "rgba(10,14,26,0.95)",
+                  background: newAction.trim() ? "#0abab5" : "rgba(10,186,181,0.30)",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "8px 16px",
+                  cursor: newAction.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* No active draft — show CTA to start one */
+        <div
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px dashed rgba(255,255,255,0.20)",
+            borderRadius: "16px",
+            padding: "40px 24px",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ fontSize: "36px", margin: "0 0 8px" }}>🗓</p>
+          <p style={{ fontFamily: "system-ui", fontSize: "14px", color: "rgba(255,255,255,0.65)", margin: "0 0 4px" }}>
+            No active meeting
+          </p>
+          <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.35)", margin: "0 0 16px" }}>
+            Start a new draft to plan your next team sync.
+          </p>
+          <button
+            onClick={startNewMeeting}
+            style={{
+              fontFamily: "system-ui",
+              fontSize: "13px",
+              fontWeight: 700,
+              color: "rgba(10,14,26,0.95)",
+              background: "#0abab5",
+              border: "none",
+              borderRadius: "10px",
+              padding: "10px 20px",
+              cursor: "pointer",
+            }}
+          >
+            + Start new meeting
+          </button>
+        </div>
+      )}
+
+      {/* Past meetings — always visible, collapsed by default unless we just closed one */}
+      <HistorySection
+        history={history}
+        open={historyOpen}
+        onToggle={() => setHistoryOpen((o) => !o)}
+        expandedId={expandedHistoryId}
+        onExpand={(id) => setExpandedHistoryId((prev) => (prev === id ? null : id))}
+        onDelete={deleteHistoryItem}
+      />
+    </div>
+  );
+}
+
+function HistorySection({
+  history,
+  open,
+  onToggle,
+  expandedId,
+  onExpand,
+  onDelete,
+}: {
+  history: Meeting[];
+  open: boolean;
+  onToggle: () => void;
+  expandedId: string | null;
+  onExpand: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  if (history.length === 0) {
+    return (
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "16px",
-        }}
-      >
-        <AgendaBlock
-          items={normaliseAgenda(meeting.agenda)}
-          accent="#0abab5"
-          onAdd={addAgendaItem}
-          onToggle={toggleAgendaItem}
-          onUpdate={updateAgendaItem}
-          onRemove={removeAgendaItem}
-        />
-        <TextBlock
-          label="Notes"
-          placeholder="Decisions, context, links…"
-          value={meeting.notes}
-          onChange={(v) => setMeeting({ ...meeting, notes: v })}
-          accent="#3b82f6"
-        />
-      </div>
-
-      {/* Action items */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "16px",
-          padding: "16px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px dashed rgba(255,255,255,0.10)",
+          borderRadius: "14px",
+          padding: "14px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          flexWrap: "wrap",
         }}
       >
         <p
           style={{
             fontFamily: "system-ui",
             fontSize: "11px",
-            color: "rgba(255,255,255,0.40)",
+            color: "rgba(255,255,255,0.35)",
             textTransform: "uppercase",
             letterSpacing: "0.10em",
-            margin: "0 0 12px",
+            margin: 0,
           }}
         >
-          Action Items
+          Past meetings
         </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
-          {meeting.actionItems.length === 0 && (
-            <p style={{ fontFamily: "system-ui", fontSize: "12px", color: "rgba(255,255,255,0.25)", fontStyle: "italic", margin: 0 }}>
-              No actions yet — add one below.
-            </p>
-          )}
-          {meeting.actionItems.map((a) => (
-            <div
-              key={a.id}
-              style={{
-                display: "flex",
-                gap: "10px",
-                alignItems: "center",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "10px",
-                padding: "8px 12px",
-                opacity: a.done ? 0.55 : 1,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={a.done}
-                onChange={() => toggleAction(a.id)}
-                style={{ accentColor: "#0abab5", cursor: "pointer", width: "16px", height: "16px" }}
-              />
-              <span
-                style={{
-                  fontFamily: "system-ui",
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.85)",
-                  flex: 1,
-                  textDecoration: a.done ? "line-through" : "none",
-                }}
-              >
-                {a.text}
-              </span>
-              <span
-                style={{
-                  fontFamily: "system-ui",
-                  fontSize: "10px",
-                  fontWeight: 600,
-                  color: ATTENDEE_COLORS[a.owner as Attendee] ?? "#94a3b8",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "999px",
-                  padding: "2px 8px",
-                }}
-              >
-                {a.owner}
-              </span>
-              <button
-                onClick={() => deleteAction(a.id)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "rgba(255,255,255,0.30)",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  padding: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <input
-            placeholder="New action item…"
-            value={newAction}
-            onChange={(e) => setNewAction(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addAction();
-            }}
-            style={{
-              flex: 1,
-              minWidth: "180px",
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: "10px",
-              color: "white",
-              padding: "8px 12px",
-              fontSize: "13px",
-              fontFamily: "system-ui",
-              outline: "none",
-            }}
-          />
-          <select
-            value={newActionOwner}
-            onChange={(e) => setNewActionOwner(e.target.value as Owner)}
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: "10px",
-              color: "white",
-              padding: "8px 12px",
-              fontSize: "12px",
-              fontFamily: "system-ui",
-              outline: "none",
-              cursor: "pointer",
-            }}
-          >
-            {ALL_OWNERS.map((o) => (
-              <option key={o} value={o} style={{ background: "#0a0e1a" }}>
-                {o}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={addAction}
-            disabled={!newAction.trim()}
-            style={{
-              fontFamily: "system-ui",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "rgba(10,14,26,0.95)",
-              background: newAction.trim() ? "#0abab5" : "rgba(10,186,181,0.30)",
-              border: "none",
-              borderRadius: "10px",
-              padding: "8px 16px",
-              cursor: newAction.trim() ? "pointer" : "not-allowed",
-            }}
-          >
-            Add
-          </button>
-        </div>
+        <p
+          style={{
+            fontFamily: "system-ui",
+            fontSize: "12px",
+            color: "rgba(255,255,255,0.30)",
+            margin: 0,
+            fontStyle: "italic",
+          }}
+        >
+          Hit "✓ Finished" above to save your first one.
+        </p>
       </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "14px",
+        padding: "12px 16px",
+      }}
+    >
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "transparent",
+          border: "none",
+          padding: "6px 0",
+          cursor: "pointer",
+          color: "rgba(255,255,255,0.65)",
+          fontFamily: "system-ui",
+          fontSize: "12px",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}
+      >
+        <span>Past meetings · {history.length}</span>
+        <span style={{ color: "rgba(255,255,255,0.40)", fontSize: "11px" }}>{open ? "▾ Hide" : "▸ Show"}</span>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+          {history.map((m) => {
+            const isExpanded = expandedId === m.id;
+            const covered = m.agenda.filter((a) => a.done).length;
+            const d = new Date(m.date + "T00:00:00");
+            const dateLabel = isNaN(d.getTime())
+              ? m.date
+              : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+            return (
+              <div
+                key={m.id}
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isExpanded ? "rgba(10,186,181,0.40)" : "rgba(255,255,255,0.08)"}`,
+                  borderRadius: "12px",
+                  padding: "12px 14px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      style={{
+                        fontFamily: "system-ui",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "rgba(255,255,255,0.92)",
+                        margin: 0,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {m.title || "Untitled meeting"}
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "system-ui",
+                        fontSize: "11px",
+                        color: "rgba(255,255,255,0.45)",
+                        margin: "2px 0 0",
+                      }}
+                    >
+                      {dateLabel} · {covered}/{m.agenda.length} covered · {m.actionItems.length} actions · {m.attendees.join(", ")}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                    <button
+                      onClick={() => onExpand(m.id)}
+                      title={isExpanded ? "Collapse" : "Expand"}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,0.40)",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "8px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 0,
+                      }}
+                    >
+                      {isExpanded ? "▾" : "▸"}
+                    </button>
+                    <button
+                      onClick={() => onDelete(m.id)}
+                      title="Delete meeting"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,0.30)",
+                        cursor: "pointer",
+                        fontSize: "16px",
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "8px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {m.agenda.length > 0 && (
+                      <div>
+                        <p style={HISTORY_SUBHEAD}>Agenda</p>
+                        <ul style={{ margin: 0, paddingLeft: "18px", color: "rgba(255,255,255,0.75)", fontSize: "12px", lineHeight: 1.6 }}>
+                          {m.agenda.map((a) => (
+                            <li key={a.id} style={{ textDecoration: a.done ? "line-through" : "none", opacity: a.done ? 0.6 : 1 }}>
+                              {a.text}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {m.actionItems.length > 0 && (
+                      <div>
+                        <p style={HISTORY_SUBHEAD}>Action items</p>
+                        <ul style={{ margin: 0, paddingLeft: "18px", color: "rgba(255,255,255,0.75)", fontSize: "12px", lineHeight: 1.6 }}>
+                          {m.actionItems.map((a) => (
+                            <li key={a.id} style={{ textDecoration: a.done ? "line-through" : "none", opacity: a.done ? 0.6 : 1 }}>
+                              {a.text} <span style={{ color: "rgba(255,255,255,0.40)", fontSize: "10px" }}>— {a.owner}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {m.notes.trim() && (
+                      <div>
+                        <p style={HISTORY_SUBHEAD}>Notes</p>
+                        <p style={{ margin: 0, color: "rgba(255,255,255,0.75)", fontSize: "12px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                          {m.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+
+const HISTORY_SUBHEAD: React.CSSProperties = {
+  fontFamily: "system-ui",
+  fontSize: "10px",
+  color: "rgba(255,255,255,0.45)",
+  textTransform: "uppercase",
+  letterSpacing: "0.10em",
+  margin: "0 0 6px",
+  fontWeight: 600,
+};
 
 function TextBlock({
   label,
@@ -626,7 +1011,7 @@ function AgendaBlock({
         }}
       >
         <span>Agenda</span>
-        <span style={{ color: "rgba(255,255,255,0.40)", fontWeight: 400, textTransform: "none", letterSpacing: "0" }}>
+        <span style={{ color: "rgba(255,255,255,0.40)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
           {done}/{items.length} covered
         </span>
       </p>
@@ -703,7 +1088,6 @@ function AgendaBlock({
             if (e.key === "Enter" && draft.trim()) {
               onAdd(draft.trim());
               setDraft("");
-              // Keep focus on the input so you can keep adding topics in quick succession
               requestAnimationFrame(() => inputRef.current?.focus());
             }
           }}
@@ -721,10 +1105,11 @@ function AgendaBlock({
         />
         <button
           onClick={() => {
-            if (!draft.trim()) return;
-            onAdd(draft.trim());
-            setDraft("");
-            requestAnimationFrame(() => inputRef.current?.focus());
+            if (draft.trim()) {
+              onAdd(draft.trim());
+              setDraft("");
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }
           }}
           disabled={!draft.trim()}
           style={{
@@ -747,9 +1132,12 @@ function AgendaBlock({
 }
 
 function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
-  const text =
-    state === "saving" ? "Saving…" : state === "saved" ? "Saved ✓" : "All changes saved";
-  const color = state === "saving" ? "rgba(251,191,36,0.85)" : state === "saved" ? "rgba(52,211,153,0.90)" : "rgba(255,255,255,0.30)";
+  const color =
+    state === "saving"
+      ? "rgba(251,191,36,0.85)"
+      : state === "saved"
+      ? "rgba(52,211,153,0.90)"
+      : "rgba(255,255,255,0.30)";
   return (
     <span
       style={{
@@ -764,14 +1152,14 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
     >
       <span
         style={{
-          width: "6px",
-          height: "6px",
+          width: 6,
+          height: 6,
           borderRadius: "50%",
           background: color,
           ...(state === "saving" ? { animation: "pulse 1s infinite" } : {}),
         }}
       />
-      {text}
+      {state === "saving" ? "Saving…" : state === "saved" ? "Saved ✓" : "All changes saved"}
     </span>
   );
 }
@@ -785,8 +1173,6 @@ function TemplateMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
@@ -795,11 +1181,10 @@ function TemplateMenu({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
-
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((o) => !o)}
         title="Apply meeting agenda template"
         style={{
           display: "inline-flex",
@@ -837,7 +1222,10 @@ function TemplateMenu({
           }}
         >
           <button
-            onClick={() => { setOpen(false); onUse(); }}
+            onClick={() => {
+              setOpen(false);
+              onUse();
+            }}
             style={{
               display: "block",
               width: "100%",
@@ -857,20 +1245,15 @@ function TemplateMenu({
           >
             Use template (replace agenda)
           </button>
-          <p
-            style={{
-              fontFamily: "system-ui",
-              fontSize: "10px",
-              color: "rgba(255,255,255,0.40)",
-              margin: "0 10px 6px",
-              lineHeight: 1.4,
-            }}
-          >
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", margin: "0 10px 6px", lineHeight: 1.4 }}>
             Replaces all current agenda items with the {DEFAULT_AGENDA_TEMPLATE.length} standing topics.
           </p>
           <div style={{ height: "1px", background: "rgba(255,255,255,0.08)", margin: "4px 6px" }} />
           <button
-            onClick={() => { setOpen(false); onAppend(); }}
+            onClick={() => {
+              setOpen(false);
+              onAppend();
+            }}
             style={{
               display: "block",
               width: "100%",
@@ -890,15 +1273,7 @@ function TemplateMenu({
           >
             Append template to agenda
           </button>
-          <p
-            style={{
-              fontFamily: "system-ui",
-              fontSize: "10px",
-              color: "rgba(255,255,255,0.40)",
-              margin: "0 10px 4px",
-              lineHeight: 1.4,
-            }}
-          >
+          <p style={{ fontFamily: "system-ui", fontSize: "10px", color: "rgba(255,255,255,0.40)", margin: "0 10px 4px", lineHeight: 1.4 }}>
             Keeps existing items and adds the template below them.
           </p>
         </div>

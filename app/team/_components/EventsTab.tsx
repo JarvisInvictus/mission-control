@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { TabMeta } from "../page";
+import { CalendarView } from "./CalendarView";
 
 type Attendee = "Milzzy" | "Miggy" | "Sonta";
 
@@ -76,6 +77,8 @@ export function EventsTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } =
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [clientSearch, setClientSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  // Calendar visible by default — Milzzy can hide it with the toggle.
+  const [calendarOpen, setCalendarOpen] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -213,26 +216,70 @@ export function EventsTab({ onMeta }: { onMeta?: (m: TabMeta | null) => void } =
               Custom team events with attached clients
             </p>
           </div>
-          {mode.kind === "closed" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button
-              onClick={startCreate}
+              onClick={() => setCalendarOpen((o) => !o)}
+              title={calendarOpen ? "Hide calendar" : "Show calendar"}
               style={{
                 fontFamily: "system-ui",
                 fontSize: "12px",
                 fontWeight: 600,
-                letterSpacing: "0.05em",
-                color: "rgba(255,255,255,0.95)",
-                background: "rgba(10,186,181,0.18)",
-                border: "1px solid rgba(10,186,181,0.40)",
+                letterSpacing: "0.04em",
+                color: calendarOpen ? "rgba(10,14,26,0.95)" : "rgba(255,255,255,0.85)",
+                background: calendarOpen ? "#0abab5" : "rgba(255,255,255,0.05)",
+                border: calendarOpen ? "1px solid #0abab5" : "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "10px",
-                padding: "8px 14px",
+                padding: "8px 12px",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
               }}
             >
-              + New Event
+              <span style={{ fontSize: "13px" }}>{calendarOpen ? "🙈" : "📅"}</span>
+              {calendarOpen ? "Hide calendar" : "Show calendar"}
             </button>
-          )}
+            {mode.kind === "closed" && (
+              <button
+                onClick={startCreate}
+                style={{
+                  fontFamily: "system-ui",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  color: "rgba(255,255,255,0.95)",
+                  background: "rgba(10,186,181,0.18)",
+                  border: "1px solid rgba(10,186,181,0.40)",
+                  borderRadius: "10px",
+                  padding: "8px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                + New Event
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Calendar view (toggleable) */}
+        {calendarOpen && (
+          <div style={{ marginBottom: "20px" }}>
+            <CalendarView
+              events={teamEvents.map((e) => ({
+                id: e.id,
+                title: e.title,
+                description: e.description,
+                date: e.date,
+                time: e.time,
+                location: e.location,
+                attendees: e.attendees,
+                clientIds: e.clientIds,
+              }))}
+              onSelectEvent={(ev) => startEdit(teamEvents.find((e) => e.id === ev.id) ?? ev as unknown as TeamEvent)}
+            />
+          </div>
+        )}
 
         {/* Add / Edit form */}
         {mode.kind !== "closed" && (
